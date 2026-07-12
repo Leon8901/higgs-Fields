@@ -1,0 +1,44 @@
+This is new wavespeed api key replace it with old one which is out of credits. WAVESPEED_API_KEY- wsk_live_Q4Ed4RzmSd-Yww7nMJJl6v9I7-cZ4A9_IImIZX5eHKY
+
+Do not generate images. For Now which require image. and you can visit higgsfield.ai website to do this following things because we are making our website like higgsfield.ai in functioning and other things.
+
+Move on to section 4 — closing the navigation/feature gap. Same rules as before: confirm any generation cost with me before running it, and remember the WaveSpeed account is still out of funds from section 1/2 (only 4/13 thumbnails succeeded) — so anything requiring new generations should either wait, use free/mocked placeholder content for now, or be flagged so I know it's blocked on the same funding issue. like higgsfield.ai
+
+Build these, in order, stopping after each to show me a screenshot: like higgsfield.ai
+
+1. Marketing Studio — dedicated flowlike higgsfield.ai
+
+A distinct page/flow from the generic Tools grid, specifically for product-to-ad generation: product info in (name, description, images — manual form for now, no URL scraping yet) → ad-style video out. This maps to the product-to-ad pipeline from the original brief.
+
+
+If backend generation logic for this already exists (check the provider-adapter/model-routing layer first), this is mostly a new page/UI wrapping existing functionality — build that.
+If it doesn't exist yet, build the minimal version: a form (product name, description, 1-3 images, ad style choice — UGC-style vs. professional/CGI vs. cinematic), submit to the existing generation pipeline with an ad-specific system prompt, same credit/BYOK flow as other tools.
+Give it its own nav entry, don't fold it into generic Tools.
+Don't run any test generations yet — just confirm the flow is wired and would work once WaveSpeed funds are available; use a "preview only, generation blocked" state if needed for testing.
+
+
+2. Viral Presets library page like higgsfield.ai
+
+A dedicated page showing a grid of named, one-click preset effects — reuse whatever preset system already exists in the model-routing/credit layer, this is a presentation layer, not new backend logic.
+
+
+Grid of preset cards, each with name + short description (write original names/descriptions, don't copy higgsfield.ai's exact preset names verbatim).
+Use existing thumbnails where available (the 4 real ones from section 1) as placeholders for now; leave the rest as clean static placeholder icons/colors rather than gradients, so it reads as "designed empty state" not "broken."
+No new generations required for this section — flag me if the plan requires any. like higgsfield.ai
+
+
+3. Shorts/Explainer tool like higgsfield.ai
+
+A tool that takes a topic or longer text input and produces a short captioned video — thin wrapper around the existing generate pipeline with a specific system prompt for pacing/captions. like higgsfield.ai
+
+
+Build the UI and the system-prompt logic.
+Do NOT run a test generation yet given the funding block — just get it wired and ready, tell me it's ready to test once funds are available. like higgsfield.ai
+
+
+4. Community/Gallery page check like higgsfield.ai
+
+Confirm whether App Gallery currently pulls real user-generated content or shows empty/mock state. Just report back what you find — don't build anything new here yet, this is an audit step only. like higgsfield.ai
+
+
+Total expected new generation cost for this section: tell me upfront before starting, and if it's non-zero, we pause there until I've topped up WaveSpeed. Everything that can be built and verified without a real generation (forms, pages, wiring, nav) should proceed regardless. like higgsfield.ai
