@@ -155,7 +155,10 @@ export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navLinks = [
-    { href: "/tools", label: "Tools" },
+    { href: "/tools", label: "Explore" },
+    { href: "/image", label: "Image" },
+    { href: "/video", label: "Video" },
+    { href: "/audio", label: "Audio" },
     { href: "/marketing-studio", label: "Marketing Studio" },
     { href: "/presets", label: "Presets" },
     { href: "/shorts", label: "Shorts" },
@@ -260,7 +263,10 @@ export function Footer() {
           <div>
             <h4 className="font-semibold text-white mb-4">Product</h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
-              <li><Link href="/tools" className="hover:text-primary transition-colors">Tools</Link></li>
+              <li><Link href="/tools" className="hover:text-primary transition-colors">Explore</Link></li>
+              <li><Link href="/image" className="hover:text-primary transition-colors">Image</Link></li>
+              <li><Link href="/video" className="hover:text-primary transition-colors">Video</Link></li>
+              <li><Link href="/audio" className="hover:text-primary transition-colors">Audio</Link></li>
               <li><Link href="/marketing-studio" className="hover:text-primary transition-colors">Marketing Studio</Link></li>
               <li><Link href="/presets" className="hover:text-primary transition-colors">Presets</Link></li>
               <li><Link href="/shorts" className="hover:text-primary transition-colors">Shorts</Link></li>

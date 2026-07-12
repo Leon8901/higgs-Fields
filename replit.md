@@ -26,7 +26,8 @@ A full-stack AI creative platform website inspired by higgsfield.ai — featurin
 - `lib/api-spec/openapi.yaml` — source of truth for all API contracts
 - `lib/db/src/schema/` — Drizzle table definitions (tools, apps, pricing_plans, waitlist)
 - `artifacts/api-server/src/routes/` — Express route handlers (tools, apps, pricing, stats, waitlist)
-- `artifacts/higgsfield/src/pages/` — React pages (home, tools, tool-detail, apps, pricing)
+- `artifacts/higgsfield/src/pages/` — React pages (home, tools, category-studio, tool-detail redirect, apps, pricing)
+- `artifacts/higgsfield/src/components/model-studio.tsx` — shared generation form/result panel used by the Image/Video/Audio category pages
 - `artifacts/higgsfield/src/index.css` — design tokens and theme (dark mode, lime-green accent)
 - `lib/api-client-react/src/generated/` — generated React Query hooks (do not edit)
 - `lib/api-zod/src/generated/` — generated Zod schemas (do not edit)
@@ -34,8 +35,9 @@ A full-stack AI creative platform website inspired by higgsfield.ai — featurin
 ## Pages
 
 - `/` — Homepage with hero, featured tools, app gallery, platform stats, waitlist CTA
-- `/tools` — Full tools catalog with category filter tabs (All/Image/Video/Audio)
-- `/tools/:slug` — Individual tool detail page
+- `/tools` (nav label "Explore") — Full tools catalog with category filter tabs (All/Image/Video/Audio), for browsing
+- `/image`, `/video`, `/audio` — Per-category generation studios (mirrors higgsfield.ai): a model-switcher dropdown plus the shared generation form/result panel, instead of a separate page per model
+- `/tools/:slug` — Legacy per-tool URL; resolves the model then redirects to `/{category}?model={slug}` so old links (home tool cards, Presets "Try it", Library "Regenerate") keep working
 - `/apps` — Community app gallery with search + filter
 - `/pricing` — Pricing plans with monthly/yearly toggle
 

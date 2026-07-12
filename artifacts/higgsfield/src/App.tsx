@@ -10,6 +10,17 @@ import { shadcn } from "@clerk/themes";
 import Home from "@/pages/home";
 import Tools from "@/pages/tools";
 import ToolDetail from "@/pages/tool-detail";
+import CategoryStudio from "@/pages/category-studio";
+
+function ImageStudio() {
+  return <CategoryStudio category="image" />;
+}
+function VideoStudio() {
+  return <CategoryStudio category="video" />;
+}
+function AudioStudio() {
+  return <CategoryStudio category="audio" />;
+}
 import MarketingStudio from "@/pages/marketing-studio";
 import Presets from "@/pages/presets";
 import Shorts from "@/pages/shorts";
@@ -132,6 +143,9 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/tools" component={Tools} />
       <Route path="/tools/:slug" component={ToolDetail} />
+      <Route path="/image" component={ImageStudio} />
+      <Route path="/video" component={VideoStudio} />
+      <Route path="/audio" component={AudioStudio} />
       <Route path="/marketing-studio" component={MarketingStudio} />
       <Route path="/presets" component={Presets} />
       <Route path="/shorts" component={Shorts} />
