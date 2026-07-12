@@ -14,5 +14,15 @@ export interface MeProfile {
   planKey: string;
   creditsBalance: number;
   hasOwnKey: boolean;
+  /**
+     * active | pending | halted | cancelled | completed | null (no Razorpay subscription)
+     * @nullable
+     */
+  subscriptionStatus?: string | null;
+  /**
+     * monthly | yearly | null
+     * @nullable
+     */
+  billingInterval?: string | null;
   createdAt: Date;
 }

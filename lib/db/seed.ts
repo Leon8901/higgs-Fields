@@ -2,7 +2,7 @@
 //   pnpm --filter @workspace/db run seed
 // Safe to re-run: each section upserts on its natural unique key.
 import { db } from "./src/index";
-import { toolsTable, modelsTable, pricingPlansTable, appsTable } from "./src/schema";
+import { toolsTable, modelsTable, pricingPlansTable, appsTable, creditPacksTable } from "./src/schema";
 import { sql } from "drizzle-orm";
 
 type ParamField = {
@@ -404,6 +404,20 @@ async function main() {
       .insert(pricingPlansTable)
       .values(p)
       .onConflictDoUpdate({ target: pricingPlansTable.planKey, set: p });
+  }
+
+  console.log("Seeding credit packs...");
+  const creditPacks = [
+    { packKey: "pack_small", name: "Small Pack", credits: 100, priceUsd: 9, isPopular: false, sortOrder: 1 },
+    { packKey: "pack_medium", name: "Medium Pack", credits: 550, priceUsd: 39, isPopular: true, sortOrder: 2 },
+    { packKey: "pack_large", name: "Large Pack", credits: 1500, priceUsd: 89, isPopular: false, sortOrder: 3 },
+  ];
+
+  for (const p of creditPacks) {
+    await db
+      .insert(creditPacksTable)
+      .values(p)
+      .onConflictDoUpdate({ target: creditPacksTable.packKey, set: p });
   }
 
   console.log("Seeding community apps gallery...");

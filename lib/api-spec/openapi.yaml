@@ -32,6 +32,8 @@ tags:
     description: User-supplied (BYOK) provider API keys
   - name: storage
     description: Object storage upload and serving endpoints
+  - name: billing
+    description: Razorpay-backed subscriptions and one-time credit purchases
 
 paths:
   /healthz:
@@ -168,6 +170,120 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/PricingPlan"
+
+  /credit-packs:
+    get:
+      operationId: listCreditPacks
+      tags: [billing]
+      summary: List one-time credit purchase packs
+      responses:
+        "200":
+          description: All credit packs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CreditPack"
+
+  /billing/status:
+    get:
+      operationId: getBillingStatus
+      tags: [billing]
+      summary: Whether Razorpay credentials are configured yet
+      responses:
+        "200":
+          description: Billing configuration status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingStatus"
+
+  /billing/subscribe:
+    post:
+      operationId: subscribe
+      tags: [billing]
+      summary: Start a Razorpay subscription checkout for a plan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubscribeRequest"
+      responses:
+        "200":
+          description: Subscription created; open Razorpay Checkout with this id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscribeResult"
+        "400":
+          description: Unknown plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: Razorpay request failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Payment processing not yet configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /billing/purchase-credits:
+    post:
+      operationId: purchaseCredits
+      tags: [billing]
+      summary: Start a Razorpay one-time order for a credit pack
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PurchaseCreditsRequest"
+      responses:
+        "200":
+          description: Order created; open Razorpay Checkout with this id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PurchaseCreditsResult"
+        "400":
+          description: Unknown credit pack
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: Razorpay request failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Payment processing not yet configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /stats:
     get:
@@ -733,6 +849,90 @@ components:
         - ctaLabel
         - sortOrder
 
+    CreditPack:
+      type: object
+      properties:
+        id:
+          type: integer
+        packKey:
+          type: string
+        name:
+          type: string
+        credits:
+          type: integer
+        priceUsd:
+          type: number
+        isPopular:
+          type: boolean
+        sortOrder:
+          type: integer
+      required:
+        - id
+        - packKey
+        - name
+        - credits
+        - priceUsd
+        - isPopular
+        - sortOrder
+
+    BillingStatus:
+      type: object
+      properties:
+        configured:
+          type: boolean
+          description: False until RAZORPAY_KEY_ID/RAZORPAY_KEY_SECRET are set — checkout will fail gracefully until then.
+      required:
+        - configured
+
+    SubscribeRequest:
+      type: object
+      properties:
+        planKey:
+          type: string
+        interval:
+          type: string
+          enum: [monthly, yearly]
+      required:
+        - planKey
+        - interval
+
+    SubscribeResult:
+      type: object
+      properties:
+        subscriptionId:
+          type: string
+          description: Razorpay subscription id — pass to Checkout.js as subscription_id
+        razorpayKeyId:
+          type: string
+          description: Public Razorpay key id for the Checkout.js widget
+      required:
+        - subscriptionId
+        - razorpayKeyId
+
+    PurchaseCreditsRequest:
+      type: object
+      properties:
+        packKey:
+          type: string
+      required:
+        - packKey
+
+    PurchaseCreditsResult:
+      type: object
+      properties:
+        orderId:
+          type: string
+          description: Razorpay order id — pass to Checkout.js as order_id
+        razorpayKeyId:
+          type: string
+        amount:
+          type: integer
+          description: Amount in paise (INR), matching what Checkout.js expects
+      required:
+        - orderId
+        - razorpayKeyId
+        - amount
+
     ModelParamField:
       type: object
       properties:
@@ -915,6 +1115,12 @@ components:
           type: integer
         hasOwnKey:
           type: boolean
+        subscriptionStatus:
+          type: ["string", "null"]
+          description: "active | pending | halted | cancelled | completed | null (no Razorpay subscription)"
+        billingInterval:
+          type: ["string", "null"]
+          description: "monthly | yearly | null"
         createdAt:
           type: string
           format: date-time

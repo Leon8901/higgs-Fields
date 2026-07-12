@@ -24,7 +24,9 @@ import type {
   ApiKeySummary,
   App,
   AppStats,
+  BillingStatus,
   CreditLedgerEntry,
+  CreditPack,
   ErrorResponse,
   Generation,
   GenerationInput,
@@ -36,6 +38,10 @@ import type {
   Model,
   PlatformStats,
   PricingPlan,
+  PurchaseCreditsRequest,
+  PurchaseCreditsResult,
+  SubscribeRequest,
+  SubscribeResult,
   SwitchPlanRequest,
   Tool,
   UploadUrlRequest,
@@ -623,6 +629,302 @@ export function useListPricingPlans<TData = Awaited<ReturnType<typeof listPricin
 
 
 
+
+export const getListCreditPacksUrl = () => {
+
+
+
+
+  return `/api/credit-packs`
+}
+
+/**
+ * @summary List one-time credit purchase packs
+ */
+export const listCreditPacks = async ( options?: RequestInit): Promise<CreditPack[]> => {
+
+  return customFetch<CreditPack[]>(getListCreditPacksUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCreditPacksQueryKey = () => {
+    return [
+    `/api/credit-packs`
+    ] as const;
+    }
+
+
+export const getListCreditPacksQueryOptions = <TData = Awaited<ReturnType<typeof listCreditPacks>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCreditPacks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCreditPacksQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCreditPacks>>> = ({ signal }) => listCreditPacks({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCreditPacks>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListCreditPacksQueryResult = NonNullable<Awaited<ReturnType<typeof listCreditPacks>>>
+export type ListCreditPacksQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List one-time credit purchase packs
+ */
+
+export function useListCreditPacks<TData = Awaited<ReturnType<typeof listCreditPacks>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCreditPacks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListCreditPacksQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetBillingStatusUrl = () => {
+
+
+
+
+  return `/api/billing/status`
+}
+
+/**
+ * @summary Whether Razorpay credentials are configured yet
+ */
+export const getBillingStatus = async ( options?: RequestInit): Promise<BillingStatus> => {
+
+  return customFetch<BillingStatus>(getGetBillingStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetBillingStatusQueryKey = () => {
+    return [
+    `/api/billing/status`
+    ] as const;
+    }
+
+
+export const getGetBillingStatusQueryOptions = <TData = Awaited<ReturnType<typeof getBillingStatus>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBillingStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetBillingStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getBillingStatus>>> = ({ signal }) => getBillingStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getBillingStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetBillingStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getBillingStatus>>>
+export type GetBillingStatusQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Whether Razorpay credentials are configured yet
+ */
+
+export function useGetBillingStatus<TData = Awaited<ReturnType<typeof getBillingStatus>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBillingStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetBillingStatusQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSubscribeUrl = () => {
+
+
+
+
+  return `/api/billing/subscribe`
+}
+
+/**
+ * @summary Start a Razorpay subscription checkout for a plan
+ */
+export const subscribe = async (subscribeRequest: SubscribeRequest, options?: RequestInit): Promise<SubscribeResult> => {
+
+  return customFetch<SubscribeResult>(getSubscribeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(subscribeRequest)
+  }
+);}
+
+
+
+
+
+export const getSubscribeMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof subscribe>>, TError,{data: BodyType<SubscribeRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof subscribe>>, TError,{data: BodyType<SubscribeRequest>}, TContext> => {
+
+const mutationKey = ['subscribe'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof subscribe>>, {data: BodyType<SubscribeRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  subscribe(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubscribeMutationResult = NonNullable<Awaited<ReturnType<typeof subscribe>>>
+    export type SubscribeMutationBody = BodyType<SubscribeRequest>
+    export type SubscribeMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Start a Razorpay subscription checkout for a plan
+ */
+export const useSubscribe = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof subscribe>>, TError,{data: BodyType<SubscribeRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof subscribe>>,
+        TError,
+        {data: BodyType<SubscribeRequest>},
+        TContext
+      > => {
+      return useMutation(getSubscribeMutationOptions(options));
+    }
+
+export const getPurchaseCreditsUrl = () => {
+
+
+
+
+  return `/api/billing/purchase-credits`
+}
+
+/**
+ * @summary Start a Razorpay one-time order for a credit pack
+ */
+export const purchaseCredits = async (purchaseCreditsRequest: PurchaseCreditsRequest, options?: RequestInit): Promise<PurchaseCreditsResult> => {
+
+  return customFetch<PurchaseCreditsResult>(getPurchaseCreditsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(purchaseCreditsRequest)
+  }
+);}
+
+
+
+
+
+export const getPurchaseCreditsMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof purchaseCredits>>, TError,{data: BodyType<PurchaseCreditsRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof purchaseCredits>>, TError,{data: BodyType<PurchaseCreditsRequest>}, TContext> => {
+
+const mutationKey = ['purchaseCredits'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof purchaseCredits>>, {data: BodyType<PurchaseCreditsRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  purchaseCredits(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PurchaseCreditsMutationResult = NonNullable<Awaited<ReturnType<typeof purchaseCredits>>>
+    export type PurchaseCreditsMutationBody = BodyType<PurchaseCreditsRequest>
+    export type PurchaseCreditsMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Start a Razorpay one-time order for a credit pack
+ */
+export const usePurchaseCredits = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof purchaseCredits>>, TError,{data: BodyType<PurchaseCreditsRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof purchaseCredits>>,
+        TError,
+        {data: BodyType<PurchaseCreditsRequest>},
+        TContext
+      > => {
+      return useMutation(getPurchaseCreditsMutationOptions(options));
+    }
 
 export const getGetPlatformStatsUrl = () => {
 

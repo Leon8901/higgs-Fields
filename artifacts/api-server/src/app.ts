@@ -4,6 +4,7 @@ import pinoHttp from "pino-http";
 import { clerkMiddleware } from "@clerk/express";
 import { publishableKeyFromHost } from "@clerk/shared/keys";
 import router from "./routes";
+import billingWebhookRouter from "./routes/billing-webhook";
 import { logger } from "./lib/logger";
 import {
   CLERK_PROXY_PATH,
@@ -37,6 +38,13 @@ app.use(
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 
 app.use(cors({ credentials: true, origin: true }));
+
+// Razorpay webhook signature verification needs the exact raw request
+// bytes, so this must be mounted with express.raw() before express.json()
+// touches the body. Lives outside the /api router (which is JSON-only) but
+// still under /api/billing/webhook so it matches the base-path convention.
+app.use("/api/billing/webhook", express.raw({ type: "*/*" }), billingWebhookRouter);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

@@ -89,6 +89,53 @@ export interface PricingPlan {
   sortOrder: number;
 }
 
+export interface CreditPack {
+  id: number;
+  packKey: string;
+  name: string;
+  credits: number;
+  priceUsd: number;
+  isPopular: boolean;
+  sortOrder: number;
+}
+
+export interface BillingStatus {
+  /** False until RAZORPAY_KEY_ID/RAZORPAY_KEY_SECRET are set — checkout will fail gracefully until then. */
+  configured: boolean;
+}
+
+export type SubscribeRequestInterval = typeof SubscribeRequestInterval[keyof typeof SubscribeRequestInterval];
+
+
+export const SubscribeRequestInterval = {
+  monthly: 'monthly',
+  yearly: 'yearly',
+} as const;
+
+export interface SubscribeRequest {
+  planKey: string;
+  interval: SubscribeRequestInterval;
+}
+
+export interface SubscribeResult {
+  /** Razorpay subscription id — pass to Checkout.js as subscription_id */
+  subscriptionId: string;
+  /** Public Razorpay key id for the Checkout.js widget */
+  razorpayKeyId: string;
+}
+
+export interface PurchaseCreditsRequest {
+  packKey: string;
+}
+
+export interface PurchaseCreditsResult {
+  /** Razorpay order id — pass to Checkout.js as order_id */
+  orderId: string;
+  razorpayKeyId: string;
+  /** Amount in paise (INR), matching what Checkout.js expects */
+  amount: number;
+}
+
 export type ModelParamFieldType = typeof ModelParamFieldType[keyof typeof ModelParamFieldType];
 
 
@@ -229,6 +276,16 @@ export interface MeProfile {
   planKey: string;
   creditsBalance: number;
   hasOwnKey: boolean;
+  /**
+     * active | pending | halted | cancelled | completed | null (no Razorpay subscription)
+     * @nullable
+     */
+  subscriptionStatus?: string | null;
+  /**
+     * monthly | yearly | null
+     * @nullable
+     */
+  billingInterval?: string | null;
   createdAt: string;
 }
 

@@ -11,6 +11,7 @@ import meRouter from "./me";
 import creditsRouter from "./credits";
 import apiKeysRouter from "./api-keys";
 import storageRouter from "./storage";
+import billingRouter from "./billing";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use(meRouter);
 router.use(creditsRouter);
 router.use(apiKeysRouter);
 router.use(storageRouter);
+router.use(billingRouter);
 
 export default router;

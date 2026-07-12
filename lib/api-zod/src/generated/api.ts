@@ -142,6 +142,57 @@ export const ListPricingPlansResponse = zod.array(ListPricingPlansResponseItem)
 
 
 /**
+ * @summary List one-time credit purchase packs
+ */
+export const ListCreditPacksResponseItem = zod.object({
+  "id": zod.number(),
+  "packKey": zod.string(),
+  "name": zod.string(),
+  "credits": zod.number(),
+  "priceUsd": zod.number(),
+  "isPopular": zod.boolean(),
+  "sortOrder": zod.number()
+})
+export const ListCreditPacksResponse = zod.array(ListCreditPacksResponseItem)
+
+
+/**
+ * @summary Whether Razorpay credentials are configured yet
+ */
+export const GetBillingStatusResponse = zod.object({
+  "configured": zod.boolean().describe('False until RAZORPAY_KEY_ID\/RAZORPAY_KEY_SECRET are set — checkout will fail gracefully until then.')
+})
+
+
+/**
+ * @summary Start a Razorpay subscription checkout for a plan
+ */
+export const SubscribeBody = zod.object({
+  "planKey": zod.string(),
+  "interval": zod.enum(['monthly', 'yearly'])
+})
+
+export const SubscribeResponse = zod.object({
+  "subscriptionId": zod.string().describe('Razorpay subscription id — pass to Checkout.js as subscription_id'),
+  "razorpayKeyId": zod.string().describe('Public Razorpay key id for the Checkout.js widget')
+})
+
+
+/**
+ * @summary Start a Razorpay one-time order for a credit pack
+ */
+export const PurchaseCreditsBody = zod.object({
+  "packKey": zod.string()
+})
+
+export const PurchaseCreditsResponse = zod.object({
+  "orderId": zod.string().describe('Razorpay order id — pass to Checkout.js as order_id'),
+  "razorpayKeyId": zod.string(),
+  "amount": zod.number().describe('Amount in paise (INR), matching what Checkout.js expects')
+})
+
+
+/**
  * @summary Platform-level stats for the hero section
  */
 export const GetPlatformStatsResponse = zod.object({
@@ -255,6 +306,8 @@ export const GetMeResponse = zod.object({
   "planKey": zod.string(),
   "creditsBalance": zod.number(),
   "hasOwnKey": zod.boolean(),
+  "subscriptionStatus": zod.string().nullish().describe('active | pending | halted | cancelled | completed | null (no Razorpay subscription)'),
+  "billingInterval": zod.string().nullish().describe('monthly | yearly | null'),
   "createdAt": zod.coerce.date()
 })
 
@@ -273,6 +326,8 @@ export const SwitchPlanResponse = zod.object({
   "planKey": zod.string(),
   "creditsBalance": zod.number(),
   "hasOwnKey": zod.boolean(),
+  "subscriptionStatus": zod.string().nullish().describe('active | pending | halted | cancelled | completed | null (no Razorpay subscription)'),
+  "billingInterval": zod.string().nullish().describe('monthly | yearly | null'),
   "createdAt": zod.coerce.date()
 })
 

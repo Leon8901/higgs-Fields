@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, userApiKeysTable, usersTable, pricingPlansTable, creditLedgerTable } from "@workspace/db";
+import { db, userApiKeysTable, usersTable } from "@workspace/db";
 import { GetMeResponse, SwitchPlanBody, SwitchPlanResponse } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
 
@@ -18,6 +18,8 @@ router.get("/me", requireAuth, async (req, res): Promise<void> => {
       planKey: user.planKey,
       creditsBalance: user.creditsBalance,
       hasOwnKey: !!ownKey,
+      subscriptionStatus: user.subscriptionStatus,
+      billingInterval: user.billingInterval,
       createdAt: user.createdAt,
     }),
   );
@@ -33,31 +35,20 @@ router.post("/me/plan", requireAuth, async (req, res): Promise<void> => {
   const { planKey } = body.data;
   const user = req.appUser!;
 
-  let creditsGrant = 0;
+  // Paid plans now require a real Razorpay subscription (see POST
+  // /billing/subscribe) — this endpoint only handles voluntary downgrade to
+  // the free tier (e.g. cancelling), so it can never be used to grant paid
+  // credits without an actual payment.
   if (planKey !== "free") {
-    const [plan] = await db.select().from(pricingPlansTable).where(eq(pricingPlansTable.planKey, planKey));
-    if (!plan) {
-      res.status(400).json({ error: "Unknown plan." });
-      return;
-    }
-    creditsGrant = plan.creditsPerMonth;
+    res.status(400).json({ error: "Paid plans require checkout. Use the Pricing page to subscribe." });
+    return;
   }
 
-  const newBalance = user.creditsBalance + creditsGrant;
   const [updated] = await db
     .update(usersTable)
-    .set({ planKey, creditsBalance: newBalance })
+    .set({ planKey: "free", subscriptionStatus: null, billingInterval: null })
     .where(eq(usersTable.id, user.id))
     .returning();
-
-  if (creditsGrant > 0) {
-    await db.insert(creditLedgerTable).values({
-      userId: user.id,
-      delta: creditsGrant,
-      reason: "plan_upgrade",
-      balanceAfter: newBalance,
-    });
-  }
 
   const [ownKey] = await db.select().from(userApiKeysTable).where(eq(userApiKeysTable.userId, user.id));
 
@@ -69,6 +60,8 @@ router.post("/me/plan", requireAuth, async (req, res): Promise<void> => {
       planKey: updated.planKey,
       creditsBalance: updated.creditsBalance,
       hasOwnKey: !!ownKey,
+      subscriptionStatus: updated.subscriptionStatus,
+      billingInterval: updated.billingInterval,
       createdAt: updated.createdAt,
     }),
   );

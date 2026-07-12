@@ -10,9 +10,13 @@ export const creditLedgerTable = pgTable("credit_ledger", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
   delta: integer("delta").notNull(), // positive = credit granted, negative = spent
-  reason: text("reason").notNull(), // signup_bonus | plan_grant | generation | refund | manual_adjustment
+  reason: text("reason").notNull(), // signup_bonus | plan_upgrade | plan_renewal | credit_pack_purchase | generation | refund | manual_adjustment
   balanceAfter: integer("balance_after").notNull(),
   generationId: integer("generation_id").references(() => generationsTable.id),
+  // Razorpay payment/order id for billing-originated entries (plan_renewal,
+  // credit_pack_purchase). Lets the webhook handler dedupe if Razorpay
+  // redelivers the same event — never grant credits twice for one payment.
+  providerRef: text("provider_ref"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
