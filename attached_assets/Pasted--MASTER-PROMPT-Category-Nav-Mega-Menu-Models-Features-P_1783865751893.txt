@@ -1,0 +1,42 @@
+# MASTER PROMPT — Category Nav Mega-Menu (Models + Features)
+
+Paste into Replit as its own isolated task, separate from any other in-progress work. Do not combine with the Product Import task or touch its files.
+
+## Implementation Rules
+
+- Do not rewrite existing working functionality.
+- Do not refactor unrelated code.
+- Keep changes localized to navigation/menu UI and the model-catalog query it depends on.
+- Do not introduce new infrastructure. This is a UI + existing-data-query task, zero generation cost — confirm that's the case before starting.
+- Do not touch the avatar system.
+
+## What to build
+
+On hover/click of "Image", "Video", and "Audio" in the main nav, show a mega-menu dropdown with two columns:
+
+**Right column — Models (build this now, real data):**
+- Query the existing model catalog (whatever table/endpoint already lists the 13 WaveSpeedAI-routed models) filtered by category (image/video/audio).
+- Display each model as a row: icon/thumbnail, name, and a short one-line description pulled from the existing model metadata (reuse whatever description field already exists on the model record — don't invent new copy per model if a description field is already there).
+- Clicking a model row navigates directly to the generation page with that specific model pre-selected.
+- If a category has zero models currently in the catalog (e.g. if Audio isn't populated yet), show that column as empty with a simple "coming soon" state rather than erroring or hiding the column entirely.
+
+**Left column — Features (structure only for now, empty/placeholder):**
+- Build the column layout and styling so it's ready to populate, but leave it empty or with a small number of placeholder/"coming soon" entries for now — don't invent fake feature names to fill space. As real features (Url to Ad, multi-shot studio, etc.) ship, they get added here as a small follow-up edit, not part of this task.
+
+**Menu behavior:**
+- Opens on hover (with a small delay to avoid flicker on accidental mouse-over) or click, matching standard mega-menu UX.
+- Closes on click-outside or when the mouse leaves the menu area.
+- Should work correctly on both desktop (hover) and mobile/touch (tap to open, tap outside to close) — don't ship a hover-only interaction that breaks on touch devices.
+- Keyboard accessible: the menu should be reachable and dismissible via keyboard navigation (Tab to open, Escape to close), not just mouse-only.
+
+## Definition of Success
+
+The implementation is complete only if:
+1. Hovering/clicking Image, Video, and Audio in the nav shows a mega-menu with a Models column listing all real currently-catalogued models for that category.
+2. Clicking any listed model navigates to generation with that model pre-selected.
+3. The Features column exists structurally, styled correctly, without fake placeholder feature names.
+4. The menu works correctly on both desktop and mobile/touch.
+5. No existing navigation or generation functionality is broken.
+6. TypeScript compiles with no new warnings or errors.
+
+Show me a screenshot of the Image and Video mega-menus once done.

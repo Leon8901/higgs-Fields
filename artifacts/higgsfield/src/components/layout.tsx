@@ -14,6 +14,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Show, useUser, useClerk } from "@clerk/react";
 import { useGetMe } from "@workspace/api-client-react";
+import { MegaMenuTrigger } from "@/components/mega-menu";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -156,14 +157,17 @@ export function Navbar() {
 
   const navLinks = [
     { href: "/tools", label: "Explore" },
-    { href: "/image", label: "Image" },
-    { href: "/video", label: "Video" },
-    { href: "/audio", label: "Audio" },
     { href: "/marketing-studio", label: "Marketing Studio" },
     { href: "/presets", label: "Presets" },
     { href: "/shorts", label: "Shorts" },
     { href: "/apps", label: "App Gallery" },
     { href: "/pricing", label: "Pricing" },
+  ];
+
+  const megaMenuCategories: { category: "image" | "video" | "audio"; label: string }[] = [
+    { category: "image", label: "Image" },
+    { category: "video", label: "Video" },
+    { category: "audio", label: "Audio" },
   ];
 
   const closeMobileMenu = () => setMobileMenuOpen(false);
@@ -180,15 +184,34 @@ export function Navbar() {
           </Link>
           
           <nav className="hidden md:flex items-center gap-1">
-            {navLinks.map((link) => (
-              <Link 
-                key={link.href} 
+            <Link
+              href="/tools"
+              className={cn(
+                "px-4 py-2 rounded-md text-sm font-medium transition-colors",
+                location === "/tools"
+                  ? "bg-white/10 text-white"
+                  : "text-muted-foreground hover:text-white hover:bg-white/5",
+              )}
+            >
+              Explore
+            </Link>
+            {megaMenuCategories.map(({ category, label }) => (
+              <MegaMenuTrigger
+                key={category}
+                category={category}
+                label={label}
+                active={location === `/${category}`}
+              />
+            ))}
+            {navLinks.slice(1).map((link) => (
+              <Link
+                key={link.href}
                 href={link.href}
                 className={cn(
                   "px-4 py-2 rounded-md text-sm font-medium transition-colors",
-                  location === link.href 
-                    ? "bg-white/10 text-white" 
-                    : "text-muted-foreground hover:text-white hover:bg-white/5"
+                  location === link.href
+                    ? "bg-white/10 text-white"
+                    : "text-muted-foreground hover:text-white hover:bg-white/5",
                 )}
               >
                 {link.label}
@@ -218,7 +241,13 @@ export function Navbar() {
             className="md:hidden border-b border-white/5 bg-background overflow-hidden"
           >
             <div className="flex flex-col p-4 gap-2">
-              {navLinks.map((link) => (
+              {[
+                { href: "/tools", label: "Explore" },
+                { href: "/image", label: "Image" },
+                { href: "/video", label: "Video" },
+                { href: "/audio", label: "Audio" },
+                ...navLinks.slice(1),
+              ].map((link) => (
                 <Link 
                   key={link.href} 
                   href={link.href}
