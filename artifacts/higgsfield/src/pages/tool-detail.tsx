@@ -9,6 +9,8 @@ import {
   useGetGeneration,
   getGetMeQueryKey,
   getListGenerationsQueryKey,
+  getGetModelQueryKey,
+  getGetGenerationQueryKey,
   type ModelParamField,
   type Generation,
 } from "@workspace/api-client-react";
@@ -277,7 +279,9 @@ export default function ToolDetail() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: model, isLoading, isError } = useGetModel(slug ?? "", { query: { enabled: !!slug } });
+  const { data: model, isLoading, isError } = useGetModel(slug ?? "", {
+    query: { queryKey: getGetModelQueryKey(slug ?? ""), enabled: !!slug },
+  });
   const { data: me } = useGetMe();
   const { data: apiKeys } = useListApiKeys();
 
@@ -327,6 +331,7 @@ export default function ToolDetail() {
 
   const { data: activeGeneration } = useGetGeneration(activeGenerationId ?? 0, {
     query: {
+      queryKey: getGetGenerationQueryKey(activeGenerationId ?? 0),
       enabled: !!activeGenerationId,
       refetchInterval: (query) => {
         const status = query.state.data?.status;

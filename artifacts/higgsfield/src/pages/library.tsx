@@ -1,6 +1,6 @@
 import { Link } from "wouter";
 import { Show } from "@clerk/react";
-import { useListGenerations } from "@workspace/api-client-react";
+import { useListGenerations, type Generation } from "@workspace/api-client-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -20,7 +20,7 @@ const statusStyles: Record<string, string> = {
   failed: "bg-red-500/10 text-red-400 border-red-500/30",
 };
 
-function GenerationCard({ gen }: { gen: ReturnType<typeof useListGenerations>["data"] extends (infer T)[] | undefined ? T : never }) {
+function GenerationCard({ gen }: { gen: Generation }) {
   const firstOutput = gen.outputUrls?.[0];
 
   return (
