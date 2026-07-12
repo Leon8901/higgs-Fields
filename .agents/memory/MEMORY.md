@@ -1,1 +1,2 @@
 - [Imported pnpm-workspace app setup checklist](imported-app-setup-checklist.md) — after `pnpm install`, check for missing Clerk keys and empty DB tables before trusting 500s to be code bugs.
+- [Higgsfield clone BYOK AI keys](higgsfield-clone-byok-ai-keys.md) — this project uses real OPENROUTER_API_KEY/WAVESPEED_API_KEY, not the Replit AI Integrations proxy; Razorpay must degrade gracefully without keys.

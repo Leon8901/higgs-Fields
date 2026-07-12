@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { Show, useUser } from "@clerk/react";
 import {
@@ -8,6 +8,7 @@ import {
   useUpsertApiKey,
   useDeleteApiKey,
   useListPricingPlans,
+  useListGenerations,
   getListApiKeysQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -16,23 +17,29 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Zap, Key, Trash2, Plus, Eye, EyeOff, CreditCard } from "lucide-react";
+import { Zap, Key, Trash2, Plus, Eye, EyeOff, CreditCard, RefreshCw, BarChart3 } from "lucide-react";
 
 function BYOKSection() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data: keys, isLoading } = useListApiKeys();
   const [newKey, setNewKey] = useState("");
-  const [showInput, setShowInput] = useState(false);
+  const [mode, setMode] = useState<"idle" | "add" | "rotate">("idle");
   const [reveal, setReveal] = useState(false);
 
   const upsert = useUpsertApiKey({
     mutation: {
-      onSuccess: () => {
+      onSuccess: (_, vars) => {
         queryClient.invalidateQueries({ queryKey: getListApiKeysQueryKey() });
         setNewKey("");
-        setShowInput(false);
-        toast({ title: "API key saved", description: "Your WaveSpeed key is now active for this account." });
+        setMode("idle");
+        toast({
+          title: vars.data.apiKey ? "API key saved" : "API key saved",
+          description:
+            mode === "rotate"
+              ? "Your WaveSpeed key has been rotated — the old key no longer works for this account."
+              : "Your WaveSpeed key is now active for this account.",
+        });
       },
       onError: () => toast({ title: "Failed to save key", variant: "destructive" }),
     },
@@ -61,7 +68,7 @@ function BYOKSection() {
 
       {isLoading ? (
         <Skeleton className="h-14 bg-white/5 rounded-xl" />
-      ) : wavespeedKey ? (
+      ) : wavespeedKey && mode !== "rotate" ? (
         <div className="flex items-center justify-between bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3">
           <div>
             <div className="text-sm font-semibold text-white">WaveSpeed AI</div>
@@ -76,6 +83,15 @@ function BYOKSection() {
             <Button
               variant="ghost"
               size="icon"
+              className="text-white/50 hover:text-white"
+              onClick={() => setMode("rotate")}
+              title="Replace this key"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
               className="text-red-400 hover:text-red-300"
               onClick={() => del.mutate({ provider: "wavespeed" })}
               disabled={del.isPending}
@@ -84,8 +100,11 @@ function BYOKSection() {
             </Button>
           </div>
         </div>
-      ) : showInput ? (
+      ) : mode === "add" || mode === "rotate" ? (
         <div className="flex flex-col gap-3">
+          {mode === "rotate" && (
+            <p className="text-xs text-white/50">Paste a new key to replace the current one. The old key stops working immediately.</p>
+          )}
           <Input
             type="password"
             placeholder="Paste your WaveSpeed API key"
@@ -99,17 +118,88 @@ function BYOKSection() {
               disabled={!newKey.trim() || upsert.isPending}
               onClick={() => upsert.mutate({ data: { provider: "wavespeed", apiKey: newKey.trim() } })}
             >
-              {upsert.isPending ? "Saving…" : "Save key"}
+              {upsert.isPending ? "Saving…" : mode === "rotate" ? "Replace key" : "Save key"}
             </Button>
-            <Button variant="ghost" className="text-muted-foreground" onClick={() => setShowInput(false)}>
+            <Button variant="ghost" className="text-muted-foreground" onClick={() => setMode("idle")}>
               Cancel
             </Button>
           </div>
         </div>
       ) : (
-        <Button variant="outline" className="border-white/15 text-white hover:bg-white/5" onClick={() => setShowInput(true)}>
+        <Button variant="outline" className="border-white/15 text-white hover:bg-white/5" onClick={() => setMode("add")}>
           <Plus className="w-4 h-4 mr-1.5" /> Add WaveSpeed key
         </Button>
+      )}
+    </div>
+  );
+}
+
+function UsageStatsSection() {
+  const { data: generations, isLoading } = useListGenerations();
+
+  const stats = useMemo(() => {
+    if (!generations) return null;
+    const byModel = new Map<string, { modelName: string; count: number; credits: number }>();
+    let totalCredits = 0;
+    let completed = 0;
+    let failed = 0;
+    for (const gen of generations) {
+      totalCredits += gen.creditsCharged;
+      if (gen.status === "completed") completed++;
+      if (gen.status === "failed") failed++;
+      const entry = byModel.get(gen.modelId) ?? { modelName: gen.modelName, count: 0, credits: 0 };
+      entry.count += 1;
+      entry.credits += gen.creditsCharged;
+      byModel.set(gen.modelId, entry);
+    }
+    const models = [...byModel.values()].sort((a, b) => b.count - a.count);
+    return { total: generations.length, completed, failed, totalCredits, models };
+  }, [generations]);
+
+  return (
+    <div className="bg-white/[0.03] border border-white/8 rounded-2xl p-6">
+      <div className="flex items-center gap-2 mb-5">
+        <BarChart3 className="w-5 h-5 text-primary" />
+        <h2 className="text-lg font-bold text-white">Usage stats</h2>
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-2">
+          {[1, 2, 3].map((i) => <Skeleton key={i} className="h-10 bg-white/5 rounded-lg" />)}
+        </div>
+      ) : !stats || stats.total === 0 ? (
+        <p className="text-sm text-muted-foreground">No generations yet — your usage will show up here.</p>
+      ) : (
+        <>
+          <div className="grid grid-cols-3 gap-3 mb-5">
+            <div className="bg-white/[0.04] rounded-xl p-3 text-center">
+              <div className="text-2xl font-black text-white">{stats.total}</div>
+              <div className="text-xs text-muted-foreground">Generations</div>
+            </div>
+            <div className="bg-white/[0.04] rounded-xl p-3 text-center">
+              <div className="text-2xl font-black text-primary">{stats.totalCredits}</div>
+              <div className="text-xs text-muted-foreground">Credits spent</div>
+            </div>
+            <div className="bg-white/[0.04] rounded-xl p-3 text-center">
+              <div className="text-2xl font-black text-white">
+                {stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0}%
+              </div>
+              <div className="text-xs text-muted-foreground">Success rate</div>
+            </div>
+          </div>
+
+          <div className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-2">By model</div>
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {stats.models.map((m) => (
+              <div key={m.modelName} className="flex items-center justify-between text-sm">
+                <span className="text-white/80">{m.modelName}</span>
+                <span className="text-muted-foreground">
+                  {m.count} {m.count === 1 ? "run" : "runs"} · {m.credits} credits
+                </span>
+              </div>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
@@ -207,6 +297,7 @@ export default function Account() {
 
         <div className="space-y-6">
           <BYOKSection />
+          <UsageStatsSection />
           <LedgerSection />
         </div>
       </Show>

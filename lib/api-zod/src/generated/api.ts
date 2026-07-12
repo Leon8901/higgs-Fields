@@ -427,6 +427,16 @@ export const GetGenerationResponse = zod.object({
 
 
 /**
+ * @summary Delete a generation from the user's library
+ */
+export const DeleteGenerationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteGenerationResponse = zod.void()
+
+
+/**
  * @summary List the current user's configured BYOK provider keys (masked)
  */
 export const ListApiKeysResponseItem = zod.object({

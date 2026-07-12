@@ -7,6 +7,7 @@ import {
   ListGenerationsResponse,
   GetGenerationParams,
   GetGenerationResponse,
+  DeleteGenerationParams,
 } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { getAdapter } from "../lib/media/registry";
@@ -263,6 +264,26 @@ router.get("/generations/:id", requireAuth, async (req, res): Promise<void> => {
   }
 
   res.json(GetGenerationResponse.parse(toGenerationResponse(generation, model)));
+});
+
+router.delete("/generations/:id", requireAuth, async (req, res): Promise<void> => {
+  const params = DeleteGenerationParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const deleted = await db
+    .delete(generationsTable)
+    .where(and(eq(generationsTable.id, params.data.id), eq(generationsTable.userId, req.appUser!.id)))
+    .returning();
+
+  if (deleted.length === 0) {
+    res.status(404).json({ error: "Generation not found" });
+    return;
+  }
+
+  res.status(204).end();
 });
 
 export default router;

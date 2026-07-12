@@ -292,13 +292,31 @@ export default function ToolDetail() {
   const [activeGenerationId, setActiveGenerationId] = useState<number | null>(null);
 
   useEffect(() => {
-    if (model) {
-      const defaults: Record<string, unknown> = {};
-      for (const field of model.paramsSchema.fields) {
-        if (field.default !== undefined) defaults[field.key] = field.default;
+    if (!model) return;
+
+    // Regenerate flow from the Library: it stashes the original prompt/params
+    // for this model in sessionStorage right before navigating here. Consume
+    // it once so a plain visit to the tool doesn't keep reapplying it.
+    const raw = sessionStorage.getItem("regeneratePrefill");
+    if (raw) {
+      try {
+        const prefill = JSON.parse(raw) as { modelId: string; prompt: string; params: Record<string, unknown> };
+        if (prefill.modelId === model.modelId) {
+          sessionStorage.removeItem("regeneratePrefill");
+          setPrompt(prefill.prompt);
+          setParams(prefill.params ?? {});
+          return;
+        }
+      } catch {
+        sessionStorage.removeItem("regeneratePrefill");
       }
-      setParams(defaults);
     }
+
+    const defaults: Record<string, unknown> = {};
+    for (const field of model.paramsSchema.fields) {
+      if (field.default !== undefined) defaults[field.key] = field.default;
+    }
+    setParams(defaults);
   }, [model?.modelId]);
 
   const hasOwnKey = useMemo(
