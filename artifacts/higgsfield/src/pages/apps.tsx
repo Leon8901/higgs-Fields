@@ -3,10 +3,16 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, Flame, Clock, Users, ArrowUpRight } from "lucide-react";
+import { LayoutGrid, Search, Flame, Clock, Users, ArrowUpRight, Play } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
+
+const FILTERS: { value: 'all' | 'featured' | 'trending' | 'new'; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'featured', label: 'Featured' },
+  { value: 'trending', label: 'Trending' },
+  { value: 'new', label: 'New' },
+];
 
 export default function Apps() {
   const [filter, setFilter] = useState<'all' | 'featured' | 'trending' | 'new'>('all');
@@ -22,21 +28,21 @@ export default function Apps() {
   });
 
   return (
-    <div className="container mx-auto px-4 py-12 md:py-20 min-h-screen">
-      <div className="text-center max-w-3xl mx-auto mb-16">
-        <Badge variant="outline" className="border-primary/50 text-primary mb-6 uppercase tracking-widest px-4 py-1">
-          Community Ecosystem
-        </Badge>
-        <h1 className="text-4xl md:text-6xl font-black text-white tracking-tight mb-6">
-          App Gallery
+    <div className="container mx-auto px-4 py-12 md:py-16 min-h-screen">
+      <div className="mb-10">
+        <div className="w-9 h-9 rounded-md bg-white/10 flex items-center justify-center mb-5">
+          <LayoutGrid className="w-5 h-5 text-white" />
+        </div>
+        <h1 className="text-4xl md:text-5xl font-black text-white tracking-tight mb-4">
+          Welcome to <span className="text-primary">Higgsfield Apps</span>
         </h1>
-        <p className="text-lg text-muted-foreground">
-          Explore custom workflows, specialised tools, and creative pipelines built by the Higgsfield community.
+        <p className="text-lg text-muted-foreground max-w-2xl">
+          One-click AI effects that transform any content into professional ads, viral trends, or creative pipelines.
         </p>
       </div>
 
       {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12 max-w-4xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10 max-w-4xl">
           <Card className="bg-white/[0.02] border-white/5">
             <CardContent className="p-6 flex items-center justify-between">
               <div>
@@ -73,23 +79,30 @@ export default function Apps() {
         </div>
       )}
 
-      <div className="flex flex-col md:flex-row justify-between items-center gap-6 mb-10">
-        <Tabs defaultValue="all" value={filter} onValueChange={(v) => setFilter(v as any)}>
-          <TabsList className="bg-white/5 border border-white/10 p-1">
-            <TabsTrigger value="all" className="data-[state=active]:bg-white/10 data-[state=active]:text-white text-muted-foreground">All Apps</TabsTrigger>
-            <TabsTrigger value="trending" className="data-[state=active]:bg-white/10 data-[state=active]:text-white text-muted-foreground"><Flame className="w-3 h-3 mr-2 text-orange-500"/> Trending</TabsTrigger>
-            <TabsTrigger value="new" className="data-[state=active]:bg-white/10 data-[state=active]:text-white text-muted-foreground">New</TabsTrigger>
-          </TabsList>
-        </Tabs>
-
-        <div className="relative w-full md:w-72">
+      <div className="flex flex-col md:flex-row md:items-center gap-4 mb-10">
+        <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input 
-            placeholder="Search apps..." 
-            className="pl-9 bg-white/5 border-white/10 w-full"
+          <Input
+            placeholder="Search"
+            className="pl-9 bg-white/5 border-white/10 rounded-full w-full"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {FILTERS.map((f) => (
+            <button
+              key={f.value}
+              type="button"
+              onClick={() => setFilter(f.value)}
+              className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                filter === f.value ? "bg-white/10 text-white" : "text-muted-foreground hover:text-white"
+              }`}
+            >
+              {f.value === 'trending' && <Flame className="inline w-3 h-3 mr-1.5 text-orange-500" />}
+              {f.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -122,30 +135,39 @@ export default function Apps() {
                   ) : (
                     <div className="w-full h-full bg-gradient-to-br from-neutral-800 to-black transition-transform duration-700 group-hover:scale-105" />
                   )}
-                  <div className="absolute top-3 right-3 flex gap-2">
-                    {app.isTrending && <Badge className="bg-black/60 backdrop-blur-md text-orange-400 border border-orange-500/30 text-[10px] px-2 py-0.5"><Flame className="w-3 h-3 mr-1"/> Hot</Badge>}
-                    {app.isNew && <Badge className="bg-black/60 backdrop-blur-md text-blue-400 border border-blue-500/30 text-[10px] px-2 py-0.5">New</Badge>}
+                  <div className="absolute top-3 left-3 flex gap-2">
+                    {app.isTrending && (
+                      <Badge className="bg-black/60 backdrop-blur-md text-orange-400 border border-orange-500/30 text-[10px] px-2 py-0.5">
+                        <Flame className="w-3 h-3 mr-1" /> Hot
+                      </Badge>
+                    )}
+                    {app.isNew && (
+                      <Badge className="bg-black/60 backdrop-blur-md text-blue-400 border border-blue-500/30 text-[10px] px-2 py-0.5">New</Badge>
+                    )}
                   </div>
                 </div>
                 <CardContent className="p-5 flex-1 flex flex-col">
-                  <h4 className="font-bold text-white text-lg mb-2 group-hover:text-primary transition-colors">{app.name}</h4>
+                  <h4 className="font-bold text-white text-lg mb-1.5 group-hover:text-primary transition-colors">{app.name}</h4>
                   <p className="text-sm text-muted-foreground line-clamp-2 mb-4 flex-1">
                     {app.description}
                   </p>
-                  
-                  <div className="pt-4 border-t border-white/5 flex items-center justify-between mt-auto">
+
+                  <Button className="w-full bg-white text-black hover:bg-white/90 font-bold rounded-full mb-4">
+                    <Play className="w-3.5 h-3.5 mr-2 fill-black" /> Try now
+                  </Button>
+
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-[10px] font-bold text-white overflow-hidden">
+                      <div className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center text-[9px] font-bold text-white overflow-hidden">
                         {app.authorAvatarUrl ? (
                           <img src={app.authorAvatarUrl} alt={app.authorName} className="w-full h-full object-cover" />
                         ) : (
                           app.authorName.substring(0, 1)
                         )}
                       </div>
-                      <span className="text-xs text-muted-foreground">{app.authorName}</span>
+                      <span>{app.authorName}</span>
                     </div>
-                    
-                    <div className="flex items-center text-xs text-muted-foreground font-mono bg-white/5 px-2 py-1 rounded">
+                    <div className="flex items-center font-mono">
                       <ArrowUpRight className="w-3 h-3 mr-1" />
                       {app.viewCount.toLocaleString()}
                     </div>
