@@ -310,9 +310,15 @@ export default function ToolDetail() {
         queryClient.invalidateQueries({ queryKey: getListGenerationsQueryKey() });
       },
       onError: (err: any) => {
+        // `err` is an ApiError (see custom-fetch.ts) — its `.data` is the
+        // parsed JSON error body from the server (`{ error: "..." }`), and
+        // `.message` is a formatted "HTTP <status>: <detail>" fallback.
+        // `err.error` is never a real property here, so reading it silently
+        // fell through to the generic copy below on every failure.
+        const description = err?.data?.error ?? err?.message ?? "Please try again.";
         toast({
           title: "Generation failed to start",
-          description: err?.error ?? "Please try again.",
+          description,
           variant: "destructive",
         });
       },

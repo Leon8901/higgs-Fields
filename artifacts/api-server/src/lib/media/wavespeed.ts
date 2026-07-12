@@ -2,6 +2,28 @@ import type { MediaAdapter, PollResult, SubmitResult, GenerationStatus } from ".
 
 const BASE_URL = "https://api.wavespeed.ai/api/v3";
 
+// WaveSpeed-specific quirks that don't match how these values are authored
+// in our model catalog (lib/db/seed.ts). Confirmed against the live API's
+// own validation error messages:
+//   - `resolution` is case-sensitive and lowercase-only (e.g. "2k", not "2K").
+//   - `duration` must be a JSON integer, not a numeric string, across every
+//     video model (Seedance, Kling, Veo, Sora, WAN).
+// Normalizing here — rather than in the shared catalog/UI layer — keeps this
+// provider-specific behavior contained to the adapter that owns it.
+function normalizeParams(params: Record<string, unknown>): Record<string, unknown> {
+  const normalized: Record<string, unknown> = { ...params };
+
+  if (typeof normalized.resolution === "string") {
+    normalized.resolution = normalized.resolution.toLowerCase();
+  }
+
+  if (typeof normalized.duration === "string" && /^\d+(\.\d+)?$/.test(normalized.duration)) {
+    normalized.duration = Number(normalized.duration);
+  }
+
+  return normalized;
+}
+
 function mapStatus(waveStatus: string): GenerationStatus {
   switch (waveStatus) {
     case "created":
@@ -26,7 +48,7 @@ export const wavespeedAdapter: MediaAdapter = {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(params),
+      body: JSON.stringify(normalizeParams(params)),
     });
 
     const body: any = await res.json().catch(() => null);
