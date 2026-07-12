@@ -215,6 +215,9 @@ importers:
       razorpay:
         specifier: ^2.9.6
         version: 2.9.6
+      zod:
+        specifier: 'catalog:'
+        version: 3.25.76
     devDependencies:
       '@types/cookie-parser':
         specifier: ^1.4.10

@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
 import { db, avatarsTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 const router: IRouter = Router();
 
