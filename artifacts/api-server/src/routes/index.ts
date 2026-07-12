@@ -1,0 +1,30 @@
+import { Router, type IRouter } from "express";
+import healthRouter from "./health";
+import toolsRouter from "./tools";
+import appsRouter from "./apps";
+import pricingRouter from "./pricing";
+import statsRouter from "./stats";
+import waitlistRouter from "./waitlist";
+import modelsRouter from "./models";
+import generationsRouter from "./generations";
+import meRouter from "./me";
+import creditsRouter from "./credits";
+import apiKeysRouter from "./api-keys";
+import storageRouter from "./storage";
+
+const router: IRouter = Router();
+
+router.use(healthRouter);
+router.use(toolsRouter);
+router.use(appsRouter);
+router.use(pricingRouter);
+router.use(statsRouter);
+router.use(waitlistRouter);
+router.use(modelsRouter);
+router.use(generationsRouter);
+router.use(meRouter);
+router.use(creditsRouter);
+router.use(apiKeysRouter);
+router.use(storageRouter);
+
+export default router;

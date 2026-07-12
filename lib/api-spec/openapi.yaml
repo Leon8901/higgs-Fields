@@ -1,0 +1,1063 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: Higgsfield AI platform API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: tools
+    description: AI tools and models
+  - name: apps
+    description: Community apps built on Higgsfield
+  - name: pricing
+    description: Pricing plans
+  - name: stats
+    description: Platform statistics
+  - name: waitlist
+    description: Waitlist signup
+  - name: models
+    description: Generative AI model catalog
+  - name: generations
+    description: Media generation jobs
+  - name: me
+    description: Current user profile
+  - name: credits
+    description: Credit ledger
+  - name: api-keys
+    description: User-supplied (BYOK) provider API keys
+  - name: storage
+    description: Object storage upload and serving endpoints
+
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /tools:
+    get:
+      operationId: listTools
+      tags: [tools]
+      summary: List all AI tools
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [image, video, audio, all]
+          required: false
+        - name: tag
+          in: query
+          schema:
+            type: string
+          required: false
+      responses:
+        "200":
+          description: List of tools
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Tool"
+
+  /tools/featured:
+    get:
+      operationId: listFeaturedTools
+      tags: [tools]
+      summary: List featured/hero tools for homepage
+      responses:
+        "200":
+          description: Featured tools
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Tool"
+
+  /tools/{id}:
+    get:
+      operationId: getTool
+      tags: [tools]
+      summary: Get a single tool by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Tool details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tool"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /apps:
+    get:
+      operationId: listApps
+      tags: [apps]
+      summary: List community apps
+      parameters:
+        - name: filter
+          in: query
+          schema:
+            type: string
+            enum: [all, featured, trending, new]
+          required: false
+        - name: search
+          in: query
+          schema:
+            type: string
+          required: false
+      responses:
+        "200":
+          description: List of apps
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/App"
+
+  /apps/stats:
+    get:
+      operationId: getAppStats
+      tags: [apps]
+      summary: App gallery statistics (total, trending count, new this week)
+      responses:
+        "200":
+          description: Stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppStats"
+
+  /pricing:
+    get:
+      operationId: listPricingPlans
+      tags: [pricing]
+      summary: List pricing plans
+      responses:
+        "200":
+          description: All pricing plans
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PricingPlan"
+
+  /stats:
+    get:
+      operationId: getPlatformStats
+      tags: [stats]
+      summary: Platform-level stats for the hero section
+      responses:
+        "200":
+          description: Platform stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformStats"
+
+  /waitlist:
+    post:
+      operationId: joinWaitlist
+      tags: [waitlist]
+      summary: Join the waitlist / newsletter
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WaitlistInput"
+      responses:
+        "201":
+          description: Joined successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WaitlistEntry"
+        "409":
+          description: Already on waitlist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /models:
+    get:
+      operationId: listModels
+      tags: [models]
+      summary: List all generation models
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [image, video, audio, all]
+          required: false
+      responses:
+        "200":
+          description: List of models
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Model"
+
+  /models/{modelId}:
+    get:
+      operationId: getModel
+      tags: [models]
+      summary: Get a single model by its stable modelId slug
+      parameters:
+        - name: modelId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Model details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Model"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /me:
+    get:
+      operationId: getMe
+      tags: [me]
+      summary: Get the current authenticated user's profile
+      responses:
+        "200":
+          description: Current user profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeProfile"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /me/plan:
+    post:
+      operationId: switchPlan
+      tags: [me]
+      summary: Switch the current user's plan and grant that plan's monthly credits
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SwitchPlanRequest"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeProfile"
+        "400":
+          description: Unknown plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /credits/ledger:
+    get:
+      operationId: listCreditLedger
+      tags: [credits]
+      summary: List the current user's credit ledger entries, most recent first
+      responses:
+        "200":
+          description: Ledger entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CreditLedgerEntry"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /generations:
+    get:
+      operationId: listGenerations
+      tags: [generations]
+      summary: List the current user's generations, most recent first
+      responses:
+        "200":
+          description: Generations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Generation"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: createGeneration
+      tags: [generations]
+      summary: Submit a new generation job
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerationInput"
+      responses:
+        "201":
+          description: Generation created and submitted to the provider
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Generation"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "402":
+          description: Insufficient credits
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /generations/{id}:
+    get:
+      operationId: getGeneration
+      tags: [generations]
+      summary: Get a generation's current status, polling the provider if still processing
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Generation details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Generation"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api-keys:
+    get:
+      operationId: listApiKeys
+      tags: [api-keys]
+      summary: List the current user's configured BYOK provider keys (masked)
+      responses:
+        "200":
+          description: Configured keys
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ApiKeySummary"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: upsertApiKey
+      tags: [api-keys]
+      summary: Add or replace a BYOK provider API key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApiKeyInput"
+      responses:
+        "200":
+          description: Key stored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiKeySummary"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api-keys/{provider}:
+    delete:
+      operationId: deleteApiKey
+      tags: [api-keys]
+      summary: Remove a configured BYOK provider API key
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /storage/uploads/request-url:
+    post:
+      tags: [storage]
+      operationId: requestUploadUrl
+      summary: Request a presigned URL for file upload
+      description: |
+        Returns a presigned GCS URL for direct upload. The client sends JSON
+        metadata here, then uploads the file directly to the returned URL.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UploadUrlRequest"
+      responses:
+        "200":
+          description: Presigned upload URL generated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadUrlResponse"
+        "400":
+          description: Missing or invalid required fields.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to generate upload URL.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /storage/public-objects/{filePath}:
+    get:
+      tags: [storage]
+      operationId: getPublicObject
+      summary: Serve a public asset from PUBLIC_OBJECT_SEARCH_PATHS
+      parameters:
+        - name: filePath
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Object content streamed with correct Content-Type.
+          content:
+            "*/*":
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: File not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /storage/objects/{objectPath}:
+    get:
+      tags: [storage]
+      operationId: getStorageObject
+      summary: Serve an object entity from PRIVATE_OBJECT_DIR
+      parameters:
+        - name: objectPath
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Object content streamed with correct Content-Type.
+          content:
+            "*/*":
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Object not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    Tool:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        slug:
+          type: string
+        tagline:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+          enum: [image, video, audio]
+        badge:
+          type: ["string", "null"]
+          description: "e.g. NEW, TRENDING, HOT"
+        isFeatured:
+          type: boolean
+        thumbnailUrl:
+          type: ["string", "null"]
+        gradient:
+          type: ["string", "null"]
+          description: "CSS gradient string for fallback display"
+        accentColor:
+          type: ["string", "null"]
+        sortOrder:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - slug
+        - tagline
+        - description
+        - category
+        - isFeatured
+        - sortOrder
+        - createdAt
+
+    App:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        thumbnailUrl:
+          type: ["string", "null"]
+        gradient:
+          type: ["string", "null"]
+        authorName:
+          type: string
+        authorAvatarUrl:
+          type: ["string", "null"]
+        isFeatured:
+          type: boolean
+        isTrending:
+          type: boolean
+        isNew:
+          type: boolean
+        viewCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - description
+        - authorName
+        - isFeatured
+        - isTrending
+        - isNew
+        - viewCount
+        - createdAt
+
+    AppStats:
+      type: object
+      properties:
+        total:
+          type: integer
+        trending:
+          type: integer
+        newThisWeek:
+          type: integer
+      required:
+        - total
+        - trending
+        - newThisWeek
+
+    PricingPlan:
+      type: object
+      properties:
+        id:
+          type: integer
+        planKey:
+          type: string
+          description: "Stable key: starter | plus | ultra — matches a user's planKey"
+        name:
+          type: string
+        price:
+          type: number
+          description: Monthly price in USD
+        yearlyPrice:
+          type: number
+          description: Effective monthly price in USD when billed yearly
+        creditsPerMonth:
+          type: integer
+        description:
+          type: string
+        features:
+          type: array
+          items:
+            type: string
+        isPopular:
+          type: boolean
+        ctaLabel:
+          type: string
+        sortOrder:
+          type: integer
+      required:
+        - id
+        - planKey
+        - name
+        - price
+        - yearlyPrice
+        - creditsPerMonth
+        - description
+        - features
+        - isPopular
+        - ctaLabel
+        - sortOrder
+
+    ModelParamField:
+      type: object
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        type:
+          type: string
+          enum: [text, textarea, select, number, toggle, image]
+        options:
+          type: array
+          items:
+            type: string
+        default:
+          description: Default value; type depends on `type`.
+        required:
+          type: boolean
+        min:
+          type: number
+        max:
+          type: number
+        step:
+          type: number
+        helpText:
+          type: ["string", "null"]
+      required:
+        - key
+        - label
+        - type
+
+    ModelParamsSchema:
+      type: object
+      properties:
+        fields:
+          type: array
+          items:
+            $ref: "#/components/schemas/ModelParamField"
+      required:
+        - fields
+
+    Model:
+      type: object
+      properties:
+        id:
+          type: integer
+        modelId:
+          type: string
+          description: Stable internal slug used in URLs and generation requests
+        name:
+          type: string
+        category:
+          type: string
+          enum: [image, video, audio]
+        description:
+          type: string
+        badge:
+          type: ["string", "null"]
+        thumbnailUrl:
+          type: ["string", "null"]
+        isFeatured:
+          type: boolean
+        sortOrder:
+          type: integer
+        adapter:
+          type: string
+        basePriceUsd:
+          type: number
+        creditCost:
+          type: integer
+        paramsSchema:
+          $ref: "#/components/schemas/ModelParamsSchema"
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - modelId
+        - name
+        - category
+        - description
+        - isFeatured
+        - sortOrder
+        - adapter
+        - basePriceUsd
+        - creditCost
+        - paramsSchema
+        - createdAt
+
+    GenerationInput:
+      type: object
+      properties:
+        modelId:
+          type: ["string", "null"]
+          description: Model slug to use; omit or null when autoSelect is true
+        prompt:
+          type: string
+          minLength: 1
+        params:
+          type: object
+          additionalProperties: true
+          description: Provider-specific params (aspect ratio, duration, image URLs, etc.)
+        autoSelect:
+          type: boolean
+          description: If true, an LLM picks the best-fit model for the prompt
+        useOwnKey:
+          type: boolean
+          description: If true and the user has a BYOK key for the resolved model's provider, use it instead of the platform key
+        skipEnhance:
+          type: boolean
+          description: If true, skip LLM prompt enhancement and use the prompt verbatim
+      required:
+        - prompt
+
+    Generation:
+      type: object
+      properties:
+        id:
+          type: integer
+        modelId:
+          type: string
+        modelName:
+          type: string
+        category:
+          type: string
+          enum: [image, video, audio]
+        prompt:
+          type: string
+        params:
+          type: object
+          additionalProperties: true
+        status:
+          type: string
+          enum: [pending, processing, completed, failed]
+        outputType:
+          type: string
+          enum: [image, video, audio]
+        outputUrls:
+          type: array
+          items:
+            type: string
+        creditsCharged:
+          type: integer
+        usedOwnKey:
+          type: boolean
+        errorMessage:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: ["string", "null"]
+          format: date-time
+      required:
+        - id
+        - modelId
+        - modelName
+        - category
+        - prompt
+        - params
+        - status
+        - outputType
+        - outputUrls
+        - creditsCharged
+        - usedOwnKey
+        - createdAt
+
+    MeProfile:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        displayName:
+          type: ["string", "null"]
+        planKey:
+          type: string
+        creditsBalance:
+          type: integer
+        hasOwnKey:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - email
+        - planKey
+        - creditsBalance
+        - hasOwnKey
+        - createdAt
+
+    SwitchPlanRequest:
+      type: object
+      properties:
+        planKey:
+          type: string
+          description: "One of: free | starter | plus | ultra"
+      required:
+        - planKey
+
+    CreditLedgerEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        delta:
+          type: integer
+        reason:
+          type: string
+        balanceAfter:
+          type: integer
+        generationId:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - delta
+        - reason
+        - balanceAfter
+        - createdAt
+
+    ApiKeyInput:
+      type: object
+      properties:
+        provider:
+          type: string
+          enum: [wavespeed]
+        apiKey:
+          type: string
+          minLength: 1
+      required:
+        - provider
+        - apiKey
+
+    ApiKeySummary:
+      type: object
+      properties:
+        provider:
+          type: string
+        lastFour:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        lastUsedAt:
+          type: ["string", "null"]
+          format: date-time
+      required:
+        - provider
+        - lastFour
+        - createdAt
+
+    UploadUrlRequest:
+      type: object
+      required: [name, size, contentType]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          description: Original file name.
+        size:
+          type: integer
+          minimum: 1
+          description: File size in bytes.
+        contentType:
+          type: string
+          minLength: 1
+          description: MIME type of the file (e.g. `image/jpeg`).
+    UploadUrlResponse:
+      type: object
+      required: [uploadURL, objectPath]
+      properties:
+        uploadURL:
+          type: string
+          description: Presigned GCS URL for PUT upload.
+        objectPath:
+          type: string
+          description: Normalized object path (e.g. `/objects/uploads/uuid`). Store this in your database.
+        metadata:
+          $ref: "#/components/schemas/UploadUrlRequest"
+
+    PlatformStats:
+      type: object
+      properties:
+        videosGenerated:
+          type: integer
+        activeCreators:
+          type: integer
+        communityApps:
+          type: integer
+        modelsAvailable:
+          type: integer
+      required:
+        - videosGenerated
+        - activeCreators
+        - communityApps
+        - modelsAvailable
+
+    WaitlistInput:
+      type: object
+      properties:
+        email:
+          type: string
+        name:
+          type: ["string", "null"]
+      required:
+        - email
+
+    WaitlistEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        name:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - email
+        - createdAt
