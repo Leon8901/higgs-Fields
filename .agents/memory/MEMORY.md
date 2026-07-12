@@ -1,0 +1,1 @@
+- [Imported pnpm-workspace app setup checklist](imported-app-setup-checklist.md) — after `pnpm install`, check for missing Clerk keys and empty DB tables before trusting 500s to be code bugs.

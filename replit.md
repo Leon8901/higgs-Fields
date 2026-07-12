@@ -62,6 +62,12 @@ A full-stack AI creative platform website inspired by higgsfield.ai — featurin
 
 _Populate as you build — explicit user instructions worth remembering across sessions._
 
+## Setup notes (imported project)
+
+- Auth: Replit-managed Clerk is provisioned (`CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, `VITE_CLERK_PUBLISHABLE_KEY` secrets set). Frontend/backend Clerk wiring was already present in the imported code.
+- DB: schema pushed with `pnpm --filter @workspace/db exec drizzle-kit push --config ./drizzle.config.ts`, then seeded with `pnpm --filter @workspace/db run seed` (tools/apps/pricing tables were empty on import).
+- All three workflows (`higgsfield` web, `api-server`, `mockup-sandbox`) run cleanly after `pnpm install`.
+
 ## Gotchas
 
 - After editing `lib/api-spec/openapi.yaml`, always run codegen before touching the frontend
