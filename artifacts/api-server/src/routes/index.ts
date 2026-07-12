@@ -13,6 +13,7 @@ import apiKeysRouter from "./api-keys";
 import storageRouter from "./storage";
 import billingRouter from "./billing";
 import marketingRouter from "./marketing";
+import avatarsRouter from "./avatars";
 
 const router: IRouter = Router();
 
@@ -30,5 +31,6 @@ router.use(apiKeysRouter);
 router.use(storageRouter);
 router.use(billingRouter);
 router.use(marketingRouter);
+router.use(avatarsRouter);
 
 export default router;

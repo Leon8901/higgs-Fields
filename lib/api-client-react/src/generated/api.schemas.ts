@@ -372,6 +372,31 @@ export interface WaitlistEntry {
   createdAt: string;
 }
 
+export interface Avatar {
+  id: number;
+  name: string;
+  photoUrl: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateAvatarInput {
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  name: string;
+  photoUrl: string;
+}
+
+export interface UpdateAvatarInput {
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  name: string;
+}
+
 export type ListToolsParams = {
 category?: ListToolsCategory;
 tag?: string;

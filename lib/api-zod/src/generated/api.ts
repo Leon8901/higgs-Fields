@@ -529,3 +529,71 @@ export const GetStorageObjectParams = zod.object({
 export const GetStorageObjectResponse = zod.unknown()
 
 
+/**
+ * @summary List the current user's saved avatars
+ */
+export const ListAvatarsResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "photoUrl": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListAvatarsResponse = zod.array(ListAvatarsResponseItem)
+
+
+/**
+ * @summary Save a new avatar
+ */
+export const createAvatarBodyNameMax = 100;
+
+
+
+export const CreateAvatarBody = zod.object({
+  "name": zod.string().min(1).max(createAvatarBodyNameMax),
+  "photoUrl": zod.string()
+})
+
+export const CreateAvatarResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "photoUrl": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Rename a saved avatar
+ */
+export const UpdateAvatarParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const updateAvatarBodyNameMax = 100;
+
+
+
+export const UpdateAvatarBody = zod.object({
+  "name": zod.string().min(1).max(updateAvatarBodyNameMax)
+})
+
+export const UpdateAvatarResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "photoUrl": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Delete a saved avatar
+ */
+export const DeleteAvatarParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteAvatarResponse = zod.void()
+
+

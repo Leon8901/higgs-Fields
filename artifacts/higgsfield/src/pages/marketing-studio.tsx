@@ -8,10 +8,16 @@ import {
   useGetGeneration,
   useListGenerations,
   useDeleteGeneration,
+  useListAvatars,
+  useCreateAvatar,
+  useUpdateAvatar,
+  useDeleteAvatar,
   getGetMeQueryKey,
   getListGenerationsQueryKey,
   getGetGenerationQueryKey,
+  getListAvatarsQueryKey,
   type Generation,
+  type Avatar as AvatarRecord,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -31,6 +37,7 @@ import {
   AlertCircle,
   Download,
   User,
+  User2,
   LogOut,
   RefreshCw,
   Trash2,
@@ -43,6 +50,8 @@ import {
   X,
   Film,
   Wand2,
+  Pencil,
+  Check,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -107,7 +116,8 @@ type SidebarSection =
   | "all-generations"
   | "favorites"
   | "url-to-ad"
-  | "ad-reference";
+  | "ad-reference"
+  | "avatars";
 
 // ─── template catalogue ───────────────────────────────────────────────────────
 const TEMPLATES: Record<
@@ -751,6 +761,269 @@ function UrlToAdSection({
   );
 }
 
+// ─── avatars section ──────────────────────────────────────────────────────────
+function AvatarsSection({ onSelect }: { onSelect: (av: AvatarRecord) => void }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const { data: avatars, isLoading } = useListAvatars();
+
+  // create form
+  const [showCreate, setShowCreate] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newPhotoUrl, setNewPhotoUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  // rename state per avatar id
+  const [renamingId, setRenamingId] = useState<number | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+
+  const createAvatar = useCreateAvatar({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListAvatarsQueryKey() });
+        setShowCreate(false);
+        setNewName("");
+        setNewPhotoUrl(null);
+        toast({ title: "Avatar saved" });
+      },
+      onError: () => toast({ title: "Failed to save avatar", variant: "destructive" }),
+    },
+  });
+
+  const updateAvatar = useUpdateAvatar({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListAvatarsQueryKey() });
+        setRenamingId(null);
+      },
+      onError: () => toast({ title: "Rename failed", variant: "destructive" }),
+    },
+  });
+
+  const deleteAvatar = useDeleteAvatar({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListAvatarsQueryKey() });
+        toast({ title: "Avatar deleted" });
+      },
+      onError: () => toast({ title: "Delete failed", variant: "destructive" }),
+    },
+  });
+
+  const handlePhotoFile = async (file: File | undefined) => {
+    if (!file) return;
+    setUploading(true);
+    try {
+      setNewPhotoUrl(await uploadFile(file));
+    } catch {
+      toast({ title: "Upload failed", variant: "destructive" });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleCreate = () => {
+    if (!newName.trim() || !newPhotoUrl) return;
+    createAvatar.mutate({ data: { name: newName.trim(), photoUrl: newPhotoUrl } });
+  };
+
+  return (
+    <div className="relative z-10 pb-44 px-6 pt-8">
+      <div className="flex items-center justify-between mb-5">
+        <div>
+          <h2 className="text-sm font-bold text-white">Saved Avatars</h2>
+          <p className="text-xs text-white/40 mt-0.5">Reuse a spokesperson across generations</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowCreate((v) => !v)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary text-black text-xs font-bold hover:bg-primary/90 transition-colors"
+        >
+          <Plus className="w-3.5 h-3.5" /> New avatar
+        </button>
+      </div>
+
+      {/* Create form */}
+      <AnimatePresence>
+        {showCreate && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.15 }}
+            className="overflow-hidden mb-5"
+          >
+            <div className="bg-[#111411]/90 border border-white/10 rounded-2xl p-5 space-y-4 backdrop-blur-sm">
+              <p className="text-xs font-bold text-white/60 uppercase tracking-widest">New Avatar</p>
+
+              {/* Photo upload */}
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => handlePhotoFile(e.target.files?.[0])}
+              />
+              {newPhotoUrl ? (
+                <div className="relative w-20 h-20 rounded-2xl overflow-hidden border border-white/15">
+                  <img src={newPhotoUrl} alt="" className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => setNewPhotoUrl(null)}
+                    className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/70 flex items-center justify-center text-white/70 hover:text-white"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  disabled={uploading}
+                  className="w-20 h-20 rounded-2xl border border-dashed border-white/20 flex flex-col items-center justify-center gap-1.5 text-white/30 hover:text-primary hover:border-primary/50 transition-colors"
+                >
+                  {uploading ? (
+                    <RefreshCw className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <>
+                      <Upload className="w-5 h-5" />
+                      <span className="text-[10px]">Photo</span>
+                    </>
+                  )}
+                </button>
+              )}
+
+              {/* Name */}
+              <input
+                type="text"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+                placeholder="Avatar name (e.g. 'Sarah')"
+                className="w-full bg-white/[0.06] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/30 outline-none focus:border-primary/50 transition-colors"
+              />
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleCreate}
+                  disabled={!newName.trim() || !newPhotoUrl || createAvatar.isPending}
+                  className="flex-1 py-2 bg-primary text-black text-xs font-bold rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                >
+                  {createAvatar.isPending ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                  Save avatar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setShowCreate(false); setNewName(""); setNewPhotoUrl(null); }}
+                  className="px-4 py-2 rounded-xl border border-white/10 text-white/50 text-xs font-medium hover:text-white hover:border-white/25 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Avatar grid */}
+      {isLoading ? (
+        <div className="flex items-center justify-center py-16 text-white/30">
+          <RefreshCw className="w-5 h-5 animate-spin mr-2" /> Loading…
+        </div>
+      ) : !avatars?.length ? (
+        <div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-center">
+            <User2 className="w-6 h-6 text-white/30" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-white/60">No avatars yet</p>
+            <p className="text-xs text-white/30 mt-1 max-w-xs">
+              Save a spokesperson photo once and reuse it across every generation.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <AnimatePresence mode="popLayout">
+            {avatars.map((av: AvatarRecord) => (
+              <motion.div
+                key={av.id}
+                layout
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="relative rounded-2xl overflow-hidden border border-white/[0.08] bg-[#111411] group"
+              >
+                {/* Photo */}
+                <div className="aspect-square overflow-hidden bg-black/40">
+                  <img src={av.photoUrl} alt={av.name} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                </div>
+
+                {/* Name / rename */}
+                <div className="px-3 py-2.5 flex items-center gap-1.5">
+                  {renamingId === av.id ? (
+                    <form
+                      className="flex-1 flex items-center gap-1.5"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (renameValue.trim()) updateAvatar.mutate({ id: av.id, data: { name: renameValue.trim() } });
+                      }}
+                    >
+                      <input
+                        autoFocus
+                        value={renameValue}
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        className="flex-1 min-w-0 bg-white/[0.08] border border-white/15 rounded-lg px-2 py-1 text-xs text-white outline-none focus:border-primary/50"
+                      />
+                      <button type="submit" className="text-primary">
+                        <Check className="w-3.5 h-3.5" />
+                      </button>
+                      <button type="button" onClick={() => setRenamingId(null)} className="text-white/30 hover:text-white">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </form>
+                  ) : (
+                    <>
+                      <p className="text-xs font-semibold text-white/80 truncate flex-1">{av.name}</p>
+                      <button
+                        type="button"
+                        onClick={() => { setRenamingId(av.id); setRenameValue(av.name); }}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity text-white/30 hover:text-primary"
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </button>
+                    </>
+                  )}
+                </div>
+
+                {/* Actions overlay */}
+                <div className="absolute top-2 left-2 right-2 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    type="button"
+                    onClick={() => onSelect(av)}
+                    className="px-2.5 py-1 rounded-lg bg-primary text-black text-[10px] font-bold hover:bg-primary/90 transition-colors"
+                  >
+                    Use
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => deleteAvatar.mutate({ id: av.id })}
+                    className="w-6 h-6 rounded-full bg-black/70 flex items-center justify-center text-white/60 hover:text-red-400 transition-colors"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── ad reference section ─────────────────────────────────────────────────────
 function AdReferenceSection({
   onGenerate,
@@ -910,6 +1183,12 @@ function Sidebar({
       label: "Ad Reference",
       Icon: FileImage,
       gradient: "from-violet-400 to-purple-500",
+    },
+    {
+      id: "avatars" as SidebarSection,
+      label: "Avatars",
+      Icon: User2,
+      gradient: "from-emerald-400 to-teal-500",
     },
   ];
 

@@ -1,0 +1,71 @@
+MASTER PROMPT — Marketing Studio Full Rebuild
+
+Paste this into Replit. This consolidates everything researched about how higgsfield.ai's real Marketing Studio works into one build plan. Work through phases in order — stop after each phase, show me a screenshot/summary, and confirm any generation cost with me before running test generations. Don't copy Higgsfield's literal UI assets, images, or exact copy text — match the functional mechanism using our own design and wording.
+
+
+Context: how the real thing works (for reference while building)
+
+Marketing Studio's actual mechanism: URL or manual product entry → LLM extracts structured product data → user picks one of four creative modes (each restructuring the whole generation approach, not just adding a style word) → optional saved avatar for spokesperson consistency → video model generates with native audio/lipsync in one pass → result saved to a persistent history.
+
+Backend stack it actually runs on: a video model with native audio+lipsync generation as the core engine, a persistent identity/avatar system trained from multiple reference photos, and a two-tier LLM planning layer (cheap/fast model for structured tasks, stronger model for interpreting scraped product pages). Our build already has the OpenRouter planning layer and WaveSpeedAI as the generation gateway — this rebuild is about closing the structural gaps, not switching providers.
+
+
+Phase 1 — Real creative mode switcher (do this first, no new generations required)
+
+Replace the current UGC/Hook/Setting toggles with four distinct modes, each driving a genuinely different system prompt sent to the LLM planning layer:
+
+
+UGC — face-to-camera, selfie framing, natural speech, iPhone-shot feel. Sub-styles: unboxing, tutorial/how-to, hands-on demo.
+Professional/CGI — studio-grade, no presenter necessarily required, precise camera movement, product-reveal framing.
+Cinematic — real-world locations, story arc, broadcast-commercial feel.
+Wild Card — minimal structure, hands full creative direction to the LLM planning layer with a loose brief.
+
+
+Each mode should map to a distinct system-prompt template (stored server-side, not hardcoded inline) that shapes pacing, camera language, and structure instructions differently — not the same template with one style word swapped in. Build the mode selector UI as a clear 4-way switch, not toggles that stack.
+
+No new generations needed to build this — confirm before running any test.
+
+Phase 2 — Persistent avatar system (reuses existing infrastructure)
+
+Build a saved Avatar entity using the SAME identity-lock/BYOK infrastructure already built for the main generation flow — do not build a parallel system.
+
+
+Users can create a named avatar from 1+ reference photos (start with single-image support; multi-image reference sets can come later).
+Saved avatars appear in a picker on the Marketing Studio generation bar — select once, reuse across every future generation, instead of re-uploading each time.
+Basic management: rename, delete, view which generations used a given avatar.
+
+
+Phase 3 — Persistent product profiles
+
+Build a saved Product entity: name, description, up to 5 images, created once and reusable across future generations — not re-entered every time.
+
+
+Product profiles editable after creation.
+URL-scrape flow should offer to save the extracted result as a reusable Product rather than a one-off.
+Manual product entry flow should also save as a reusable Product by default.
+
+
+Phase 4 — Verify and fix audio/lipsync capability (check before building further)
+
+Before doing more UI work, check what the currently-mapped WaveSpeedAI video model(s) actually support:
+
+
+Does the default Marketing Studio model generate native audio in the same pass, or is it silent/video-only?
+Is there a lipsync-capable model available via WaveSpeedAI that could be the default for spokesperson/avatar-based generations specifically?
+Report back what's actually available before we decide whether to add a separate audio/lipsync step or find a better-fit model. Don't run test generations for this without confirming cost first — check WaveSpeedAI's model docs/catalog first, that's free.
+
+
+Phase 5 — Category-aware prompt templates (lower priority, do last)
+
+Add a lightweight product-category field (e.g. hardware/electronics, apparel/fashion, food/consumable, digital/app, general) that adjusts the system prompt with category-specific handling — e.g. unboxing-style physics language for hardware, fit/texture language for apparel. This can start as a simple dropdown mapping to prompt-template variants, not a new model or new infrastructure.
+
+Explicitly NOT in this pass (real scope, deliberately deferred)
+
+
+Multi-variant batch output (generating multiple variants per submission) — direct cost multiplier, revisit once core modes are solid and budget allows.
+Team/collaboration features (shared projects, chat) — enterprise-tier feature, not relevant at this stage.
+Full 80+ app library equivalent (Face Swap, Headshot Generator, etc.) — separate, much larger scope.
+
+
+
+Work through phases in order. After each phase, show me a screenshot and a summary of what changed before moving to the next. Any phase requiring a real generation call must have the expected cost confirmed with me first.

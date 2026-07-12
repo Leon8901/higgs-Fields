@@ -1,0 +1,99 @@
+MASTER PROMPT — Url to Ad, Full Production Build
+
+Paste this into Replit. The current "Url to Ad" is a placeholder — this brief describes the complete, real mechanism to build, in atomic detail, based on how higgsfield.ai's actual Url to Ad feature works. Build in phases, stop after each, confirm any generation cost before running test generations. Don't copy Higgsfield's literal UI assets, exact copy text, or branding — build the same mechanism with our own design and wording.
+
+
+What this feature actually is
+
+A single-input entry point: user pastes a product URL, the system does everything else — scrapes the page, extracts structured product data via LLM, creates a reusable product profile, and drops the user straight into the generation bar with everything pre-filled and ready to generate. Zero manual data entry required for the common case.
+
+
+Phase 1 — Entry modal (UI, no backend logic yet)
+
+Build a modal (not a full page) triggered by clicking "Url to Ad" in the sidebar:
+
+
+Icon/small graphic at top (use our own icon, not Higgsfield's).
+Headline: short, punchy, describes the one-click value prop in our own words (not "Make a video ad in one click" verbatim — write an equivalent original headline).
+One-sentence subheadline explaining the mechanism in plain terms (drop a link, get a ready ad, no filming/editing/brief needed).
+A single input field: URL text input with a link icon, placeholder text like "www.yourproduct.com".
+A "Continue" button, full-width, disabled until the input looks like a plausible URL (basic client-side validation — starts with valid domain pattern, don't require http:// prefix, auto-normalize it).
+Optional right-side or below-fold example preview: a static image showing what a finished output looks like, to build confidence before the user submits their own URL. Use one of our own existing real generated outputs for this, not a placeholder graphic.
+Close (X) button, standard modal dismiss behavior.
+
+
+No backend work in this phase — pure UI, confirm zero generation cost.
+
+Phase 2 — Backend: scrape and extract
+
+Build POST /api/marketing/url-analyze (or extend it if it already exists from an earlier session — check first before creating a duplicate):
+
+Step 1 — Fetch the page:
+
+
+Server-side fetch of the submitted URL.
+Handle common failure modes explicitly: invalid URL, unreachable/timeout, non-HTML response (e.g. a direct image or PDF link), and pages that block scraping (403/robots). Return a clear, specific error for each case — not a generic "something went wrong."
+Set a reasonable timeout (e.g. 10 seconds) so a slow/hanging page doesn't block the request indefinitely.
+
+
+Step 2 — Parse and strip:
+
+
+Extract the page's visible text content (strip nav/footer/script/style boilerplate as much as practical).
+Extract candidate product images: prioritize og:image meta tags, then large <img> tags in the main content area, then fall back to any reasonably-sized images found. Collect up to 5 candidates.
+Extract the page title and any og:title/og:description meta tags as additional signal.
+
+
+Step 3 — LLM extraction (OpenRouter):
+
+
+Send the cleaned page text + title/meta tags to the reasoning-tier LLM (per the existing two-tier planning layer).
+System prompt should instruct the model to return strict structured JSON: { productName, tagline, description, category, suggestedImages }. Category should be a rough classification (electronics/hardware, apparel/fashion, food/consumable, digital/app, beauty/skincare, general) — this feeds into Phase 5's category-aware prompting from the earlier Marketing Studio master prompt, if that's been built.
+Handle the app-vs-product distinction: if the URL is clearly an app (App Store/Play Store link, or the page describes a mobile/web app rather than a physical product), set a type: "app" flag instead of "product" — this should later route to different generation framing (screen-demo style vs. physical product ad style).
+If the LLM call fails or returns malformed JSON, fall back to a best-effort extraction using just the page title and og:description directly (no LLM), so the flow never fully dead-ends — flag this to the user as "basic extraction" if it happens, rather than pretending it's full quality.
+
+
+Step 4 — Response:
+
+
+Return the structured product data plus the list of candidate images.
+Log the scrape+extraction result (url, success/failure, which fallback path if any) for debugging — don't just fail silently.
+
+
+Before running any real test of this against a live URL, confirm expected LLM call cost with me (should be minimal — one OpenRouter call, no image/video generation yet).
+
+Phase 3 — Product profile creation
+
+
+On successful extraction, automatically create a Product profile (per Phase 3 of the earlier Marketing Studio master prompt — reuse that system, don't build a second one) pre-filled with the extracted data.
+Let the user review/edit the extracted name, description, and select which of the candidate images to keep (multi-select from the up-to-5 candidates, max 5 saved) before confirming.
+Save the source URL on the product profile for reference/re-scraping later.
+
+
+Phase 4 — Hand off to the generation bar
+
+
+On confirming the product profile, navigate the user directly into the main Marketing Studio generation bar (the mode-switcher built in the earlier Phase 1) with:
+
+The new product profile pre-selected
+Mode defaulted to a sensible starting point (UGC, since that's the most common ad format) but fully changeable
+If type: "app" was detected, adjust the default framing/prompt hints toward a screen-demo style rather than physical-product style
+
+
+
+User should be able to go from pasting a URL to hitting Generate in as few clicks as possible — that's the entire point of this feature.
+
+
+Phase 5 — Error and edge-case handling (production-readiness pass)
+
+Explicitly handle and test these cases before calling this "production ready":
+
+
+URL with no extractable product images (e.g. a text-only page) — still succeed with name/description, just show zero image candidates and let the user upload their own.
+URL that's actually a search results page or category listing, not a single product — the LLM extraction should be instructed to recognize this and return a clear "this doesn't look like a single product page" message rather than hallucinating a fake product.
+Very long pages — truncate the text sent to the LLM to a reasonable token budget rather than sending the entire page.
+Duplicate submission — if the user re-submits a URL that already has a saved Product profile, offer to reuse the existing one instead of creating a duplicate.
+
+
+
+Work through phases in order, show me a screenshot/summary after each, and confirm generation cost before any real test against a live external URL.

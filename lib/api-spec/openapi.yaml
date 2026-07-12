@@ -34,6 +34,8 @@ tags:
     description: Object storage upload and serving endpoints
   - name: billing
     description: Razorpay-backed subscriptions and one-time credit purchases
+  - name: avatars
+    description: Saved spokesperson avatars for Marketing Studio
 
 paths:
   /healthz:
@@ -716,6 +718,102 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /avatars:
+    get:
+      operationId: listAvatars
+      tags: [avatars]
+      summary: List the current user's saved avatars
+      security:
+        - clerkAuth: []
+      responses:
+        "200":
+          description: List of avatars
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Avatar"
+    post:
+      operationId: createAvatar
+      tags: [avatars]
+      summary: Save a new avatar
+      security:
+        - clerkAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAvatarInput"
+      responses:
+        "201":
+          description: Created avatar
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Avatar"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /avatars/{id}:
+    patch:
+      operationId: updateAvatar
+      tags: [avatars]
+      summary: Rename a saved avatar
+      security:
+        - clerkAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAvatarInput"
+      responses:
+        "200":
+          description: Updated avatar
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Avatar"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteAvatar
+      tags: [avatars]
+      summary: Delete a saved avatar
+      security:
+        - clerkAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -1292,3 +1390,48 @@ components:
         - id
         - email
         - createdAt
+
+    Avatar:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        photoUrl:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - photoUrl
+        - createdAt
+        - updatedAt
+
+    CreateAvatarInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        photoUrl:
+          type: string
+      required:
+        - name
+        - photoUrl
+
+    UpdateAvatarInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+      required:
+        - name

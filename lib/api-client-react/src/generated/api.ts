@@ -24,7 +24,9 @@ import type {
   ApiKeySummary,
   App,
   AppStats,
+  Avatar,
   BillingStatus,
+  CreateAvatarInput,
   CreditLedgerEntry,
   CreditPack,
   ErrorResponse,
@@ -44,6 +46,7 @@ import type {
   SubscribeResult,
   SwitchPlanRequest,
   Tool,
+  UpdateAvatarInput,
   UploadUrlRequest,
   UploadUrlResponse,
   WaitlistEntry,
@@ -2201,4 +2204,295 @@ export function useGetStorageObject<TData = Awaited<ReturnType<typeof getStorage
 
 
 
+
+export const getListAvatarsUrl = () => {
+
+
+
+
+  return `/api/avatars`
+}
+
+/**
+ * @summary List the current user's saved avatars
+ */
+export const listAvatars = async ( options?: RequestInit): Promise<Avatar[]> => {
+
+  return customFetch<Avatar[]>(getListAvatarsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAvatarsQueryKey = () => {
+    return [
+    `/api/avatars`
+    ] as const;
+    }
+
+
+export const getListAvatarsQueryOptions = <TData = Awaited<ReturnType<typeof listAvatars>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAvatars>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAvatarsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAvatars>>> = ({ signal }) => listAvatars({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAvatars>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAvatarsQueryResult = NonNullable<Awaited<ReturnType<typeof listAvatars>>>
+export type ListAvatarsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List the current user's saved avatars
+ */
+
+export function useListAvatars<TData = Awaited<ReturnType<typeof listAvatars>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAvatars>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAvatarsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateAvatarUrl = () => {
+
+
+
+
+  return `/api/avatars`
+}
+
+/**
+ * @summary Save a new avatar
+ */
+export const createAvatar = async (createAvatarInput: CreateAvatarInput, options?: RequestInit): Promise<Avatar> => {
+
+  return customFetch<Avatar>(getCreateAvatarUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createAvatarInput)
+  }
+);}
+
+
+
+
+
+export const getCreateAvatarMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAvatar>>, TError,{data: BodyType<CreateAvatarInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createAvatar>>, TError,{data: BodyType<CreateAvatarInput>}, TContext> => {
+
+const mutationKey = ['createAvatar'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAvatar>>, {data: BodyType<CreateAvatarInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createAvatar(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateAvatarMutationResult = NonNullable<Awaited<ReturnType<typeof createAvatar>>>
+    export type CreateAvatarMutationBody = BodyType<CreateAvatarInput>
+    export type CreateAvatarMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Save a new avatar
+ */
+export const useCreateAvatar = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAvatar>>, TError,{data: BodyType<CreateAvatarInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createAvatar>>,
+        TError,
+        {data: BodyType<CreateAvatarInput>},
+        TContext
+      > => {
+      return useMutation(getCreateAvatarMutationOptions(options));
+    }
+
+export const getUpdateAvatarUrl = (id: number,) => {
+
+
+
+
+  return `/api/avatars/${id}`
+}
+
+/**
+ * @summary Rename a saved avatar
+ */
+export const updateAvatar = async (id: number,
+    updateAvatarInput: UpdateAvatarInput, options?: RequestInit): Promise<Avatar> => {
+
+  return customFetch<Avatar>(getUpdateAvatarUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateAvatarInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateAvatarMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAvatar>>, TError,{id: number;data: BodyType<UpdateAvatarInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateAvatar>>, TError,{id: number;data: BodyType<UpdateAvatarInput>}, TContext> => {
+
+const mutationKey = ['updateAvatar'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAvatar>>, {id: number;data: BodyType<UpdateAvatarInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateAvatar(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateAvatarMutationResult = NonNullable<Awaited<ReturnType<typeof updateAvatar>>>
+    export type UpdateAvatarMutationBody = BodyType<UpdateAvatarInput>
+    export type UpdateAvatarMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Rename a saved avatar
+ */
+export const useUpdateAvatar = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAvatar>>, TError,{id: number;data: BodyType<UpdateAvatarInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateAvatar>>,
+        TError,
+        {id: number;data: BodyType<UpdateAvatarInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateAvatarMutationOptions(options));
+    }
+
+export const getDeleteAvatarUrl = (id: number,) => {
+
+
+
+
+  return `/api/avatars/${id}`
+}
+
+/**
+ * @summary Delete a saved avatar
+ */
+export const deleteAvatar = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteAvatarUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteAvatarMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAvatar>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteAvatar>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteAvatar'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteAvatar>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteAvatar(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteAvatarMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAvatar>>>
+
+    export type DeleteAvatarMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Delete a saved avatar
+ */
+export const useDeleteAvatar = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAvatar>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteAvatar>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteAvatarMutationOptions(options));
+    }
 
