@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { Link } from "wouter";
 import { Show, useUser, useClerk } from "@clerk/react";
 import {
@@ -6,13 +6,14 @@ import {
   useGetMe,
   useCreateGeneration,
   useGetGeneration,
+  useListGenerations,
+  useDeleteGeneration,
   getGetMeQueryKey,
   getListGenerationsQueryKey,
   getGetGenerationQueryKey,
   type Generation,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import {
   Home,
@@ -23,38 +24,58 @@ import {
   Plus,
   Folder,
   ChevronDown,
-  ChevronRight,
   Package,
   Smartphone,
   Sparkles,
-  Building2,
-  Clapperboard,
-  Video,
-  Crown,
-  Mic,
-  Shuffle,
-  Settings,
   Zap,
   AlertCircle,
   Download,
   User,
   LogOut,
   RefreshCw,
+  Trash2,
+  Upload,
+  Settings,
+  Shuffle,
+  Play,
+  Image as ImageIcon,
+  CheckCircle2,
+  X,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
-// ─── upload helper ───────────────────────────────────────────────────────────
+// ─── constants ────────────────────────────────────────────────────────────────
+const FAVORITES_KEY = "mktStudio_favorites";
+
+function loadFavorites(): Set<number> {
+  try {
+    const raw = localStorage.getItem(FAVORITES_KEY);
+    if (!raw) return new Set();
+    return new Set(JSON.parse(raw) as number[]);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveFavorites(set: Set<number>) {
+  localStorage.setItem(FAVORITES_KEY, JSON.stringify([...set]));
+}
+
+// ─── upload helper ────────────────────────────────────────────────────────────
 async function uploadFile(file: File): Promise<string> {
   const requestRes = await fetch(`${basePath}/api/storage/uploads/request-url`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
-    body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type || "application/octet-stream" }),
+    body: JSON.stringify({
+      name: file.name,
+      size: file.size,
+      contentType: file.type || "application/octet-stream",
+    }),
   });
-  if (!requestRes.ok) throw new Error("Failed to request an upload URL");
+  if (!requestRes.ok) throw new Error("Failed to request upload URL");
   const { uploadURL, objectPath } = await requestRes.json();
   const putRes = await fetch(uploadURL, {
     method: "PUT",
@@ -65,7 +86,7 @@ async function uploadFile(file: File): Promise<string> {
   return `${window.location.origin}${basePath}/api/storage${objectPath}`;
 }
 
-// ─── types ───────────────────────────────────────────────────────────────────
+// ─── types ────────────────────────────────────────────────────────────────────
 type SourceType = "product" | "app";
 type FilterTag = "all" | "tiktok" | "ugc" | "commercial";
 type TemplateId =
@@ -78,10 +99,14 @@ type TemplateId =
   | "studio-commercial"
   | "cinematic-launch";
 type ContentToggle = "ugc" | "hook" | "setting";
-type SidebarSection = "home" | "all-generations" | "favorites" | "url-to-ad" | "ad-reference";
+type SidebarSection =
+  | "home"
+  | "all-generations"
+  | "favorites"
+  | "url-to-ad"
+  | "ad-reference";
 
 // ─── template catalogue ───────────────────────────────────────────────────────
-// thumbnails: 3 picsum photo seeds (portrait 300×480) per template
 const TEMPLATES: Record<
   TemplateId,
   {
@@ -230,8 +255,14 @@ const FILTERS: { value: FilterTag; label: string; isNew?: boolean }[] = [
 
 const CONTENT_TOGGLES: Record<ContentToggle, { label: string; directive: string }> = {
   ugc: { label: "UGC", directive: "Shot on a phone, authentic UGC creator style." },
-  hook: { label: "Hook", directive: "Open with a strong, attention-grabbing hook in the first shot." },
-  setting: { label: "Setting", directive: "Establish a clear setting/environment before revealing the product." },
+  hook: {
+    label: "Hook",
+    directive: "Open with a strong, attention-grabbing hook in the first shot.",
+  },
+  setting: {
+    label: "Setting",
+    directive: "Establish a clear setting/environment before revealing the product.",
+  },
 };
 
 // ─── prompt builder ───────────────────────────────────────────────────────────
@@ -244,19 +275,576 @@ function buildAdPrompt(
 ): string {
   const cfg = TEMPLATES[template];
   const subject = sourceType === "app" ? "app" : "product";
+  const name = productName.trim() || "this product";
   const toggleDirectives = Array.from(toggles)
     .map((t) => CONTENT_TOGGLES[t].directive)
     .join(" ");
-  return `A short advertisement for the ${subject} "${productName}". ${description.trim()} ${cfg.directive} ${toggleDirectives}`.trim();
+  return `A short advertisement for the ${subject} "${name}". ${description.trim()} ${cfg.directive} ${toggleDirectives}`.trim();
 }
 
-// ─── sidebar ─────────────────────────────────────────────────────────────────
+function relativeTime(iso: string): string {
+  const secs = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (secs < 60) return "just now";
+  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
+  if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`;
+  return `${Math.floor(secs / 86400)}d ago`;
+}
+
+// ─── generation card ──────────────────────────────────────────────────────────
+function GenerationCard({
+  gen,
+  isFavorite,
+  onToggleFavorite,
+  onRerun,
+  onDelete,
+}: {
+  gen: Generation;
+  isFavorite: boolean;
+  onToggleFavorite: (id: number) => void;
+  onRerun: (gen: Generation) => void;
+  onDelete: (id: number) => void;
+}) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const output = gen.outputUrls?.[0];
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, scale: 0.96 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.96 }}
+      transition={{ duration: 0.18 }}
+      className="relative rounded-2xl overflow-hidden border border-white/[0.08] bg-[#111411] group"
+    >
+      {/* Thumbnail area */}
+      <div className="aspect-video bg-black/40 flex items-center justify-center relative overflow-hidden">
+        {gen.status === "completed" && output ? (
+          gen.category === "video" ? (
+            <video
+              src={output}
+              muted
+              loop
+              playsInline
+              className="w-full h-full object-cover"
+              onMouseEnter={(e) => e.currentTarget.play()}
+              onMouseLeave={(e) => {
+                e.currentTarget.pause();
+                e.currentTarget.currentTime = 0;
+              }}
+            />
+          ) : (
+            <img src={output} alt={gen.prompt} className="w-full h-full object-cover" />
+          )
+        ) : gen.status === "failed" ? (
+          <div className="flex flex-col items-center gap-2 text-red-400/70">
+            <AlertCircle className="w-8 h-8" />
+            <p className="text-xs text-center px-4">{gen.errorMessage ?? "Generation failed"}</p>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-3 text-white/30">
+            <div className="w-8 h-8 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
+            <p className="text-xs">Generating…</p>
+          </div>
+        )}
+
+        {/* Status badge */}
+        <div className="absolute top-2 left-2">
+          {gen.status === "completed" && (
+            <span className="flex items-center gap-1 bg-black/70 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full">
+              <CheckCircle2 className="w-2.5 h-2.5" /> Done
+            </span>
+          )}
+          {gen.status === "failed" && (
+            <span className="flex items-center gap-1 bg-red-500/20 text-red-400 text-[10px] font-bold px-2 py-0.5 rounded-full">
+              <AlertCircle className="w-2.5 h-2.5" /> Failed
+            </span>
+          )}
+          {(gen.status === "pending" || gen.status === "processing") && (
+            <span className="flex items-center gap-1 bg-black/70 text-white/60 text-[10px] font-bold px-2 py-0.5 rounded-full">
+              <RefreshCw className="w-2.5 h-2.5 animate-spin" /> Processing
+            </span>
+          )}
+        </div>
+
+        {/* Download overlay */}
+        {gen.status === "completed" && output && (
+          <a
+            href={output}
+            download
+            target="_blank"
+            rel="noreferrer"
+            className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/70 flex items-center justify-center text-white/70 hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity"
+          >
+            <Download className="w-3.5 h-3.5" />
+          </a>
+        )}
+      </div>
+
+      {/* Info */}
+      <div className="p-3">
+        <p className="text-xs text-white/80 font-medium leading-snug line-clamp-2 mb-2">
+          {gen.prompt}
+        </p>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-white/30 bg-white/[0.05] px-2 py-0.5 rounded-full">
+              {gen.modelName ?? gen.modelId}
+            </span>
+            <span className="text-[10px] text-white/25">
+              {gen.createdAt ? relativeTime(gen.createdAt) : ""}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            {/* Favorite */}
+            <button
+              type="button"
+              onClick={() => onToggleFavorite(gen.id)}
+              className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
+                isFavorite
+                  ? "text-red-400 hover:text-red-300"
+                  : "text-white/30 hover:text-red-400"
+              }`}
+            >
+              <Heart className={`w-3.5 h-3.5 ${isFavorite ? "fill-current" : ""}`} />
+            </button>
+
+            {/* Re-run */}
+            {gen.status === "completed" && (
+              <button
+                type="button"
+                onClick={() => onRerun(gen)}
+                className="w-6 h-6 rounded-full flex items-center justify-center text-white/30 hover:text-primary transition-colors"
+                title="Re-run"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+              </button>
+            )}
+
+            {/* Delete */}
+            {confirmDelete ? (
+              <button
+                type="button"
+                onClick={() => onDelete(gen.id)}
+                className="text-[10px] font-bold text-red-400 hover:text-red-300 transition-colors px-1"
+              >
+                Confirm
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(true)}
+                onBlur={() => setTimeout(() => setConfirmDelete(false), 200)}
+                className="w-6 h-6 rounded-full flex items-center justify-center text-white/30 hover:text-red-400 transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── all generations view ─────────────────────────────────────────────────────
+function AllGenerationsView({
+  favorites,
+  onToggleFavorite,
+  onRerun,
+}: {
+  favorites: Set<number>;
+  onToggleFavorite: (id: number) => void;
+  onRerun: (gen: Generation) => void;
+}) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const { data: generations, isLoading } = useListGenerations();
+
+  const deleteGen = useDeleteGeneration({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListGenerationsQueryKey() });
+      },
+      onError: () => toast({ title: "Delete failed", variant: "destructive" }),
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-24 text-white/30">
+        <RefreshCw className="w-5 h-5 animate-spin mr-2" />
+        Loading generations…
+      </div>
+    );
+  }
+
+  if (!generations?.length) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
+        <div className="w-14 h-14 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-center">
+          <LayoutGrid className="w-6 h-6 text-white/30" />
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-white/60">No generations yet</p>
+          <p className="text-xs text-white/30 mt-1 max-w-xs">
+            Your generated ads will appear here once you start creating.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-6 pt-6 pb-44">
+      <h2 className="text-sm font-bold text-white/70 mb-4">
+        All generations · {generations.length}
+      </h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <AnimatePresence mode="popLayout">
+          {generations.map((gen: Generation) => (
+            <GenerationCard
+              key={gen.id}
+              gen={gen}
+              isFavorite={favorites.has(gen.id)}
+              onToggleFavorite={onToggleFavorite}
+              onRerun={onRerun}
+              onDelete={(id) => deleteGen.mutate({ id })}
+            />
+          ))}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}
+
+// ─── favorites view ───────────────────────────────────────────────────────────
+function FavoritesView({
+  favorites,
+  onToggleFavorite,
+  onRerun,
+}: {
+  favorites: Set<number>;
+  onToggleFavorite: (id: number) => void;
+  onRerun: (gen: Generation) => void;
+}) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const { data: allGenerations, isLoading } = useListGenerations();
+  const favorited = (allGenerations ?? []).filter((g: Generation) => favorites.has(g.id));
+
+  const deleteGen = useDeleteGeneration({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListGenerationsQueryKey() });
+      },
+      onError: () => toast({ title: "Delete failed", variant: "destructive" }),
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-24 text-white/30">
+        <RefreshCw className="w-5 h-5 animate-spin mr-2" />
+        Loading…
+      </div>
+    );
+  }
+
+  if (!favorited.length) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
+        <div className="w-14 h-14 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-center">
+          <Heart className="w-6 h-6 text-white/30" />
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-white/60">No favorites yet</p>
+          <p className="text-xs text-white/30 mt-1 max-w-xs">
+            Click the ♥ on any generation to save it here.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-6 pt-6 pb-44">
+      <h2 className="text-sm font-bold text-white/70 mb-4">
+        My favorites · {favorited.length}
+      </h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <AnimatePresence mode="popLayout">
+          {favorited.map((gen: Generation) => (
+            <GenerationCard
+              key={gen.id}
+              gen={gen}
+              isFavorite
+              onToggleFavorite={onToggleFavorite}
+              onRerun={onRerun}
+              onDelete={(id) => deleteGen.mutate({ id })}
+            />
+          ))}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}
+
+// ─── url-to-ad section ────────────────────────────────────────────────────────
+function UrlToAdSection({
+  onFill,
+}: {
+  onFill: (productName: string, description: string) => void;
+}) {
+  const [url, setUrl] = useState("");
+  const [analyzing, setAnalyzing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<{
+    productName: string;
+    tagline: string;
+    description: string;
+  } | null>(null);
+  const { toast } = useToast();
+
+  const handleAnalyze = async () => {
+    if (!url.trim()) return;
+    setAnalyzing(true);
+    setError(null);
+    setResult(null);
+    try {
+      const res = await fetch(`${basePath}/api/marketing/url-analyze`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ url: url.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Analysis failed");
+        return;
+      }
+      setResult(data);
+    } catch {
+      setError("Network error — please try again.");
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const handleUseResult = () => {
+    if (!result) return;
+    onFill(result.productName, result.description || result.tagline);
+    toast({
+      title: "Product info applied",
+      description: "Head back to Home and hit Generate.",
+    });
+  };
+
+  return (
+    <div className="relative z-10 pb-44 px-6 pt-12 max-w-lg mx-auto w-full">
+      <div className="bg-[#111411]/90 border border-white/10 rounded-2xl p-6 backdrop-blur-sm">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-400 to-cyan-400 flex items-center justify-center mb-4">
+          <Link2 className="w-5 h-5 text-white" />
+        </div>
+        <h2 className="text-lg font-bold text-white mb-1">URL to Ad</h2>
+        <p className="text-sm text-white/50 mb-5">
+          Paste your product page URL and we'll extract everything needed to create
+          your ad automatically.
+        </p>
+
+        <div className="flex gap-2 mb-4">
+          <input
+            type="url"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleAnalyze()}
+            placeholder="https://yourproduct.com"
+            className="flex-1 bg-white/[0.06] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/30 outline-none focus:border-primary/50 transition-colors"
+          />
+          <button
+            type="button"
+            onClick={handleAnalyze}
+            disabled={!url.trim() || analyzing}
+            className="px-4 py-2.5 bg-primary text-black text-sm font-bold rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+          >
+            {analyzing ? (
+              <>
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Analyzing…
+              </>
+            ) : (
+              "Analyze"
+            )}
+          </button>
+        </div>
+
+        {error && (
+          <p className="text-xs text-red-400 mb-3 flex items-center gap-1.5">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {error}
+          </p>
+        )}
+
+        {result && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white/[0.04] border border-primary/20 rounded-xl p-4 space-y-2"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="text-xs text-primary font-bold uppercase tracking-wide mb-1">
+                  Extracted
+                </p>
+                <p className="text-sm font-bold text-white">{result.productName}</p>
+                <p className="text-xs text-white/60 mt-0.5">{result.tagline}</p>
+                {result.description && (
+                  <p className="text-xs text-white/45 mt-1.5 leading-relaxed">
+                    {result.description}
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setResult(null)}
+                className="text-white/30 hover:text-white/60 transition-colors shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={handleUseResult}
+              className="w-full mt-2 py-2 bg-primary text-black text-xs font-bold rounded-lg hover:bg-primary/90 transition-colors flex items-center justify-center gap-1.5"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" /> Use this — fill the ad form
+            </button>
+          </motion.div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── ad reference section ─────────────────────────────────────────────────────
+function AdReferenceSection({
+  onGenerate,
+}: {
+  onGenerate: (imageUrl: string, description: string) => void;
+}) {
+  const [refImageUrl, setRefImageUrl] = useState<string | null>(null);
+  const [description, setDescription] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
+
+  const handleFile = async (file: File | undefined) => {
+    if (!file) return;
+    setUploading(true);
+    try {
+      setRefImageUrl(await uploadFile(file));
+    } catch {
+      toast({ title: "Upload failed", variant: "destructive" });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleGenerate = () => {
+    if (!refImageUrl) return;
+    onGenerate(refImageUrl, description);
+    toast({
+      title: "Reference applied",
+      description: "Switched to image-to-video with your reference. Hit Generate.",
+    });
+  };
+
+  return (
+    <div className="relative z-10 pb-44 px-6 pt-12 max-w-lg mx-auto w-full">
+      <div className="bg-[#111411]/90 border border-white/10 rounded-2xl p-6 backdrop-blur-sm">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-400 to-purple-500 flex items-center justify-center mb-4">
+          <FileImage className="w-5 h-5 text-white" />
+        </div>
+        <h2 className="text-lg font-bold text-white mb-1">Ad Reference</h2>
+        <p className="text-sm text-white/50 mb-5">
+          Upload a reference image or ad screenshot to use as the base for your new
+          video ad. We'll animate it into a short clip.
+        </p>
+
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => handleFile(e.target.files?.[0])}
+        />
+
+        {/* Upload area */}
+        {refImageUrl ? (
+          <div className="relative mb-4 rounded-xl overflow-hidden border border-white/10">
+            <img
+              src={refImageUrl}
+              alt="Reference"
+              className="w-full h-48 object-cover"
+            />
+            <button
+              type="button"
+              onClick={() => setRefImageUrl(null)}
+              className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/70 flex items-center justify-center text-white/70 hover:text-white transition-colors"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            disabled={uploading}
+            className="w-full h-40 rounded-xl border border-dashed border-white/15 flex flex-col items-center justify-center gap-3 text-white/40 hover:text-primary hover:border-primary/50 transition-colors mb-4"
+          >
+            {uploading ? (
+              <>
+                <RefreshCw className="w-6 h-6 animate-spin" />
+                <span className="text-sm">Uploading…</span>
+              </>
+            ) : (
+              <>
+                <Upload className="w-6 h-6" />
+                <span className="text-sm">Click to upload reference image</span>
+                <span className="text-xs text-white/25">PNG, JPG, WEBP</span>
+              </>
+            )}
+          </button>
+        )}
+
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Describe the style of ad you want (optional)…"
+          rows={3}
+          className="w-full bg-white/[0.06] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 outline-none focus:border-primary/50 transition-colors resize-none mb-4"
+        />
+
+        <button
+          type="button"
+          onClick={handleGenerate}
+          disabled={!refImageUrl}
+          className="w-full py-2.5 bg-primary text-black text-sm font-bold rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        >
+          <Play className="w-4 h-4" /> Apply Reference & Generate
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── sidebar ──────────────────────────────────────────────────────────────────
 function Sidebar({
   active,
   onNavigate,
+  creditsBalance,
 }: {
   active: SidebarSection;
   onNavigate: (s: SidebarSection) => void;
+  creditsBalance?: number;
 }) {
   const [projectsOpen, setProjectsOpen] = useState(true);
   const { user } = useUser();
@@ -300,14 +888,31 @@ function Sidebar({
 
   return (
     <aside className="w-[220px] shrink-0 flex flex-col bg-[#0e0e0e] border-r border-white/[0.06] h-screen sticky top-0 overflow-y-auto">
-      {/* Brand header */}
+      {/* Brand */}
       <div className="flex items-center gap-2.5 px-4 py-4 border-b border-white/[0.06] shrink-0">
         <div className="w-7 h-7 bg-primary rounded-md shadow-[0_0_10px_rgba(206,255,0,0.35)] flex items-center justify-center shrink-0">
           <div className="w-2.5 h-2.5 bg-black rounded-sm" />
         </div>
-        <span className="font-bold text-sm text-white leading-none">Marketing Studio</span>
+        <span className="font-bold text-sm text-white leading-none">
+          Marketing Studio
+        </span>
         <ChevronDown className="w-3.5 h-3.5 text-white/30 ml-auto shrink-0" />
       </div>
+
+      {/* Credits badge */}
+      {creditsBalance !== undefined && (
+        <div className="mx-3 mt-3 px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06] flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <Zap className="w-3.5 h-3.5 text-primary" />
+            <span className="text-xs font-bold text-white">{creditsBalance}</span>
+          </div>
+          <Link href="/pricing">
+            <span className="text-[10px] text-white/40 hover:text-primary transition-colors font-medium">
+              Get more →
+            </span>
+          </Link>
+        </div>
+      )}
 
       {/* Main nav */}
       <div className="px-2 pt-3 pb-1 space-y-0.5">
@@ -334,7 +939,9 @@ function Sidebar({
 
       {/* Tools */}
       <div className="px-4 pt-5 pb-1">
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-white/25 mb-2">Tools</p>
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-white/25 mb-2">
+          Tools
+        </p>
         <div className="space-y-0.5 -mx-2">
           {tools.map(({ id, label, Icon, gradient }) => (
             <button
@@ -369,7 +976,9 @@ function Sidebar({
             Projects
           </p>
           <ChevronDown
-            className={`w-3 h-3 text-white/25 transition-transform ${projectsOpen ? "" : "-rotate-90"}`}
+            className={`w-3 h-3 text-white/25 transition-transform ${
+              projectsOpen ? "" : "-rotate-90"
+            }`}
           />
         </button>
         <AnimatePresence initial={false}>
@@ -398,7 +1007,7 @@ function Sidebar({
         </AnimatePresence>
       </div>
 
-      {/* Bottom user area */}
+      {/* User */}
       <div className="mt-auto border-t border-white/[0.06] p-3">
         <Show when="signed-in">
           <div className="flex items-center gap-2.5">
@@ -462,7 +1071,6 @@ function TemplateCard({
       }`}
       style={{ background: "#111411" }}
     >
-      {/* Photo collage — 3 portrait images */}
       <div className="flex gap-0.5 h-52 overflow-hidden">
         {cfg.thumbnails.map((src, i) => (
           <div key={i} className="flex-1 overflow-hidden">
@@ -475,16 +1083,12 @@ function TemplateCard({
           </div>
         ))}
       </div>
-
-      {/* Info bar */}
       <div className="flex items-center gap-3 px-4 py-3">
-        {/* Colored icon badge */}
         <div
           className={`w-7 h-7 rounded-lg bg-gradient-to-br ${cfg.iconColor} flex items-center justify-center shrink-0`}
         >
           <Sparkles className="w-3.5 h-3.5 text-white" />
         </div>
-
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
             <p className="text-sm font-semibold text-white truncate">{cfg.label}</p>
@@ -496,41 +1100,22 @@ function TemplateCard({
           </div>
           <p className="text-xs text-white/45 truncate">{cfg.description}</p>
         </div>
-
         <button
           type="button"
           onClick={() => onTry(id)}
-          className={`shrink-0 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-            isSelected
-              ? "bg-primary text-black"
-              : "bg-primary text-black hover:bg-primary/90"
-          }`}
+          className="shrink-0 px-3.5 py-1.5 rounded-lg text-xs font-bold bg-primary text-black hover:bg-primary/90 transition-colors"
         >
-          {isSelected ? "Selected" : "Try"}
+          {isSelected ? "Selected ✓" : "Try"}
         </button>
       </div>
     </motion.div>
   );
 }
 
-// ─── placeholder sections ─────────────────────────────────────────────────────
-function PlaceholderSection({ title, icon: Icon, message }: { title: string; icon: React.ElementType; message: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center h-full text-center gap-4 py-24">
-      <div className="w-14 h-14 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-center">
-        <Icon className="w-6 h-6 text-white/30" />
-      </div>
-      <div>
-        <p className="text-sm font-semibold text-white/60">{title}</p>
-        <p className="text-xs text-white/30 mt-1 max-w-xs">{message}</p>
-      </div>
-    </div>
-  );
-}
-
-// ─── result panel ─────────────────────────────────────────────────────────────
-function ResultPanel({ generation }: { generation: Generation | undefined }) {
+// ─── inline result banner (home section) ─────────────────────────────────────
+function ResultBanner({ generation }: { generation: Generation | undefined }) {
   if (!generation) return null;
+
   if (generation.status === "failed") {
     return (
       <div className="mx-6 mb-4 rounded-xl border border-red-500/20 bg-red-500/5 flex items-center gap-3 px-4 py-3 text-red-400 text-sm">
@@ -549,9 +1134,17 @@ function ResultPanel({ generation }: { generation: Generation | undefined }) {
   }
   const output = generation.outputUrls?.[0];
   if (!output) return null;
+
   return (
-    <div className="mx-6 mb-4 rounded-2xl overflow-hidden border border-white/10 bg-black/40 relative group">
-      <video src={output} controls autoPlay loop className="w-full aspect-video object-cover" />
+    <div className="mx-6 mb-4 rounded-2xl overflow-hidden border border-primary/20 bg-black/40 relative group">
+      <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-black/70 text-primary text-[10px] font-bold px-2.5 py-1 rounded-full">
+        <CheckCircle2 className="w-3 h-3" /> Generated
+      </div>
+      {generation.category === "video" ? (
+        <video src={output} controls autoPlay loop className="w-full aspect-video object-cover" />
+      ) : (
+        <img src={output} alt={generation.prompt} className="w-full aspect-video object-cover" />
+      )}
       <a
         href={output}
         download
@@ -570,16 +1163,37 @@ export default function MarketingStudio() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // ── nav
   const [activeSection, setActiveSection] = useState<SidebarSection>("home");
+
+  // ── gen form
   const [sourceType, setSourceType] = useState<SourceType>("product");
+  const [productName, setProductName] = useState("");
   const [description, setDescription] = useState("");
   const [imageUrl, setImageUrl] = useState<string | undefined>(undefined);
+  const [avatarUrl, setAvatarUrl] = useState<string | undefined>(undefined);
   const [uploading, setUploading] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
   const [template, setTemplate] = useState<TemplateId>("ugc-testimonial");
   const [toggles, setToggles] = useState<Set<ContentToggle>>(new Set(["ugc", "hook"]));
   const [filter, setFilter] = useState<FilterTag>("all");
   const [activeGenerationId, setActiveGenerationId] = useState<number | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+
+  // ── favorites
+  const [favorites, setFavorites] = useState<Set<number>>(() => loadFavorites());
+  const toggleFavorite = useCallback((id: number) => {
+    setFavorites((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      saveFavorites(next);
+      return next;
+    });
+  }, []);
+
+  // ── file refs
+  const productInputRef = useRef<HTMLInputElement>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const cfg = TEMPLATES[template];
   const { data: model } = useGetModel(cfg.modelId);
@@ -597,24 +1211,41 @@ export default function MarketingStudio() {
   const applyTemplate = (id: TemplateId) => {
     setTemplate(id);
     setActiveSection("home");
+    // Clear image if new template doesn't need one
+    if (!TEMPLATES[id].needsImage) setImageUrl(undefined);
   };
 
   const filteredTemplates = (
     Object.entries(TEMPLATES) as [TemplateId, (typeof TEMPLATES)[TemplateId]][]
   ).filter(([, c]) => filter === "all" || c.tags.includes(filter as Exclude<FilterTag, "all">));
 
-  const handleFile = async (file: File | undefined) => {
+  // ── file uploads
+  const handleProductFile = async (file: File | undefined) => {
     if (!file) return;
     setUploading(true);
     try {
       setImageUrl(await uploadFile(file));
     } catch {
-      setImageUrl(undefined);
+      toast({ title: "Upload failed", variant: "destructive" });
     } finally {
       setUploading(false);
     }
   };
 
+  const handleAvatarFile = async (file: File | undefined) => {
+    if (!file) return;
+    setAvatarUploading(true);
+    try {
+      setAvatarUrl(await uploadFile(file));
+      toast({ title: "Avatar uploaded", description: "It'll influence your UGC generation." });
+    } catch {
+      toast({ title: "Upload failed", variant: "destructive" });
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
+  // ── generation
   const createGeneration = useCreateGeneration({
     mutation: {
       onSuccess: (gen: Generation) => {
@@ -623,8 +1254,8 @@ export default function MarketingStudio() {
         queryClient.invalidateQueries({ queryKey: getListGenerationsQueryKey() });
       },
       onError: (err: any) => {
-        const description = err?.data?.error ?? err?.message ?? "Please try again.";
-        toast({ title: "Ad generation failed", description, variant: "destructive" });
+        const msg = err?.data?.error ?? err?.message ?? "Please try again.";
+        toast({ title: "Generation failed", description: msg, variant: "destructive" });
       },
     },
   });
@@ -658,16 +1289,17 @@ export default function MarketingStudio() {
     !insufficientCredits;
 
   const prompt = useMemo(
-    () => buildAdPrompt("your product", description, template, toggles, sourceType),
-    [description, template, toggles, sourceType],
+    () => buildAdPrompt(productName, description, template, toggles, sourceType),
+    [productName, description, template, toggles, sourceType],
   );
 
   const handleSubmit = () => {
     if (!model) return;
+    const extraPrompt = avatarUrl ? ` UGC creator avatar featured prominently.` : "";
     createGeneration.mutate({
       data: {
         modelId: model.modelId,
-        prompt,
+        prompt: prompt + extraPrompt,
         params: cfg.needsImage ? { image: imageUrl } : {},
         autoSelect: false,
         skipEnhance: true,
@@ -675,12 +1307,60 @@ export default function MarketingStudio() {
     });
   };
 
+  // ── re-run from All Generations / Favorites
+  const handleRerun = (gen: Generation) => {
+    // Try to match modelId back to a template
+    const matchEntry = Object.entries(TEMPLATES).find(
+      ([, t]) => t.modelId === gen.modelId,
+    );
+    if (matchEntry) setTemplate(matchEntry[0] as TemplateId);
+    setDescription(gen.prompt);
+    setActiveGenerationId(null);
+    setActiveSection("home");
+  };
+
+  // ── URL-to-Ad auto-fill
+  const handleUrlFill = (name: string, desc: string) => {
+    setProductName(name);
+    setDescription(desc);
+    setActiveSection("home");
+  };
+
+  // ── Ad Reference apply
+  const handleAdReferenceFill = (refUrl: string, desc: string) => {
+    // Switch to image-to-video template and fill image
+    setTemplate("ugc-testimonial"); // wan-2-2-image-to-video
+    setImageUrl(refUrl);
+    if (desc) setDescription(desc);
+    setActiveSection("home");
+  };
+
   return (
     <div className="flex h-screen overflow-hidden bg-[#0a0a0a]">
-      {/* ── Sidebar ── */}
-      <Sidebar active={activeSection} onNavigate={setActiveSection} />
+      {/* Hidden file inputs */}
+      <input
+        ref={productInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => handleProductFile(e.target.files?.[0])}
+      />
+      <input
+        ref={avatarInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => handleAvatarFile(e.target.files?.[0])}
+      />
 
-      {/* ── Main area ── */}
+      {/* ── Sidebar */}
+      <Sidebar
+        active={activeSection}
+        onNavigate={setActiveSection}
+        creditsBalance={me?.creditsBalance}
+      />
+
+      {/* ── Main */}
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         {/* Top bar */}
         <div className="flex items-center justify-between px-6 py-3 border-b border-white/[0.06] shrink-0 bg-[#0e0e0e]/80 backdrop-blur-sm">
@@ -725,20 +1405,24 @@ export default function MarketingStudio() {
         </div>
 
         {/* Scrollable content */}
-        <div className="flex-1 overflow-y-auto relative" style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.1) transparent" }}>
-          {/* Dot-grid background */}
+        <div
+          className="flex-1 overflow-y-auto relative"
+          style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.1) transparent" }}
+        >
+          {/* Dot-grid */}
           <div
             className="absolute inset-0 pointer-events-none"
             style={{
               background: "#0d1209",
-              backgroundImage: "radial-gradient(circle, rgba(206,255,0,0.13) 1px, transparent 1px)",
+              backgroundImage:
+                "radial-gradient(circle, rgba(206,255,0,0.13) 1px, transparent 1px)",
               backgroundSize: "28px 28px",
             }}
           />
 
+          {/* ── Home */}
           {activeSection === "home" && (
             <div className="relative z-10 pb-44">
-              {/* Hero */}
               <div className="text-center pt-12 pb-8 px-6">
                 <motion.h1
                   initial={{ opacity: 0, y: 16 }}
@@ -751,8 +1435,8 @@ export default function MarketingStudio() {
                 </motion.h1>
               </div>
 
-              {/* Result (if any) */}
-              <ResultPanel generation={activeGeneration ?? undefined} />
+              {/* Result */}
+              <ResultBanner generation={activeGeneration ?? undefined} />
 
               {/* Filter tabs */}
               <div className="flex items-center gap-2 px-6 mb-5 flex-wrap">
@@ -799,77 +1483,71 @@ export default function MarketingStudio() {
             </div>
           )}
 
+          {/* ── All generations */}
           {activeSection === "all-generations" && (
-            <div className="relative z-10 pb-44">
-              <PlaceholderSection
-                title="All generations"
-                icon={LayoutGrid}
-                message="Your generated ads will appear here once you start creating."
+            <div className="relative z-10">
+              <AllGenerationsView
+                favorites={favorites}
+                onToggleFavorite={toggleFavorite}
+                onRerun={handleRerun}
               />
             </div>
           )}
 
+          {/* ── Favorites */}
           {activeSection === "favorites" && (
-            <div className="relative z-10 pb-44">
-              <PlaceholderSection
-                title="My favorites"
-                icon={Heart}
-                message="Save templates you love and they'll show up here."
+            <div className="relative z-10">
+              <FavoritesView
+                favorites={favorites}
+                onToggleFavorite={toggleFavorite}
+                onRerun={handleRerun}
               />
             </div>
           )}
 
+          {/* ── URL to Ad */}
           {activeSection === "url-to-ad" && (
-            <div className="relative z-10 pb-44">
-              <div className="max-w-lg mx-auto px-6 pt-16">
-                <div className="bg-[#111411]/80 border border-white/10 rounded-2xl p-6 backdrop-blur-sm">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-400 to-cyan-400 flex items-center justify-center mb-4">
-                    <Link2 className="w-5 h-5 text-white" />
-                  </div>
-                  <h2 className="text-lg font-bold text-white mb-1">URL to Ad</h2>
-                  <p className="text-sm text-white/50 mb-5">
-                    Paste your product page URL and we'll extract everything needed to create your ad automatically.
-                  </p>
-                  <div className="flex gap-2">
-                    <input
-                      type="url"
-                      placeholder="https://yourproduct.com"
-                      className="flex-1 bg-white/[0.06] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/30 outline-none focus:border-primary/50 transition-colors"
-                    />
-                    <button
-                      type="button"
-                      className="px-4 py-2.5 bg-primary text-black text-sm font-bold rounded-xl hover:bg-primary/90 transition-colors"
-                    >
-                      Analyze
-                    </button>
-                  </div>
-                  <p className="text-xs text-white/30 mt-3">Coming soon — URL analysis is being integrated.</p>
-                </div>
-              </div>
+            <div className="relative z-10 flex justify-center">
+              <UrlToAdSection onFill={handleUrlFill} />
             </div>
           )}
 
+          {/* ── Ad Reference */}
           {activeSection === "ad-reference" && (
-            <div className="relative z-10 pb-44">
-              <PlaceholderSection
-                title="Ad Reference"
-                icon={FileImage}
-                message="Upload a reference ad and we'll use it to guide the style of your new ad."
-              />
+            <div className="relative z-10 flex justify-center">
+              <AdReferenceSection onGenerate={handleAdReferenceFill} />
             </div>
           )}
         </div>
 
-        {/* ── Sticky generation bar ── */}
+        {/* ── Sticky generation bar */}
         <div
           className="absolute bottom-0 left-[220px] right-0 z-20"
-          style={{ background: "linear-gradient(to top, #0d1209 60%, transparent)" }}
+          style={{
+            background: "linear-gradient(to top, #0d1209 60%, transparent)",
+          }}
         >
           <div className="mx-6 mb-5">
             <div className="bg-[#111411]/95 border border-white/[0.12] rounded-2xl shadow-2xl shadow-black/60 backdrop-blur-xl overflow-hidden">
-              {/* Top row: source type tabs + prompt + add buttons */}
+              {/* Product name row */}
+              <div className="flex items-center gap-3 px-4 pt-3 pb-0">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-white/25 shrink-0 w-14">
+                  {sourceType === "app" ? "App" : "Product"}
+                </span>
+                <input
+                  type="text"
+                  value={productName}
+                  onChange={(e) => setProductName(e.target.value)}
+                  placeholder={
+                    sourceType === "app" ? "App name…" : "Product name…"
+                  }
+                  className="flex-1 bg-transparent text-sm text-white placeholder-white/25 outline-none py-1.5 border-b border-white/[0.06] focus:border-primary/40 transition-colors"
+                />
+              </div>
+
+              {/* Main prompt row */}
               <div className="flex items-stretch">
-                {/* Source type tabs — vertical */}
+                {/* Source type */}
                 <div className="flex flex-col border-r border-white/[0.08] px-1 py-1 gap-0.5 shrink-0">
                   <button
                     type="button"
@@ -897,7 +1575,7 @@ export default function MarketingStudio() {
                   </button>
                 </div>
 
-                {/* Prompt area */}
+                {/* Prompt textarea */}
                 <div className="flex-1 min-w-0 flex items-center px-4">
                   <Plus className="w-4 h-4 text-white/30 shrink-0 mr-2" />
                   <textarea
@@ -915,46 +1593,60 @@ export default function MarketingStudio() {
                   />
                 </div>
 
-                {/* Add product / avatar + Generate */}
+                {/* Product / Avatar / Generate */}
                 <div className="flex items-center gap-2 pr-3 pl-2 shrink-0">
-                  {/* Hidden file input */}
-                  <input
-                    ref={inputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => handleFile(e.target.files?.[0])}
-                  />
-
-                  {/* Product add / preview */}
+                  {/* Product image */}
                   <div className="flex flex-col items-center gap-1">
                     <button
                       type="button"
-                      onClick={() => inputRef.current?.click()}
+                      onClick={() => productInputRef.current?.click()}
                       disabled={uploading}
                       className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-colors overflow-hidden ${
                         imageUrl
                           ? "border-primary/50"
+                          : cfg.needsImage
+                          ? "border-amber-400/40 text-amber-400/60 hover:border-amber-400/70"
                           : "border-white/15 text-white/40 hover:border-white/30 hover:text-white"
                       }`}
+                      title={imageUrl ? "Change product photo" : "Upload product photo"}
                     >
-                      {imageUrl ? (
+                      {uploading ? (
+                        <RefreshCw className="w-3 h-3 animate-spin" />
+                      ) : imageUrl ? (
                         <img src={imageUrl} alt="Product" className="w-full h-full object-cover" />
                       ) : (
                         <Plus className="w-3.5 h-3.5" />
                       )}
                     </button>
-                    <span className="text-[9px] text-white/30 font-bold uppercase tracking-wide">PRODUCT</span>
+                    <span className="text-[9px] text-white/30 font-bold uppercase tracking-wide">
+                      PRODUCT
+                    </span>
                   </div>
 
+                  {/* Avatar */}
                   <div className="flex flex-col items-center gap-1">
                     <button
                       type="button"
-                      className="w-8 h-8 rounded-lg border border-white/15 flex items-center justify-center text-white/40 hover:border-white/30 hover:text-white transition-colors"
+                      onClick={() => avatarInputRef.current?.click()}
+                      disabled={avatarUploading}
+                      className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-colors overflow-hidden ${
+                        avatarUrl
+                          ? "border-primary/50"
+                          : "border-white/15 text-white/40 hover:border-white/30 hover:text-white"
+                      }`}
+                      title={avatarUrl ? "Change avatar" : "Upload UGC avatar"}
                     >
-                      <Plus className="w-3.5 h-3.5" />
+                      {avatarUploading ? (
+                        <RefreshCw className="w-3 h-3 animate-spin" />
+                      ) : avatarUrl ? (
+                        <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover rounded-lg" />
+                      ) : (
+                        <Plus className="w-3.5 h-3.5" />
+                      )}
                     </button>
-                    <span className="text-[9px] text-white/30 font-bold uppercase tracking-wide">AVATAR</span>
+                    <span className="text-[9px] text-white/30 font-bold uppercase tracking-wide">
+                      AVATAR
+                    </span>
                   </div>
 
                   {/* Generate */}
@@ -976,7 +1668,9 @@ export default function MarketingStudio() {
                         <Zap className="w-2.5 h-2.5" />
                         {effectiveCost > 0 ? (
                           <>
-                            <span className="line-through opacity-50">{effectiveCost + 8}</span>{" "}
+                            <span className="line-through opacity-50">
+                              {effectiveCost + 8}
+                            </span>{" "}
                             {effectiveCost}
                           </>
                         ) : (
@@ -998,32 +1692,45 @@ export default function MarketingStudio() {
                 </div>
               </div>
 
-              {/* Bottom row: toggles */}
+              {/* Toggles row */}
               <div className="flex items-center gap-2 px-4 py-2.5 border-t border-white/[0.06]">
-                {(Object.entries(CONTENT_TOGGLES) as [ContentToggle, (typeof CONTENT_TOGGLES)[ContentToggle]][]).map(
-                  ([key, c]) => (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => toggleContentToggle(key)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
-                        toggles.has(key)
-                          ? "bg-white/10 text-white border-white/20"
-                          : "bg-transparent text-white/45 border-white/[0.08] hover:text-white hover:border-white/20"
-                      }`}
-                    >
-                      {key === "ugc" && (
-                        <span className="w-3 h-3 rounded-full border border-current flex items-center justify-center">
-                          <span className="w-1 h-1 rounded-full bg-current" />
-                        </span>
-                      )}
-                      {key === "hook" && <Sparkles className="w-3 h-3" />}
-                      {key === "setting" && <Settings className="w-3 h-3" />}
-                      {c.label}
-                      <ChevronDown className="w-3 h-3 opacity-50" />
-                    </button>
-                  ),
-                )}
+                {(
+                  Object.entries(CONTENT_TOGGLES) as [
+                    ContentToggle,
+                    (typeof CONTENT_TOGGLES)[ContentToggle],
+                  ][]
+                ).map(([key, c]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => toggleContentToggle(key)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
+                      toggles.has(key)
+                        ? "bg-white/10 text-white border-white/20"
+                        : "bg-transparent text-white/45 border-white/[0.08] hover:text-white hover:border-white/20"
+                    }`}
+                  >
+                    {key === "ugc" && (
+                      <span className="w-3 h-3 rounded-full border border-current flex items-center justify-center">
+                        <span className="w-1 h-1 rounded-full bg-current" />
+                      </span>
+                    )}
+                    {key === "hook" && <Sparkles className="w-3 h-3" />}
+                    {key === "setting" && <Settings className="w-3 h-3" />}
+                    {c.label}
+                    <ChevronDown className="w-3 h-3 opacity-50" />
+                  </button>
+                ))}
+
+                {/* Selected template pill */}
+                <div className="ml-1 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/[0.04] border border-white/[0.06]">
+                  <div
+                    className={`w-2.5 h-2.5 rounded-sm bg-gradient-to-br ${cfg.iconColor}`}
+                  />
+                  <span className="text-[10px] text-white/50 font-medium">
+                    {cfg.label}
+                  </span>
+                </div>
 
                 <button
                   type="button"
@@ -1039,9 +1746,10 @@ export default function MarketingStudio() {
                     </span>
                   </Link>
                 )}
-
-                {missingImage && (
-                  <span className="text-xs text-amber-400/80">Upload a product photo to use this template</span>
+                {missingImage && !insufficientCredits && (
+                  <span className="text-xs text-amber-400/80">
+                    Upload a product photo to use this template
+                  </span>
                 )}
               </div>
             </div>
