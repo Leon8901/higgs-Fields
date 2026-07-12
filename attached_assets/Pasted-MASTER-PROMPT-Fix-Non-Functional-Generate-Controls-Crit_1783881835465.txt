@@ -1,0 +1,61 @@
+MASTER PROMPT — Fix Non-Functional Generate Controls (Critical)
+
+Paste into Replit as its own isolated task. This is the highest priority fix in the project right now — the generate page currently shows controls that don't do anything, which is worse than not having them.
+
+Implementation Rules
+
+
+Do not touch the avatar system.
+This is a bug fix, not new feature work — the goal is making existing visible controls actually control the generation, not adding anything new.
+Zero new generation cost for the fix itself; confirm cost before any real test generation to verify it works.
+
+
+The problem
+
+On /image and /video (and /audio if it has the same pattern), these controls are visually present and appear selectable, but do not actually affect the generation request sent to the backend:
+
+
+Model selector
+Aspect ratio selector
+Resolution selector
+Batch quantity stepper
+Enhance toggle
+The "+" upload button (does nothing at all when clicked, on both image and video pages)
+
+
+What to do
+
+
+Audit first, before changing anything. For each control, trace exactly what happens when the user changes it: does it update local component state? Does that state actually get included in the payload sent to /api/generations (or whatever the actual submit call is)? Report back exactly which controls are cosmetic-only vs. which ones are wired but maybe broken somewhere else in the chain (e.g. state updates correctly but the API call ignores it).
+Fix each control to genuinely drive the generation request:
+
+Model selector: the selected model ID must be the actual modelId sent in the generation request, and must correctly change which provider/adapter and credit cost apply.
+Aspect ratio / resolution: must be passed as real parameters to the generation API and actually affect the underlying WaveSpeedAI/provider call's params — not silently ignored while the backend uses a hardcoded default.
+Batch quantity: must actually trigger the correct number of generations (or a single request with a quantity param, if the underlying model/provider supports that) and charge credits accordingly — this connects to the credit-cost-display work from the earlier generate-page task, make sure both stay consistent.
+Enhance toggle: must actually control whether the OpenRouter prompt-enhancement call runs or is skipped.
+
+
+
+Fix the "+" upload button on both image and video pages — it should open a file picker, let the user select an image, and actually attach it to the generation request as a reference image (for image-to-image or image-to-video workflows, depending on what the selected model supports). If the currently selected model doesn't support reference images, the button should be disabled or show a clear message, not silently accept an upload that goes nowhere.
+Minor visual polish, only after the functional fixes above are confirmed working:
+
+Add a subtle square/bordered container around the "+" icon (currently missing — visible as a bordered box in the reference design).
+Remove the unwanted scrollbar visible on the right side of the generate page — likely a layout overflow issue; fix the underlying cause rather than just hiding overflow with CSS if there's an actual layout bug causing it.
+
+
+
+
+
+Definition of Success
+
+
+Changing the model, aspect ratio, resolution, batch quantity, or enhance toggle demonstrably changes what gets sent to the backend and what comes back — verified by actually testing with different settings, not just checking the UI updates visually.
+The "+" upload button successfully attaches a real reference image to a generation.
+Credit cost shown to the user matches what's actually charged for the selected settings (especially batch quantity).
+The bordered square around the "+" icon is present.
+No unwanted scrollbar on the generate page.
+No existing working functionality broken.
+TypeScript compiles with no new warnings or errors.
+
+
+Confirm cost with me before running real test generations to verify each control. Show me a screenshot and a summary of which controls were fixed once done.

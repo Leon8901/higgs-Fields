@@ -346,20 +346,33 @@ export function Footer() {
   );
 }
 
+// The category studios (/image, /video, /audio) render a fixed-height,
+// full-viewport canvas + sticky generation bar (see category-studio.tsx). A
+// Footer rendered below them pushes total document height past the viewport,
+// producing an unwanted page-level scrollbar under the studio. Keep the
+// Navbar/banner (needed for cross-category nav) but skip the Footer there.
+const NO_FOOTER_PATHS = ["/image", "/video", "/audio"];
+
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   // Marketing Studio has its own full-screen layout with sidebar — skip global chrome
   if (location.startsWith("/marketing-studio")) {
     return <>{children}</>;
   }
+  const hideFooter = NO_FOOTER_PATHS.includes(location);
   return (
-    <div className="min-h-[100dvh] flex flex-col bg-noise">
+    // Studio routes get a viewport-locked shell (fixed height, no page
+    // scroll) since the studio manages its own internal scroll regions —
+    // this also makes it correctly reflow if the banner above is dismissed,
+    // instead of hardcoding an assumed header height. Other routes keep the
+    // normal min-height/document-scroll behavior.
+    <div className={cn("flex flex-col bg-noise", hideFooter ? "h-[100dvh] overflow-hidden" : "min-h-[100dvh]")}>
       <AnnouncementBanner />
       <Navbar />
-      <main className="flex-1">
+      <main className={cn("flex-1", hideFooter && "min-h-0 overflow-hidden")}>
         {children}
       </main>
-      <Footer />
+      {!hideFooter && <Footer />}
     </div>
   );
 }

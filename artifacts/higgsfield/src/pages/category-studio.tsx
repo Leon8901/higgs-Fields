@@ -51,7 +51,7 @@ type ParamField = {
   key: string; label: string; type: string;
   options?: string[]; default?: unknown;
   min?: number; max?: number; step?: number;
-  required?: boolean; helpText?: string;
+  required?: boolean; helpText?: string | null;
 };
 
 const basePath = import.meta.env.BASE_URL;
@@ -229,6 +229,81 @@ function ImageUploadField({ field, value, onChange }: {
         <button type="button" onClick={() => ref.current?.click()} disabled={uploading}
           className="w-14 h-14 rounded-lg border border-dashed border-white/15 flex flex-col items-center justify-center gap-1 text-white/40 hover:text-primary hover:border-primary/50 transition-colors text-[9px]">
           <Upload className="w-3 h-3" />{uploading ? "…" : "Upload"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/* ─── Reference-image "+" control (prompt row) ────────────────────────────
+ * Attaches a reference image to the generation when the selected model
+ * declares an `image`-type field (see IMAGE_INPUT in lib/db/seed.ts). Disabled
+ * with an explanatory tooltip when the model doesn't support one, instead of
+ * silently accepting an upload that would never reach the generation request. */
+function ReferenceImageButton({ field, value, onChange }: {
+  field: ParamField | undefined;
+  value: string | undefined;
+  onChange: (v: string | undefined) => void;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const ref = useRef<HTMLInputElement>(null);
+
+  const handle = async (f: File | undefined) => {
+    if (!f) return;
+    setUploading(true);
+    try { onChange(await uploadFile(f)); } catch { onChange(undefined); } finally { setUploading(false); }
+  };
+
+  if (!field) {
+    return (
+      <button
+        type="button"
+        disabled
+        title="This model doesn't support reference images"
+        className="shrink-0 w-8 h-8 rounded-lg border border-white/10 flex items-center justify-center text-white/15 cursor-not-allowed"
+      >
+        <Plus className="w-4 h-4" />
+      </button>
+    );
+  }
+
+  return (
+    <div className="shrink-0">
+      <input ref={ref} type="file" accept="image/*" className="hidden" onChange={(e) => handle(e.target.files?.[0])} />
+      {value ? (
+        <button
+          type="button"
+          onClick={() => ref.current?.click()}
+          title={`Change ${field.label.toLowerCase()}`}
+          className="relative w-8 h-8 rounded-lg overflow-hidden border border-white/15 group"
+        >
+          <img src={value} alt="" className="w-full h-full object-cover" />
+          <span
+            role="button"
+            onClick={(e) => { e.stopPropagation(); onChange(undefined); }}
+            className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
+          >
+            <X className="w-3.5 h-3.5 text-white" />
+          </span>
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => ref.current?.click()}
+          disabled={uploading}
+          title={`Attach ${field.label.toLowerCase()}${field.required ? " (required)" : ""}`}
+          className={cn(
+            "w-8 h-8 rounded-lg border flex items-center justify-center transition-colors",
+            field.required
+              ? "border-primary/40 text-primary/70 hover:text-primary hover:border-primary/70"
+              : "border-white/15 text-white/40 hover:text-white/70 hover:border-white/30",
+          )}
+        >
+          {uploading ? (
+            <div className="w-3.5 h-3.5 rounded-full border-2 border-white/20 border-t-white/60 animate-spin" />
+          ) : (
+            <Plus className="w-4 h-4" />
+          )}
         </button>
       )}
     </div>
@@ -478,7 +553,8 @@ export default function CategoryStudio({ category }: { category: Category }) {
   const perGenCost = useOwnKey && hasOwnKey ? 0 : (selectedModel?.creditCost ?? 0);
   const totalCost = perGenCost * batchQty;
   const insufficientCredits = !!me && !useOwnKey && (me.creditsBalance ?? 0) < totalCost;
-  const canSubmit = prompt.trim().length > 0 && !insufficientCredits && selectedModel !== null && !isSubmitting;
+  const missingRequiredImage = imageFields.some((f) => f.required && !imageParams[f.key]);
+  const canSubmit = prompt.trim().length > 0 && !insufficientCredits && !missingRequiredImage && selectedModel !== null && !isSubmitting;
 
   /* Submit — fire N parallel calls */
   const createGeneration = useCreateGeneration();
@@ -528,7 +604,7 @@ export default function CategoryStudio({ category }: { category: Category }) {
   );
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] bg-[#0a0a0a] overflow-hidden">
+    <div className="flex flex-col h-full bg-[#0a0a0a] overflow-hidden">
 
       {/* ── Canvas ─────────────────────────────────────────────────────── */}
       {modelsLoading ? (
@@ -552,9 +628,11 @@ export default function CategoryStudio({ category }: { category: Category }) {
 
             {/* Prompt row */}
             <div className="flex items-center gap-3 px-4 pt-3.5 pb-2">
-              <button className="text-white/30 hover:text-white/60 transition-colors shrink-0">
-                <Plus className="w-4 h-4" />
-              </button>
+              <ReferenceImageButton
+                field={imageFields[0]}
+                value={imageFields[0] ? imageParams[imageFields[0].key] : undefined}
+                onChange={(v) => imageFields[0] && setImageParams((p) => ({ ...p, [imageFields[0].key]: v }))}
+              />
               <textarea
                 ref={promptRef}
                 value={prompt}
@@ -627,16 +705,6 @@ export default function CategoryStudio({ category }: { category: Category }) {
                 <Pencil className="w-3 h-3" />
                 <span className="hidden sm:inline">Draw</span>
               </button>
-
-              {/* Image upload fields (inline for small models like Edit) */}
-              {imageFields.map((f) => (
-                <ImageUploadField
-                  key={f.key}
-                  field={f}
-                  value={imageParams[f.key]}
-                  onChange={(v) => setImageParams((p) => ({ ...p, [f.key]: v }))}
-                />
-              ))}
 
               {/* Extra params */}
               <ExtraSettings
