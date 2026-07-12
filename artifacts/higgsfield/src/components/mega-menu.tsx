@@ -150,6 +150,7 @@ function FeaturesColumn({ category }: { category: Category }) {
 }
 
 export function MegaMenuTrigger({ category, label, active }: MegaMenuProps) {
+  const [, navigate] = useLocation();
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
