@@ -18,7 +18,23 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Megaphone, Upload, X, Zap, Sparkles, AlertCircle, Download, Package, Clapperboard, Building2 } from "lucide-react";
+import {
+  Megaphone,
+  Upload,
+  X,
+  Zap,
+  Sparkles,
+  AlertCircle,
+  Download,
+  Package,
+  Clapperboard,
+  Building2,
+  Smartphone,
+  Wand2,
+  Video,
+  Crown,
+  Mic,
+} from "lucide-react";
 import { motion } from "framer-motion";
 
 const basePath = import.meta.env.BASE_URL;
@@ -43,48 +59,128 @@ async function uploadFile(file: File): Promise<string> {
   return `${window.location.origin}${basePath}api/storage${objectPath}`;
 }
 
-type AdStyle = "ugc" | "professional" | "cinematic";
+type SourceType = "product" | "app";
+type FilterTag = "all" | "tiktok" | "new" | "ugc" | "commercial";
 
-// Maps each ad style to a real model in the catalog + a directive appended
-// to the crafted prompt. wan-2-2 needs a source image, so it powers the
-// UGC style (animate an actual product photo); the other two are pure
-// text-to-video for a more polished, studio-shot feel.
-const STYLE_CONFIG: Record<
-  AdStyle,
-  { label: string; description: string; modelId: string; directive: string; needsImage: boolean; icon: React.ReactNode }
+type TemplateId = "ugc-testimonial" | "studio-commercial" | "cinematic-launch" | "quick-social-cut" | "hero-reveal" | "text-only-pitch";
+
+// Each template maps to a real model in the catalog + a directive appended
+// to the crafted prompt — mirrors higgsfield.ai's Marketing Studio template
+// gallery (named templates, tag-filterable, "Try" applies it to the composer).
+const TEMPLATES: Record<
+  TemplateId,
+  {
+    label: string;
+    description: string;
+    modelId: string;
+    directive: string;
+    needsImage: boolean;
+    tags: Exclude<FilterTag, "all">[];
+    icon: React.ReactNode;
+  }
 > = {
-  ugc: {
-    label: "UGC-style",
-    description: "Casual, handheld, feels like a real customer filmed it.",
+  "ugc-testimonial": {
+    label: "UGC Testimonial",
+    description: "Realistic social media video — feels like a real customer filmed it.",
     modelId: "wan-2-2-image-to-video",
-    directive:
-      "Shot on a phone, natural handheld camera movement, authentic UGC creator energy, casual lighting, no studio polish.",
+    directive: "Shot on a phone, natural handheld camera movement, authentic UGC creator energy, casual lighting, no studio polish.",
     needsImage: true,
+    tags: ["ugc", "tiktok"],
     icon: <Package className="w-4 h-4" />,
   },
-  professional: {
-    label: "Professional / CGI",
+  "studio-commercial": {
+    label: "Studio Commercial",
     description: "Clean studio lighting, polished product-focused shots.",
     modelId: "kling-v3-pro",
-    directive:
-      "Professional studio product commercial, clean CGI-quality lighting, smooth camera moves, polished brand-safe composition.",
+    directive: "Professional studio product commercial, clean CGI-quality lighting, smooth camera moves, polished brand-safe composition.",
     needsImage: false,
+    tags: ["commercial"],
     icon: <Building2 className="w-4 h-4" />,
   },
-  cinematic: {
-    label: "Cinematic",
-    description: "Dramatic, film-grade lighting and camera work.",
+  "cinematic-launch": {
+    label: "Cinematic Launch",
+    description: "Dramatic, film-grade lighting for a big product reveal moment.",
     modelId: "seedance-2-0",
-    directive:
-      "Cinematic ad film, dramatic lighting, shallow depth of field, film-grade color grade, high-production-value camera movement.",
+    directive: "Cinematic ad film, dramatic lighting, shallow depth of field, film-grade color grade, high-production-value camera movement.",
     needsImage: false,
+    tags: ["commercial", "new"],
     icon: <Clapperboard className="w-4 h-4" />,
+  },
+  "quick-social-cut": {
+    label: "Quick Social Cut",
+    description: "Fast, punchy, vertical-friendly pacing built for scroll-stopping feeds.",
+    modelId: "seedance-2-0-fast",
+    directive: "Fast-cut vertical social video, punchy pacing, bold energetic transitions, thumb-stopping first second.",
+    needsImage: false,
+    tags: ["tiktok", "new"],
+    icon: <Video className="w-4 h-4" />,
+  },
+  "hero-reveal": {
+    label: "Hero Reveal",
+    description: "Premium, high-fidelity reveal shot for flagship launches.",
+    modelId: "veo-3-1",
+    directive: "Premium hero reveal shot, flagship-launch production value, sweeping camera move, immaculate lighting and detail.",
+    needsImage: false,
+    tags: ["commercial", "new"],
+    icon: <Crown className="w-4 h-4" />,
+  },
+  "text-only-pitch": {
+    label: "Text-Only Pitch",
+    description: "A narrated pitch video generated purely from your description — no photo needed.",
+    modelId: "sora-2",
+    directive: "Narrated product pitch, confident presenter voice-over energy, clear staged demonstration, no handheld shake.",
+    needsImage: false,
+    tags: ["ugc"],
+    icon: <Mic className="w-4 h-4" />,
   },
 };
 
-function buildAdPrompt(productName: string, description: string, style: AdStyle): string {
-  const cfg = STYLE_CONFIG[style];
-  return `A short advertisement for "${productName}". ${description.trim()} ${cfg.directive}`.trim();
+const FILTERS: { value: FilterTag; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "tiktok", label: "TikTok" },
+  { value: "new", label: "New" },
+  { value: "ugc", label: "UGC" },
+  { value: "commercial", label: "Commercial" },
+];
+
+type ContentToggle = "hook" | "setting" | "product" | "avatar";
+
+const CONTENT_TOGGLES: Record<ContentToggle, { label: string; directive: string; icon: React.ReactNode }> = {
+  hook: {
+    label: "Hook",
+    directive: "Open with a strong, attention-grabbing hook in the first shot.",
+    icon: <Sparkles className="w-3.5 h-3.5" />,
+  },
+  setting: {
+    label: "Setting",
+    directive: "Establish a clear setting/environment before revealing the product.",
+    icon: <Building2 className="w-3.5 h-3.5" />,
+  },
+  product: {
+    label: "Product",
+    directive: "Keep the product clearly and prominently in frame throughout.",
+    icon: <Package className="w-3.5 h-3.5" />,
+  },
+  avatar: {
+    label: "Avatar",
+    directive: "Feature a human presenter speaking directly to camera.",
+    icon: <Mic className="w-3.5 h-3.5" />,
+  },
+};
+
+function buildAdPrompt(
+  productName: string,
+  description: string,
+  template: TemplateId,
+  toggles: Set<ContentToggle>,
+  sourceType: SourceType,
+): string {
+  const cfg = TEMPLATES[template];
+  const subject = sourceType === "app" ? "app" : "product";
+  const toggleDirectives = Array.from(toggles)
+    .map((t) => CONTENT_TOGGLES[t].directive)
+    .join(" ");
+  return `A short advertisement for the ${subject} "${productName}". ${description.trim()} ${cfg.directive} ${toggleDirectives}`.trim();
 }
 
 function ResultPanel({ generation }: { generation: Generation | undefined }) {
@@ -135,17 +231,39 @@ export default function MarketingStudio() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  const [sourceType, setSourceType] = useState<SourceType>("product");
   const [productName, setProductName] = useState("");
   const [description, setDescription] = useState("");
   const [imageUrl, setImageUrl] = useState<string | undefined>(undefined);
   const [uploading, setUploading] = useState(false);
-  const [style, setStyle] = useState<AdStyle>("professional");
+  const [template, setTemplate] = useState<TemplateId>("studio-commercial");
+  const [toggles, setToggles] = useState<Set<ContentToggle>>(new Set(["hook", "product"]));
+  const [filter, setFilter] = useState<FilterTag>("all");
   const [activeGenerationId, setActiveGenerationId] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const composerRef = useRef<HTMLDivElement>(null);
 
-  const cfg = STYLE_CONFIG[style];
+  const cfg = TEMPLATES[template];
   const { data: model } = useGetModel(cfg.modelId);
   const { data: me } = useGetMe();
+
+  const toggleContentToggle = (t: ContentToggle) => {
+    setToggles((prev) => {
+      const next = new Set(prev);
+      if (next.has(t)) next.delete(t);
+      else next.add(t);
+      return next;
+    });
+  };
+
+  const applyTemplate = (id: TemplateId) => {
+    setTemplate(id);
+    composerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const filteredTemplates = (Object.entries(TEMPLATES) as [TemplateId, typeof TEMPLATES[TemplateId]][]).filter(
+    ([, c]) => filter === "all" || c.tags.includes(filter as Exclude<FilterTag, "all">),
+  );
 
   const handleFile = async (file: File | undefined) => {
     if (!file) return;
@@ -202,7 +320,10 @@ export default function MarketingStudio() {
     !createGeneration.isPending &&
     !insufficientCredits;
 
-  const prompt = useMemo(() => buildAdPrompt(productName || "your product", description, style), [productName, description, style]);
+  const prompt = useMemo(
+    () => buildAdPrompt(productName || "your product", description, template, toggles, sourceType),
+    [productName, description, template, toggles, sourceType],
+  );
 
   const handleSubmit = () => {
     if (!model) return;
@@ -241,7 +362,29 @@ export default function MarketingStudio() {
 
       <div className="container mx-auto px-4 -mt-6 relative z-10 pb-16">
         {/* Composer */}
-        <div className="max-w-3xl mx-auto bg-[#111214] border border-white/10 rounded-3xl p-5 shadow-2xl shadow-black/40 space-y-5">
+        <div ref={composerRef} className="max-w-3xl mx-auto bg-[#111214] border border-white/10 rounded-3xl p-5 shadow-2xl shadow-black/40 space-y-5 scroll-mt-8">
+          {/* Source tabs: Product vs App, mirrors higgsfield.ai's composer */}
+          <div className="flex items-center gap-1 bg-white/[0.03] border border-white/10 rounded-full p-1 w-fit">
+            <button
+              type="button"
+              onClick={() => setSourceType("product")}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold transition-colors ${
+                sourceType === "product" ? "bg-white text-black" : "text-white/50 hover:text-white"
+              }`}
+            >
+              <Package className="w-3.5 h-3.5" /> Product
+            </button>
+            <button
+              type="button"
+              onClick={() => setSourceType("app")}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold transition-colors ${
+                sourceType === "app" ? "bg-white text-black" : "text-white/50 hover:text-white"
+              }`}
+            >
+              <Smartphone className="w-3.5 h-3.5" /> App
+            </button>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-[auto_1fr] gap-4 items-start">
             <div>
               <input
@@ -253,7 +396,7 @@ export default function MarketingStudio() {
               />
               {imageUrl ? (
                 <div className="relative w-20 h-20 rounded-xl overflow-hidden border border-white/10 group shrink-0">
-                  <img src={imageUrl} alt="Product" className="w-full h-full object-cover" />
+                  <img src={imageUrl} alt={sourceType === "app" ? "App" : "Product"} className="w-full h-full object-cover" />
                   <button
                     type="button"
                     onClick={() => setImageUrl(undefined)}
@@ -270,7 +413,7 @@ export default function MarketingStudio() {
                   className="w-20 h-20 rounded-xl border border-dashed border-white/15 flex flex-col items-center justify-center gap-1.5 text-white/40 hover:text-primary hover:border-primary/50 transition-colors text-[10px] shrink-0"
                 >
                   <Upload className="w-4 h-4" />
-                  {uploading ? "…" : "Product"}
+                  {uploading ? "…" : sourceType === "app" ? "App" : "Product"}
                 </button>
               )}
             </div>
@@ -279,7 +422,7 @@ export default function MarketingStudio() {
               <Input
                 value={productName}
                 onChange={(e) => setProductName(e.target.value)}
-                placeholder="Product name — e.g. Aurora Sport Bottle"
+                placeholder={sourceType === "app" ? "App name — e.g. Aurora Fitness" : "Product name — e.g. Aurora Sport Bottle"}
                 className="bg-white/[0.04] border-white/10 text-white h-11"
               />
               <Textarea
@@ -291,45 +434,50 @@ export default function MarketingStudio() {
             </div>
           </div>
 
+          {/* Content toggle pills: Hook / Setting / Product / Avatar */}
           <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-white/5">
-            {(Object.entries(STYLE_CONFIG) as [AdStyle, typeof STYLE_CONFIG[AdStyle]][]).map(([key, c]) => (
+            {(Object.entries(CONTENT_TOGGLES) as [ContentToggle, typeof CONTENT_TOGGLES[ContentToggle]][]).map(([key, c]) => (
               <button
                 key={key}
                 type="button"
-                onClick={() => setStyle(key)}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-full text-sm font-medium border transition-colors ${
-                  style === key
-                    ? "bg-primary text-black border-primary"
-                    : "bg-white/[0.04] text-white/70 border-white/10 hover:bg-white/[0.08] hover:text-white"
+                onClick={() => toggleContentToggle(key)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                  toggles.has(key)
+                    ? "bg-primary/15 text-primary border-primary/40"
+                    : "bg-white/[0.03] text-white/50 border-white/10 hover:bg-white/[0.06] hover:text-white"
                 }`}
               >
                 {c.icon}
                 {c.label}
               </button>
             ))}
+          </div>
 
-            <div className="ml-auto flex items-center gap-3">
-              <Show when="signed-in">
-                <Button
-                  className="bg-primary text-black font-bold hover:bg-primary/90 disabled:opacity-40 rounded-full px-6"
-                  disabled={!canSubmit}
-                  onClick={handleSubmit}
-                >
-                  {createGeneration.isPending ? (
-                    "Submitting…"
-                  ) : (
-                    <>
-                      <Zap className="w-4 h-4 mr-2" /> Generate — {effectiveCost || "…"} credits
-                    </>
-                  )}
-                </Button>
-              </Show>
-              <Show when="signed-out">
-                <Link href="/sign-up">
-                  <Button className="bg-primary text-black font-bold hover:bg-primary/90 rounded-full px-6">Sign up to generate</Button>
-                </Link>
-              </Show>
+          <div className="flex items-center justify-between gap-3 pt-1 border-t border-white/5">
+            <div className="flex items-center gap-2 text-white/60 text-xs">
+              <span className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center text-white/70">{cfg.icon}</span>
+              Template: <span className="font-bold text-white">{cfg.label}</span>
             </div>
+            <Show when="signed-in">
+              <Button
+                className="bg-primary text-black font-bold hover:bg-primary/90 disabled:opacity-40 rounded-full px-6"
+                disabled={!canSubmit}
+                onClick={handleSubmit}
+              >
+                {createGeneration.isPending ? (
+                  "Submitting…"
+                ) : (
+                  <>
+                    <Zap className="w-4 h-4 mr-2" /> Generate — {effectiveCost || "…"} credits
+                  </>
+                )}
+              </Button>
+            </Show>
+            <Show when="signed-out">
+              <Link href="/sign-up">
+                <Button className="bg-primary text-black font-bold hover:bg-primary/90 rounded-full px-6">Sign up to generate</Button>
+              </Link>
+            </Show>
           </div>
           <Show when="signed-in">
             {insufficientCredits && (
@@ -343,30 +491,59 @@ export default function MarketingStudio() {
             )}
           </Show>
           <p className="text-xs text-white/40 text-center">
-            {cfg.needsImage ? "This style animates your actual product photo." : cfg.description}
+            {cfg.needsImage ? "This template animates your actual uploaded photo." : cfg.description}
           </p>
         </div>
 
-        {/* Style gallery */}
+        {/* Template gallery, filterable like higgsfield.ai's Marketing Studio */}
         <div className="max-w-5xl mx-auto mt-12">
-          <h2 className="text-sm font-bold uppercase tracking-widest text-white/50 mb-4">Ad styles</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {(Object.entries(STYLE_CONFIG) as [AdStyle, typeof STYLE_CONFIG[AdStyle]][]).map(([key, c]) => (
-              <button
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+            <h2 className="text-sm font-bold uppercase tracking-widest text-white/50">Templates</h2>
+            <div className="flex flex-wrap gap-2">
+              {FILTERS.map((f) => (
+                <button
+                  key={f.value}
+                  type="button"
+                  onClick={() => setFilter(f.value)}
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-colors ${
+                    filter === f.value ? "bg-white/10 text-white" : "text-white/40 hover:text-white"
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredTemplates.map(([key, c]) => (
+              <div
                 key={key}
-                type="button"
-                onClick={() => setStyle(key)}
                 className={`text-left rounded-2xl border p-5 transition-colors ${
-                  style === key ? "border-primary/60 bg-primary/5" : "border-white/10 bg-white/[0.02] hover:border-white/20"
+                  template === key ? "border-primary/60 bg-primary/5" : "border-white/10 bg-white/[0.02] hover:border-white/20"
                 }`}
               >
-                <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-white/70 mb-3">{c.icon}</div>
+                <div className="flex items-start justify-between mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-white/70">{c.icon}</div>
+                  <div className="flex gap-1">
+                    {c.tags.map((t) => (
+                      <Badge key={t} variant="outline" className="text-[10px] px-1.5 py-0 border-white/15 text-white/40 capitalize">
+                        {t}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
                 <h3 className="font-bold text-white mb-1">{c.label}</h3>
-                <p className="text-sm text-white/50">{c.description}</p>
-                <span className="inline-flex items-center gap-1 text-xs font-bold text-primary mt-3">
-                  {style === key ? "Selected" : "Try"} <Sparkles className="w-3 h-3" />
-                </span>
-              </button>
+                <p className="text-sm text-white/50 mb-4">{c.description}</p>
+                <Button
+                  size="sm"
+                  onClick={() => applyTemplate(key)}
+                  className={`w-full rounded-full font-bold ${
+                    template === key ? "bg-primary text-black hover:bg-primary/90" : "bg-white/10 text-white hover:bg-white/20"
+                  }`}
+                >
+                  <Wand2 className="w-3.5 h-3.5 mr-1.5" /> {template === key ? "Selected" : "Try"}
+                </Button>
+              </div>
             ))}
           </div>
         </div>
