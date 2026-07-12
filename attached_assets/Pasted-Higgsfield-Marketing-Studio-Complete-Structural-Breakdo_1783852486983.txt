@@ -1,0 +1,74 @@
+Higgsfield Marketing Studio — Complete Structural Breakdown
+
+Compiled from Higgsfield's own product pages, your agent's live exploration of the actual logged-in interface, and independent reviews. July 2026.
+
+
+1. Where it sits in the overall site
+
+Marketing Studio is one entry in Higgsfield's main left/top navigation, alongside: Explore, Image, Video, Audio, Supercomputer, MCP & CLI, Cinema Studio, Plugins, Shorts Studio, Explainer, Originals, Canvas, AI Influencer, Apps. Persistent account-level items across the whole site: Home, Community, Generate, Library, Profile.
+
+Marketing Studio itself has its own sub-navigation once you're inside it — this is the part your agent already found by exploring the live logged-in app directly (more reliable than a static fetch, since the real interface is behind auth and client-rendered):
+
+2. Marketing Studio's internal sidebar structure
+
+Based on direct exploration of the live app:
+
+
+Home — the default landing view inside Marketing Studio. Shows a template/preset picker with filter tabs (All / TikTok / UGC / Commercial). Selecting a template populates the generation bar with that template's starting configuration.
+All Generations — full history of everything generated in Marketing Studio specifically (separate from the main site-wide Library). Grid view, likely with hover-preview and status indicators.
+My Favorites — a filtered view of generations the user has starred/hearted, for quick reuse of winning creative.
+Url to Ad — the URL-scrape entry point. Paste a product or app link, the system extracts product info automatically.
+Ad Reference — upload-based entry point. Provide a reference image (product photo or a scene) and the system uses it as an animation/generation source rather than starting from text alone.
+
+
+3. The generation bar (core input mechanism)
+
+Regardless of entry point (Home template, URL, or reference upload), everything funnels into one generation bar with these components:
+
+
+Product field — separate from the free-text prompt; the product name and description get inserted into the underlying prompt structure programmatically, not just concatenated as raw text.
+Product image upload — required for UGC-style templates specifically (the product needs to visibly appear).
+Avatar selection/upload — pick from a saved library or generate/upload a new one; the avatar's likeness gets woven into the generation.
+Creative mode selector — UGC / CGI (Professional) / Cinematic / Wild Card. This is the single most important control: the product's value is tied to iteration volume — many plausible creative branches that can be tested, cut down, or swapped into a campaign, rather than one polished hero video.
+Style/tone toggles — additional modifiers layered on top of the base mode (hook style, setting/location, pacing).
+Generate button — submits everything as one structured job.
+
+
+4. The four creative modes, in depth
+
+
+UGC: face-to-camera product reviews that look like real creator content — selfie framing, natural speech, genuine reactions, shot in iPhone style. Sub-variants include unboxing, tutorial/how-to (step-by-step how-to videos where the person talks and demonstrates at the same time, casual, filmed like a TikTok routine), and hands-on demo (close-up hands-on footage with natural voiceover, shot on phone in real rooms).
+CGI/Professional: studio-grade, no human presenter necessarily required — Hyper Motion mode: CGI-grade visuals, 3D environments, camera movement with actual physics behind it — think Apple product reveal or luxury brand launch video. The prompt needs to be more specific here — the more detail given, the more control over the final output.
+Cinematic: broadcast-ready product ads with cinematic camera work, real-world locations, and story arcs that make viewers remember the product — one prompt, complete commercial.
+Wild Card: takes the most creative, freest idea and brings it to life without hand-holding — no detailed breakdown required. It's the mode that proves the real barrier to content isn't time or budget, it's imagination.
+
+
+There's also an App-specific path distinct from Product: select App (not product), paste the link, Marketing Studio automatically pulls the UI and all necessary product info, set app type to mobile, duration, pick an avatar, and generate — this produces a screen-recording-style demo with a presenter narrating over the actual app interface, rather than a physical product ad.
+
+5. Backend engine
+
+
+Video generation: Seedance 2.0, ByteDance's multimodal video generation model — it generates motion, audio, and speech in a single pass with native lip-sync, physics-aware movement, and consistent characters across shots. This single-pass native audio+motion+lipsync generation is the technical core that makes the whole workflow feel like "one click, finished ad" rather than a multi-stage pipeline (generate video, then separately generate audio, then separately sync lips).
+Avatars: Avatars are created with Soul 2.0. 40+ ready-to-use avatars or generate a custom one from a text prompt — pin, rename, and reuse across campaigns.
+URL extraction: scrapes direct product data and interprets it into structured video content without manual text prompting — paste a standard retail or Amazon product URL directly into the studio dashboard. This is functionally identical to what your own build does via OpenRouter — fetch page, strip HTML, LLM-extract structured product data.
+Specialized generation architectures per product type: pre-baked generation setups depending on the specific product type being scaled — for heavy consumer goods or technical hardware, the AI simulates the physical opening of a box, handling product interactions and close-up detail macro shots without warping textures. This suggests category-specific prompt templates behind the scenes (unboxing physics for hardware, fabric/texture handling for apparel, etc.), not one generic template for everything.
+Virtual Try-On for fashion: the engine maps clothes and apparel onto a consistent character dynamically, preserving textiles, seams, and branding details even during highly kinetic body movements.
+
+
+6. Output characteristics and real limitations
+
+
+Up to nine unique video ad variants in minutes, 15-60 second video ads optimized for platforms like TikTok, Instagram, and YouTube.
+Video length is capped at 10-20 seconds per generation — longer content requires stitching multiple clips together. Confirmed elsewhere: to run longer than 15 seconds like a proper full commercial, batch two separate prompts for two parts of the video and cut them together in post.
+Credit consumption is aggressive — complex premium model generations drain credits faster than headline pricing suggests, and high-quality multi-model outputs can make even the Pro plan feel constrained within a single project.
+
+
+7. Team/collaboration layer (higher tiers)
+
+Shared projects, built-in chat, video calls, and team workspaces support collaborative ad production at scale, with role-based permissions on enterprise plans. Not relevant to your MVP scope right now, but worth knowing it exists as a much later differentiator.
+
+8. Gap summary — what's built vs. what's real, as of this conversation
+
+ComponentHiggsfield's real versionYour current buildGapEntry pointsHome templates, URL, Reference upload, App-specific pathUrl to Ad, Ad Reference built; Home template picker built; App-specific path not distinguished from ProductMinor — App path could reuse existing scraper with different prompt framingCreative modes4 distinct modes (UGC/CGI/Cinematic/Wild Card), each restructuring the whole prompt3 style toggles (UGC/Hook/Setting) layered on one templateReal gap — this is the prompt just now given to close firstAvatarsPersistent library, 40+, text-to-avatar via Soul 2.0, pin/rename/reuseOne-off upload per generationReal gap — should reuse your existing identity-lock/BYOK systemProduct profilesPersistent, up to 5 images, reusableOne-off name+photo per generationReal gapMulti-variant outputUp to 9 variants per submissionOne video per submissionReal gap, but correctly deprioritized given costBackend modelSeedance 2.0, single-pass native audio+lipsync+motionWhatever WaveSpeedAI model is currently mapped — worth confirming it has comparable audio capabilityNeeds verificationCategory-specific templatesPre-baked per product-type (hardware unboxing physics, fashion try-on, etc.)Generic template regardless of product typeReal gap, lower priority — nice-to-have once core modes work
+
+This table is the same set of gaps from the earlier prompt, now with the actual mechanism behind each one spelled out, so whoever's building (you or the agent) understands why each piece works the way it does, not just that it's missing.

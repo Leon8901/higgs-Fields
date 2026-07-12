@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { Link } from "wouter";
 import { Show, useUser, useClerk } from "@clerk/react";
 import {
@@ -41,6 +41,8 @@ import {
   Image as ImageIcon,
   CheckCircle2,
   X,
+  Film,
+  Wand2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -98,7 +100,8 @@ type TemplateId =
   | "virtual-try-on-sneakers"
   | "studio-commercial"
   | "cinematic-launch";
-type ContentToggle = "ugc" | "hook" | "setting";
+type CreativeMode = "ugc" | "cgi" | "cinematic" | "wildcard";
+type UgcSubVariant = "testimonial" | "unboxing" | "tutorial" | "handson";
 type SidebarSection =
   | "home"
   | "all-generations"
@@ -253,34 +256,58 @@ const FILTERS: { value: FilterTag; label: string; isNew?: boolean }[] = [
   { value: "commercial", label: "Commercial" },
 ];
 
-const CONTENT_TOGGLES: Record<ContentToggle, { label: string; directive: string }> = {
-  ugc: { label: "UGC", directive: "Shot on a phone, authentic UGC creator style." },
-  hook: {
-    label: "Hook",
-    directive: "Open with a strong, attention-grabbing hook in the first shot.",
+// ─── creative mode config ─────────────────────────────────────────────────────
+const CREATIVE_MODES: Record<
+  CreativeMode,
+  {
+    label: string;
+    Icon: React.ComponentType<{ className?: string }>;
+    description: string;
+    modelId: string;
+    hint: string;
+    accentColor: string; // tailwind classes for active state
+  }
+> = {
+  ugc: {
+    label: "UGC",
+    Icon: Smartphone,
+    description: "Authentic creator-style content",
+    modelId: "wan-2-2-image-to-video",
+    hint: "iPhone-shot, face-to-camera, creator energy",
+    accentColor: "bg-cyan-500/15 text-cyan-300 border-cyan-400/30",
   },
-  setting: {
-    label: "Setting",
-    directive: "Establish a clear setting/environment before revealing the product.",
+  cgi: {
+    label: "Professional",
+    Icon: Sparkles,
+    description: "Studio-grade, precision product reveal",
+    modelId: "kling-v3-pro",
+    hint: "CGI quality, precise camera choreography",
+    accentColor: "bg-violet-500/15 text-violet-300 border-violet-400/30",
+  },
+  cinematic: {
+    label: "Cinematic",
+    Icon: Film,
+    description: "Story arc, broadcast commercial feel",
+    modelId: "seedance-2-0",
+    hint: "Real-world location, film-grade lighting",
+    accentColor: "bg-amber-500/15 text-amber-300 border-amber-400/30",
+  },
+  wildcard: {
+    label: "Wild Card",
+    Icon: Wand2,
+    description: "Unexpected, imagination-first",
+    modelId: "seedance-2-0",
+    hint: "No rules — full creative direction to the AI",
+    accentColor: "bg-pink-500/15 text-pink-300 border-pink-400/30",
   },
 };
 
-// ─── prompt builder ───────────────────────────────────────────────────────────
-function buildAdPrompt(
-  productName: string,
-  description: string,
-  template: TemplateId,
-  toggles: Set<ContentToggle>,
-  sourceType: SourceType,
-): string {
-  const cfg = TEMPLATES[template];
-  const subject = sourceType === "app" ? "app" : "product";
-  const name = productName.trim() || "this product";
-  const toggleDirectives = Array.from(toggles)
-    .map((t) => CONTENT_TOGGLES[t].directive)
-    .join(" ");
-  return `A short advertisement for the ${subject} "${name}". ${description.trim()} ${cfg.directive} ${toggleDirectives}`.trim();
-}
+const UGC_SUB_VARIANTS: Record<UgcSubVariant, { label: string; hint: string }> = {
+  testimonial: { label: "Testimonial", hint: "Creator speaks to camera" },
+  unboxing: { label: "Unboxing", hint: "First reaction reveal" },
+  tutorial: { label: "Tutorial", hint: "Step-by-step walkthrough" },
+  handson: { label: "Hands-On", hint: "Close-up product demo" },
+};
 
 function relativeTime(iso: string): string {
   const secs = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
@@ -1175,7 +1202,9 @@ export default function MarketingStudio() {
   const [uploading, setUploading] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [template, setTemplate] = useState<TemplateId>("ugc-testimonial");
-  const [toggles, setToggles] = useState<Set<ContentToggle>>(new Set(["ugc", "hook"]));
+  const [creativeMode, setCreativeMode] = useState<CreativeMode>("ugc");
+  const [ugcSubVariant, setUgcSubVariant] = useState<UgcSubVariant>("testimonial");
+  const [promptBuilding, setPromptBuilding] = useState(false);
   const [filter, setFilter] = useState<FilterTag>("all");
   const [activeGenerationId, setActiveGenerationId] = useState<number | null>(null);
 
@@ -1196,17 +1225,8 @@ export default function MarketingStudio() {
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const cfg = TEMPLATES[template];
-  const { data: model } = useGetModel(cfg.modelId);
+  const { data: model } = useGetModel(CREATIVE_MODES[creativeMode].modelId);
   const { data: me } = useGetMe();
-
-  const toggleContentToggle = (t: ContentToggle) => {
-    setToggles((prev) => {
-      const next = new Set(prev);
-      if (next.has(t)) next.delete(t);
-      else next.add(t);
-      return next;
-    });
-  };
 
   const applyTemplate = (id: TemplateId) => {
     setTemplate(id);
@@ -1280,27 +1300,49 @@ export default function MarketingStudio() {
 
   const effectiveCost = model?.creditCost ?? 0;
   const insufficientCredits = (me?.creditsBalance ?? 0) < effectiveCost;
-  const missingImage = cfg.needsImage && !imageUrl;
+  const needsImage = creativeMode === "ugc";
+  const missingImage = needsImage && !imageUrl;
   const canSubmit =
     !!model &&
     description.trim().length > 0 &&
     !missingImage &&
     !createGeneration.isPending &&
+    !promptBuilding &&
     !insufficientCredits;
 
-  const prompt = useMemo(
-    () => buildAdPrompt(productName, description, template, toggles, sourceType),
-    [productName, description, template, toggles, sourceType],
-  );
-
-  const handleSubmit = () => {
-    if (!model) return;
-    const extraPrompt = avatarUrl ? ` UGC creator avatar featured prominently.` : "";
+  const handleSubmit = async () => {
+    if (!model || promptBuilding || createGeneration.isPending) return;
+    setPromptBuilding(true);
+    let finalPrompt = `${productName ? `${productName}. ` : ""}${description}`.trim();
+    try {
+      const res = await fetch(`${basePath}/api/marketing/build-prompt`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          productName,
+          description,
+          mode: creativeMode,
+          ugcSubVariant: creativeMode === "ugc" ? ugcSubVariant : undefined,
+          sourceType,
+          hasAvatar: !!avatarUrl,
+          hasProductImage: !!imageUrl,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.prompt) finalPrompt = data.prompt as string;
+      }
+    } catch {
+      // Network failure — fall back to local string, still generate
+    } finally {
+      setPromptBuilding(false);
+    }
     createGeneration.mutate({
       data: {
         modelId: model.modelId,
-        prompt: prompt + extraPrompt,
-        params: cfg.needsImage ? { image: imageUrl } : {},
+        prompt: finalPrompt,
+        params: needsImage ? { image: imageUrl } : {},
         autoSelect: false,
         skipEnhance: true,
       },
@@ -1309,11 +1351,16 @@ export default function MarketingStudio() {
 
   // ── re-run from All Generations / Favorites
   const handleRerun = (gen: Generation) => {
-    // Try to match modelId back to a template
-    const matchEntry = Object.entries(TEMPLATES).find(
+    // Match modelId back to a creative mode
+    const modeEntry = (Object.entries(CREATIVE_MODES) as [CreativeMode, (typeof CREATIVE_MODES)[CreativeMode]][]).find(
+      ([, m]) => m.modelId === gen.modelId,
+    );
+    if (modeEntry) setCreativeMode(modeEntry[0]);
+    // Also try to find a matching template for the style pill
+    const templateEntry = Object.entries(TEMPLATES).find(
       ([, t]) => t.modelId === gen.modelId,
     );
-    if (matchEntry) setTemplate(matchEntry[0] as TemplateId);
+    if (templateEntry) setTemplate(templateEntry[0] as TemplateId);
     setDescription(gen.prompt);
     setActiveGenerationId(null);
     setActiveSection("home");
@@ -1692,65 +1739,107 @@ export default function MarketingStudio() {
                 </div>
               </div>
 
-              {/* Toggles row */}
-              <div className="flex items-center gap-2 px-4 py-2.5 border-t border-white/[0.06]">
-                {(
-                  Object.entries(CONTENT_TOGGLES) as [
-                    ContentToggle,
-                    (typeof CONTENT_TOGGLES)[ContentToggle],
-                  ][]
-                ).map(([key, c]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => toggleContentToggle(key)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
-                      toggles.has(key)
-                        ? "bg-white/10 text-white border-white/20"
-                        : "bg-transparent text-white/45 border-white/[0.08] hover:text-white hover:border-white/20"
-                    }`}
-                  >
-                    {key === "ugc" && (
-                      <span className="w-3 h-3 rounded-full border border-current flex items-center justify-center">
-                        <span className="w-1 h-1 rounded-full bg-current" />
-                      </span>
-                    )}
-                    {key === "hook" && <Sparkles className="w-3 h-3" />}
-                    {key === "setting" && <Settings className="w-3 h-3" />}
-                    {c.label}
-                    <ChevronDown className="w-3 h-3 opacity-50" />
-                  </button>
-                ))}
+              {/* Creative mode row */}
+              <div className="border-t border-white/[0.06]">
+                {/* 4-way mode switcher */}
+                <div className="flex items-center gap-1.5 px-4 pt-2.5 pb-2 flex-wrap">
+                  {(
+                    Object.entries(CREATIVE_MODES) as [
+                      CreativeMode,
+                      (typeof CREATIVE_MODES)[CreativeMode],
+                    ][]
+                  ).map(([key, m]) => {
+                    const isActive = creativeMode === key;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setCreativeMode(key)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+                          isActive
+                            ? `${m.accentColor} shadow-sm`
+                            : "bg-transparent text-white/40 border-white/[0.08] hover:text-white/70 hover:border-white/15"
+                        }`}
+                      >
+                        <m.Icon className="w-3 h-3" />
+                        {m.label}
+                      </button>
+                    );
+                  })}
 
-                {/* Selected template pill */}
-                <div className="ml-1 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/[0.04] border border-white/[0.06]">
-                  <div
-                    className={`w-2.5 h-2.5 rounded-sm bg-gradient-to-br ${cfg.iconColor}`}
-                  />
-                  <span className="text-[10px] text-white/50 font-medium">
-                    {cfg.label}
-                  </span>
+                  {/* Template style pill */}
+                  <div className="ml-1 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/[0.04] border border-white/[0.06]">
+                    <div className={`w-2.5 h-2.5 rounded-sm bg-gradient-to-br ${cfg.iconColor}`} />
+                    <span className="text-[10px] text-white/50 font-medium">{cfg.label}</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const ids = Object.keys(TEMPLATES) as TemplateId[];
+                      setTemplate(ids[Math.floor(Math.random() * ids.length)]);
+                    }}
+                    title="Random style"
+                    className="ml-auto p-1.5 rounded-full text-white/30 hover:text-white hover:bg-white/[0.06] transition-colors"
+                  >
+                    <Shuffle className="w-3.5 h-3.5" />
+                  </button>
+
+                  {insufficientCredits && (
+                    <Link href="/pricing">
+                      <span className="text-xs text-red-400 hover:text-red-300 transition-colors">
+                        Not enough credits
+                      </span>
+                    </Link>
+                  )}
+                  {missingImage && !insufficientCredits && (
+                    <span className="text-xs text-amber-400/80">
+                      Upload a product photo for UGC mode
+                    </span>
+                  )}
+                  {promptBuilding && (
+                    <span className="flex items-center gap-1 text-xs text-white/40">
+                      <RefreshCw className="w-3 h-3 animate-spin" />
+                      Building prompt…
+                    </span>
+                  )}
                 </div>
 
-                <button
-                  type="button"
-                  className="ml-auto p-1.5 rounded-full text-white/30 hover:text-white hover:bg-white/[0.06] transition-colors"
-                >
-                  <Shuffle className="w-3.5 h-3.5" />
-                </button>
-
-                {insufficientCredits && (
-                  <Link href="/pricing">
-                    <span className="text-xs text-red-400 hover:text-red-300 transition-colors">
-                      Not enough credits
-                    </span>
-                  </Link>
-                )}
-                {missingImage && !insufficientCredits && (
-                  <span className="text-xs text-amber-400/80">
-                    Upload a product photo to use this template
-                  </span>
-                )}
+                {/* UGC sub-variant row */}
+                <AnimatePresence>
+                  {creativeMode === "ugc" && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.15 }}
+                      className="flex items-center gap-1.5 px-4 pb-2.5 overflow-hidden flex-wrap"
+                    >
+                      {(
+                        Object.entries(UGC_SUB_VARIANTS) as [
+                          UgcSubVariant,
+                          (typeof UGC_SUB_VARIANTS)[UgcSubVariant],
+                        ][]
+                      ).map(([key, v]) => (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setUgcSubVariant(key)}
+                          className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all ${
+                            ugcSubVariant === key
+                              ? "bg-cyan-500/15 text-cyan-300 border-cyan-400/30"
+                              : "bg-transparent text-white/30 border-white/[0.06] hover:text-white/50 hover:border-white/15"
+                          }`}
+                        >
+                          {v.label}
+                        </button>
+                      ))}
+                      <span className="text-[10px] text-white/20 ml-1 italic">
+                        {UGC_SUB_VARIANTS[ugcSubVariant].hint}
+                      </span>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             </div>
           </div>

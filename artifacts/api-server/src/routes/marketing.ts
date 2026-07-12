@@ -1,11 +1,19 @@
 import { Router, type IRouter } from "express";
 import { requireAuth } from "../middlewares/requireAuth";
 import { getOpenRouterClient, FAST_MODEL } from "../lib/llm/client";
+import {
+  getModeSystemPrompt,
+  buildFallbackPrompt,
+  MODE_MODEL_IDS,
+  type CreativeMode,
+  type UgcSubVariant,
+  type BuildPromptInput,
+} from "../config/creative-mode-prompts";
 
 const router: IRouter = Router();
 
+// ─── POST /marketing/url-analyze ─────────────────────────────────────────────
 /**
- * POST /marketing/url-analyze
  * Fetch a product page URL and use OpenRouter to extract product name +
  * description for the Marketing Studio URL-to-Ad flow.
  */
@@ -113,6 +121,94 @@ Return ONLY valid JSON with exactly these fields:
     res.status(500).json({
       error: "AI analysis failed — describe your product manually.",
     });
+  }
+});
+
+// ─── POST /marketing/build-prompt ────────────────────────────────────────────
+/**
+ * Build a structured video generation prompt for a given creative mode.
+ *
+ * If OPENROUTER_API_KEY is available, the mode-specific system prompt is
+ * sent to the LLM planning layer to produce a rich, cinematographer-quality
+ * prompt. Otherwise a deterministic fallback is returned — the endpoint never
+ * returns an error for this reason, so the UI can always proceed.
+ *
+ * Returns: { prompt: string, modelId: string }
+ */
+router.post("/marketing/build-prompt", requireAuth, async (req, res): Promise<void> => {
+  const {
+    productName = "",
+    description = "",
+    mode,
+    ugcSubVariant,
+    sourceType = "product",
+    hasAvatar = false,
+    hasProductImage = false,
+  } = req.body as {
+    productName?: string;
+    description?: string;
+    mode?: string;
+    ugcSubVariant?: string;
+    sourceType?: string;
+    hasAvatar?: boolean;
+    hasProductImage?: boolean;
+  };
+
+  const validModes: string[] = ["ugc", "cgi", "cinematic", "wildcard"];
+  if (!mode || !validModes.includes(mode)) {
+    res.status(400).json({ error: "mode must be one of: ugc, cgi, cinematic, wildcard" });
+    return;
+  }
+
+  const input: BuildPromptInput = {
+    productName: String(productName).trim(),
+    description: String(description).trim(),
+    mode: mode as CreativeMode,
+    ugcSubVariant: ugcSubVariant as UgcSubVariant | undefined,
+    sourceType: sourceType === "app" ? "app" : "product",
+    hasAvatar: Boolean(hasAvatar),
+    hasProductImage: Boolean(hasProductImage),
+  };
+
+  const modelId = MODE_MODEL_IDS[mode as CreativeMode];
+
+  // Graceful fallback when OpenRouter is not configured
+  let client;
+  try {
+    client = getOpenRouterClient();
+  } catch {
+    res.json({ prompt: buildFallbackPrompt(input), modelId });
+    return;
+  }
+
+  // Build the user message from the structured input
+  const userLines: string[] = [
+    `Product: ${input.productName || "this product"}`,
+    input.description ? `Brief: ${input.description}` : "",
+    input.hasAvatar ? "A human spokesperson / avatar will appear on camera." : "",
+    mode === "ugc" && ugcSubVariant ? `UGC sub-format: ${ugcSubVariant}` : "",
+    input.hasProductImage ? "A product reference image is available as the animation source." : "",
+  ].filter(Boolean);
+
+  try {
+    const completion = await client.chat.completions.create({
+      model: FAST_MODEL,
+      messages: [
+        { role: "system", content: getModeSystemPrompt(mode as CreativeMode) },
+        { role: "user", content: userLines.join("\n") },
+      ],
+      max_tokens: 300,
+    });
+
+    const builtPrompt = (completion.choices[0]?.message?.content ?? "").trim();
+    res.json({
+      prompt: builtPrompt || buildFallbackPrompt(input),
+      modelId,
+    });
+  } catch (err) {
+    req.log.error({ err }, "OpenRouter build-prompt failed");
+    // Always return something usable — never let a planning-layer failure block generation
+    res.json({ prompt: buildFallbackPrompt(input), modelId });
   }
 });
 
