@@ -627,137 +627,221 @@ function FavoritesView({
   );
 }
 
-// ─── url-to-ad section ────────────────────────────────────────────────────────
-function UrlToAdSection({
+// ─── url-to-ad modal ──────────────────────────────────────────────────────────
+function normalizeUrl(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return "";
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
+
+function isPlausibleUrl(raw: string): boolean {
+  const s = raw.trim();
+  if (!s) return false;
+  // Must have at least one dot and no spaces
+  return s.includes(".") && !s.includes(" ") && s.length > 3;
+}
+
+function UrlToAdModal({
+  open,
+  onClose,
   onFill,
 }: {
+  open: boolean;
+  onClose: () => void;
   onFill: (productName: string, description: string) => void;
 }) {
   const [url, setUrl] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{
-    productName: string;
-    tagline: string;
-    description: string;
-  } | null>(null);
   const { toast } = useToast();
 
-  const handleAnalyze = async () => {
-    if (!url.trim()) return;
+  // Reset state when modal opens
+  useEffect(() => {
+    if (open) { setUrl(""); setError(null); setAnalyzing(false); }
+  }, [open]);
+
+  const handleContinue = async () => {
+    const normalized = normalizeUrl(url);
+    if (!isPlausibleUrl(url)) return;
     setAnalyzing(true);
     setError(null);
-    setResult(null);
     try {
       const res = await fetch(`${basePath}/api/marketing/url-analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ url: url.trim() }),
+        body: JSON.stringify({ url: normalized }),
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error ?? "Analysis failed");
+        setError(data.error ?? "Couldn't analyse that page — try another URL.");
         return;
       }
-      setResult(data);
+      onFill(data.productName ?? "", data.description || data.tagline || "");
+      toast({ title: "Product info loaded", description: "Brief pre-filled — hit Generate when ready." });
+      onClose();
     } catch {
-      setError("Network error — please try again.");
+      setError("Network error — check your connection and try again.");
     } finally {
       setAnalyzing(false);
     }
   };
 
-  const handleUseResult = () => {
-    if (!result) return;
-    onFill(result.productName, result.description || result.tagline);
-    toast({
-      title: "Product info applied",
-      description: "Head back to Home and hit Generate.",
-    });
-  };
+  const canContinue = isPlausibleUrl(url) && !analyzing;
 
   return (
-    <div className="relative z-10 pb-44 px-6 pt-12 max-w-lg mx-auto w-full">
-      <div className="bg-[#111411]/90 border border-white/10 rounded-2xl p-6 backdrop-blur-sm">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-400 to-cyan-400 flex items-center justify-center mb-4">
-          <Link2 className="w-5 h-5 text-white" />
-        </div>
-        <h2 className="text-lg font-bold text-white mb-1">URL to Ad</h2>
-        <p className="text-sm text-white/50 mb-5">
-          Paste your product page URL and we'll extract everything needed to create
-          your ad automatically.
-        </p>
-
-        <div className="flex gap-2 mb-4">
-          <input
-            type="url"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleAnalyze()}
-            placeholder="https://yourproduct.com"
-            className="flex-1 bg-white/[0.06] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/30 outline-none focus:border-primary/50 transition-colors"
-          />
-          <button
-            type="button"
-            onClick={handleAnalyze}
-            disabled={!url.trim() || analyzing}
-            className="px-4 py-2.5 bg-primary text-black text-sm font-bold rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
-          >
-            {analyzing ? (
-              <>
-                <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Analyzing…
-              </>
-            ) : (
-              "Analyze"
-            )}
-          </button>
-        </div>
-
-        {error && (
-          <p className="text-xs text-red-400 mb-3 flex items-center gap-1.5">
-            <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {error}
-          </p>
-        )}
-
-        {result && (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.18 }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.72)", backdropFilter: "blur(6px)" }}
+          onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+        >
           <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white/[0.04] border border-primary/20 rounded-xl p-4 space-y-2"
+            initial={{ opacity: 0, scale: 0.96, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: 8 }}
+            transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+            className="relative w-full max-w-[900px] rounded-2xl overflow-hidden border border-white/[0.1] shadow-2xl shadow-black/80"
+            style={{ background: "#141414" }}
           >
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <p className="text-xs text-primary font-bold uppercase tracking-wide mb-1">
-                  Extracted
-                </p>
-                <p className="text-sm font-bold text-white">{result.productName}</p>
-                <p className="text-xs text-white/60 mt-0.5">{result.tagline}</p>
-                {result.description && (
-                  <p className="text-xs text-white/45 mt-1.5 leading-relaxed">
-                    {result.description}
-                  </p>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={() => setResult(null)}
-                className="text-white/30 hover:text-white/60 transition-colors shrink-0"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+            {/* Close */}
             <button
               type="button"
-              onClick={handleUseResult}
-              className="w-full mt-2 py-2 bg-primary text-black text-xs font-bold rounded-lg hover:bg-primary/90 transition-colors flex items-center justify-center gap-1.5"
+              onClick={onClose}
+              className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full bg-white/[0.08] flex items-center justify-center text-white/50 hover:text-white hover:bg-white/[0.14] transition-colors"
             >
-              <CheckCircle2 className="w-3.5 h-3.5" /> Use this — fill the ad form
+              <X className="w-4 h-4" />
             </button>
+
+            <div className="flex min-h-[480px]">
+              {/* ── Left panel */}
+              <div className="flex-1 flex flex-col justify-between p-8 md:p-10">
+                {/* Header */}
+                <div>
+                  {/* Icon */}
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-fuchsia-500 to-pink-600 flex items-center justify-center mb-6 shadow-lg shadow-pink-900/30">
+                    <Wand2 className="w-6 h-6 text-white" />
+                  </div>
+
+                  <h2 className="text-2xl md:text-3xl font-black text-white leading-tight mb-3">
+                    One link.<br />A ready-to-post ad.
+                  </h2>
+                  <p className="text-sm text-white/50 leading-relaxed max-w-sm">
+                    Drop your product URL — we'll scrape the page, extract the brief, and
+                    fill the generator. No filming, no editing, no form to fill.
+                  </p>
+                </div>
+
+                {/* Input */}
+                <div className="mt-10 space-y-3">
+                  <div className="relative">
+                    <Link2 className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={url}
+                      onChange={(e) => { setUrl(e.target.value); setError(null); }}
+                      onKeyDown={(e) => e.key === "Enter" && canContinue && handleContinue()}
+                      placeholder="www.yourproduct.com"
+                      autoFocus
+                      className="w-full bg-white/[0.06] border border-white/10 rounded-xl pl-11 pr-4 py-3.5 text-sm text-white placeholder-white/30 outline-none focus:border-white/25 transition-colors"
+                    />
+                  </div>
+
+                  {error && (
+                    <p className="text-xs text-red-400 flex items-center gap-1.5">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {error}
+                    </p>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleContinue}
+                    disabled={!canContinue}
+                    className="w-full py-3.5 rounded-xl font-black text-sm transition-all flex items-center justify-center gap-2 disabled:cursor-not-allowed"
+                    style={{
+                      background: canContinue
+                        ? "linear-gradient(135deg, #e040fb 0%, #f06292 100%)"
+                        : "rgba(255,255,255,0.06)",
+                      color: canContinue ? "#fff" : "rgba(255,255,255,0.2)",
+                      boxShadow: canContinue ? "0 0 24px rgba(224,64,251,0.28)" : "none",
+                    }}
+                  >
+                    {analyzing ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        Analysing your page…
+                      </>
+                    ) : (
+                      "Continue"
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* ── Right panel — example output */}
+              <div className="hidden md:flex w-[46%] shrink-0 relative overflow-hidden">
+                {/* Gradient background */}
+                <div
+                  className="absolute inset-0"
+                  style={{
+                    background:
+                      "linear-gradient(135deg, #0d1f0a 0%, #1a3a10 40%, #0d2b17 70%, #061508 100%)",
+                  }}
+                />
+                {/* Noise texture overlay */}
+                <div
+                  className="absolute inset-0 opacity-[0.06]"
+                  style={{
+                    backgroundImage:
+                      "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",
+                  }}
+                />
+                {/* Glow orbs */}
+                <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 rounded-full"
+                  style={{ background: "radial-gradient(circle, rgba(206,255,0,0.18) 0%, transparent 70%)" }} />
+                <div className="absolute bottom-1/4 right-1/4 w-32 h-32 rounded-full"
+                  style={{ background: "radial-gradient(circle, rgba(224,64,251,0.12) 0%, transparent 70%)" }} />
+
+                {/* Faux product card */}
+                <div className="relative z-10 flex flex-col items-center justify-center w-full h-full gap-4 px-8">
+                  <div className="w-[180px] h-[220px] rounded-2xl border border-white/[0.12] overflow-hidden relative"
+                    style={{ background: "linear-gradient(160deg,#1e3d12,#0c1f09)" }}>
+                    {/* Abstract product shape */}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-20 h-20 rounded-full"
+                        style={{ background: "radial-gradient(circle, rgba(206,255,0,0.7) 0%, rgba(100,200,50,0.3) 60%, transparent 100%)", filter: "blur(2px)" }} />
+                    </div>
+                    <div className="absolute bottom-0 left-0 right-0 px-4 py-3 backdrop-blur-sm"
+                      style={{ background: "linear-gradient(to top, rgba(0,0,0,0.8), transparent)" }}>
+                      <p className="text-[10px] font-bold text-primary uppercase tracking-widest">Generated</p>
+                      <p className="text-xs text-white/70 font-semibold">15-sec product ad</p>
+                    </div>
+                  </div>
+
+                  <div className="text-center">
+                    <p className="text-[11px] text-white/40 font-medium">TikTok · Reels · Shorts</p>
+                  </div>
+                </div>
+
+                {/* Bottom label */}
+                <div className="absolute bottom-5 left-0 right-0 flex justify-center">
+                  <div className="flex items-center gap-1.5 bg-black/40 border border-white/[0.08] rounded-full px-3 py-1.5 backdrop-blur-sm">
+                    <CheckCircle2 className="w-3 h-3 text-primary" />
+                    <span className="text-[10px] text-white/50 font-medium">No filming or editing needed</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </motion.div>
-        )}
-      </div>
-    </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
 
@@ -1471,6 +1555,15 @@ export default function MarketingStudio() {
 
   // ── nav
   const [activeSection, setActiveSection] = useState<SidebarSection>("home");
+  const [urlToAdOpen, setUrlToAdOpen] = useState(false);
+
+  const handleNavigate = useCallback((section: SidebarSection) => {
+    if (section === "url-to-ad") {
+      setUrlToAdOpen(true);
+    } else {
+      setActiveSection(section);
+    }
+  }, []);
 
   // ── gen form
   const [sourceType, setSourceType] = useState<SourceType>("product");
@@ -1650,6 +1743,7 @@ export default function MarketingStudio() {
     setProductName(name);
     setDescription(desc);
     setActiveSection("home");
+    setUrlToAdOpen(false);
   };
 
   // ── Ad Reference apply
@@ -1679,10 +1773,17 @@ export default function MarketingStudio() {
         onChange={(e) => handleAvatarFile(e.target.files?.[0])}
       />
 
+      {/* ── Url to Ad modal */}
+      <UrlToAdModal
+        open={urlToAdOpen}
+        onClose={() => setUrlToAdOpen(false)}
+        onFill={handleUrlFill}
+      />
+
       {/* ── Sidebar */}
       <Sidebar
         active={activeSection}
-        onNavigate={setActiveSection}
+        onNavigate={handleNavigate}
         creditsBalance={me?.creditsBalance}
       />
 
@@ -1831,11 +1932,14 @@ export default function MarketingStudio() {
             </div>
           )}
 
-          {/* ── URL to Ad */}
-          {activeSection === "url-to-ad" && (
-            <div className="relative z-10 flex justify-center">
-              <UrlToAdSection onFill={handleUrlFill} />
-            </div>
+          {/* ── Avatars */}
+          {activeSection === "avatars" && (
+            <AvatarsSection
+              onSelect={(av) => {
+                setAvatarUrl(av.photoUrl);
+                setActiveSection("home");
+              }}
+            />
           )}
 
           {/* ── Ad Reference */}
