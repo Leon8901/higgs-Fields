@@ -11,3 +11,6 @@ When an imported project's code already has Clerk/DB wiring in place but the app
 **Why:** Both failure modes look identical from the browser (generic 500s / failed queries) and neither requires touching application code, so it's easy to mistake them for real bugs and start debugging the wrong thing.
 
 **How to apply:** On any freshly imported project, after getting workflows running, check Clerk status and DB row counts before diagnosing API errors as code issues.
+
+- **Secrets don't survive re-import/re-clone**: even if `replit.md` documents that Clerk/DB/other secrets were provisioned in a prior session, re-check `checkClerkManagementStatus()` and `env` on every fresh setup pass — a project can be re-imported into a new environment where those secrets are gone even though the code and docs still describe them as configured.
+- **Check for other unconfigured paid integrations too**: grep for other third-party SDKs wired into server code (e.g. payment providers, LLM clients) whose secrets aren't in the current env — these are silent 500s waiting to happen, distinct from Clerk/DB. Worth a `incomplete_scope` follow-up rather than silently leaving them broken.
