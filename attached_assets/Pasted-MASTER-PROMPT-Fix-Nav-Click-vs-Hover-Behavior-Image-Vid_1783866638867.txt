@@ -1,0 +1,46 @@
+MASTER PROMPT — Fix Nav Click vs Hover Behavior (Image/Video/Audio)
+
+Paste into Replit as its own isolated task. Do not combine with other in-progress work.
+
+Implementation Rules
+
+
+Do not rewrite existing working functionality.
+Do not touch the avatar system.
+This is a pure navigation-interaction fix, zero generation cost, zero new backend work.
+The destination pages (/image, /video, /audio) already exist from the earlier model-switcher task — reuse them, don't rebuild them.
+
+
+The problem
+
+Currently, clicking "Image", "Video", or "Audio" in the main nav opens the Features+Models mega-menu dropdown. It should instead navigate directly to that category's dashboard page. The mega-menu should only appear on hover, as a quick-access preview — not replace the click-to-navigate behavior. There's also a visible dropdown chevron/arrow icon next to these nav items that shouldn't be there — they should read as plain nav links.
+
+What to fix
+
+
+Remove the chevron/arrow icon next to "Image", "Video", "Audio" in the main nav — they should visually look like plain text links, identical in style to "Explore", "Marketing Studio", "Pricing", etc.
+Separate hover and click behavior:
+
+On hover (desktop) — show the existing Features+Models mega-menu after a short delay, same as it currently works.
+On click — navigate directly to /image, /video, or /audio respectively (the existing category dashboard page), regardless of whether the hover menu is currently open. Clicking should not be "swallowed" by the dropdown toggle.
+If the mega-menu is open and the user clicks the nav text itself (not an item inside the menu), it should navigate immediately — don't require a second click to dismiss the menu first.
+
+
+
+Mobile/touch behavior — since hover doesn't exist on touch devices, decide a sensible mobile pattern: either (a) tapping the nav item navigates directly to the category page and the mega-menu becomes accessible some other way on mobile (e.g. within the category page itself), or (b) first tap opens the menu, second tap or a visible "View all" link navigates through. Pick whichever is simpler to implement correctly — don't leave mobile broken or requiring hover that can't happen.
+Keep everything else about the mega-menu unchanged — the Features/Models columns, their content, and clicking an individual model/feature inside the menu (which should navigate to that specific tool) all stay exactly as already built.
+
+
+Definition of Success
+
+
+Hovering Image/Video/Audio shows the mega-menu preview, same as today.
+Clicking the Image/Video/Audio nav text itself navigates directly to /image, /video, /audio — not the dropdown.
+No visible dropdown chevron/arrow icon next to these three nav items.
+Clicking an individual model or feature inside the open mega-menu still works and navigates correctly, unchanged from current behavior.
+Mobile/touch nav is not broken — some reasonable tap pattern works.
+No existing functionality elsewhere in the nav is affected.
+TypeScript compiles with no new warnings or errors.
+
+
+Show me a screenshot of the nav (both the plain link style and the hover menu still working) once done.

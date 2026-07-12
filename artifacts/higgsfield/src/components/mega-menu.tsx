@@ -2,7 +2,7 @@ import { useRef, useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useListModels } from "@workspace/api-client-react";
 import { cn } from "@/lib/utils";
-import { ChevronDown, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 
 type Category = "image" | "video" | "audio";
 
@@ -207,27 +207,25 @@ export function MegaMenuTrigger({ category, label, active }: MegaMenuProps) {
       <button
         aria-haspopup="true"
         aria-expanded={open}
-        onClick={() => (open ? closeMenu() : openMenu())}
+        onClick={() => {
+          closeMenu();
+          navigate(`/${category}`);
+        }}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
-            open ? closeMenu() : openMenu();
+            closeMenu();
+            navigate(`/${category}`);
           }
         }}
         className={cn(
-          "flex items-center gap-0.5 px-4 py-2 rounded-md text-sm font-medium transition-colors",
+          "px-4 py-2 rounded-md text-sm font-medium transition-colors",
           active || open
             ? "bg-white/10 text-white"
             : "text-muted-foreground hover:text-white hover:bg-white/5",
         )}
       >
         {label}
-        <ChevronDown
-          className={cn(
-            "w-3.5 h-3.5 ml-0.5 transition-transform duration-200",
-            open ? "rotate-180" : "",
-          )}
-        />
       </button>
 
       {open && (
