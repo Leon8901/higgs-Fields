@@ -1,0 +1,34 @@
+Work on sections 1-3 only for now — stop after that, don't move on to section 4 (nav/feature additions) or beyond. I'm short on credits, so keep this scoped tightly to visual/polish fixes only, no new backend features.
+
+1. Fix empty tool card thumbnails (highest priority)
+
+Every card in the Studio Tools grid currently shows an empty gradient placeholder instead of a real preview image.
+
+
+For each model/tool in the catalog, generate (or backfill from existing successful generations) a real representative output image and cache it as that tool's thumbnail.
+Store the thumbnail URL on the model/tool record in the DB so it doesn't regenerate on every page load.
+If a tool has no generation history yet, run ONE seed generation per tool specifically to produce its thumbnail — use the cheapest/fastest available model for this to minimize cost, and tell me how many total generations this will cost in credits BEFORE running them, so I can confirm.
+Skip the hover-to-video-preview behavior for now — static image thumbnails only, that's a nice-to-have costing more complexity than it's worth right now.
+
+
+2. Hero section — real generated media background
+
+
+Replace the flat gradient hero background with a real generated image (not video, to save cost/complexity) from one of the platform's own models — something that shows real output quality behind the headline.
+Write original headline/subheadline copy in your own words — don't reuse any wording from higgsfield.ai.
+Keep the existing button layout/structure as is.
+This should cost at most one additional generation — confirm the cost before running it.
+
+
+3. Typography and visual weight pass
+
+
+Increase headline font-weight/boldness at the hero and section-title level.
+Tighten letter-spacing on large display headlines.
+Audit spacing/padding consistency across the Tools grid, Featured section, and Pricing page.
+This is pure CSS/styling work — should cost zero generation credits, confirm that's the case.
+
+
+Before running any new generation (thumbnails or hero image), tell me the total expected credit cost across all of section 1 and 2 combined, and wait for my confirmation before proceeding. Section 3 needs no generations at all, so proceed with that freely.
+
+Show me a screenshot after each section so I can confirm it actually looks right before moving to the next.
