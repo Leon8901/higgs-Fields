@@ -23,3 +23,24 @@ export interface MediaAdapter {
   // Polls a previously submitted task for completion.
   poll(providerTaskId: string, apiKey: string): Promise<PollResult>;
 }
+
+// Classifies a failure raised by an adapter so route handlers can log the
+// real cause (visible only to us, in server logs) while showing end users a
+// generic, non-leaky message. Never surface `providerMessage` to end users —
+// it can contain provider account/billing details.
+export type ProviderErrorKind =
+  | "capacity" // provider account is out of funds/quota/concurrency — not the end user's fault, needs admin action (top up, swap key)
+  | "validation" // our request body didn't match what the provider expects — a bug in our model catalog/adapter, not the end user's fault
+  | "unknown"; // anything else (network error, unexpected shape, etc.)
+
+export class ProviderError extends Error {
+  readonly kind: ProviderErrorKind;
+  readonly providerMessage: string;
+
+  constructor(kind: ProviderErrorKind, providerMessage: string) {
+    super(providerMessage);
+    this.name = "ProviderError";
+    this.kind = kind;
+    this.providerMessage = providerMessage;
+  }
+}

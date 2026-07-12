@@ -1,6 +1,18 @@
-import type { MediaAdapter, PollResult, SubmitResult, GenerationStatus } from "./types";
+import type { MediaAdapter, PollResult, SubmitResult, GenerationStatus, ProviderErrorKind } from "./types";
+import { ProviderError } from "./types";
 
 const BASE_URL = "https://api.wavespeed.ai/api/v3";
+
+// WaveSpeed returns the same HTTP status/`code` (400) for both "your account
+// is out of money" and "your request body is malformed", so the only way to
+// tell them apart is the message text. Pattern-match it once here so callers
+// get a stable `kind` instead of re-parsing prose every time.
+function classifyError(message: string): ProviderErrorKind {
+  const lower = message.toLowerCase();
+  if (/insufficient credit|top up|concurrency limit|quota/.test(lower)) return "capacity";
+  if (/invalid request body|must be one of|must be an integer|is required/.test(lower)) return "validation";
+  return "unknown";
+}
 
 // WaveSpeed-specific quirks that don't match how these values are authored
 // in our model catalog (lib/db/seed.ts). Confirmed against the live API's
@@ -54,12 +66,12 @@ export const wavespeedAdapter: MediaAdapter = {
     const body: any = await res.json().catch(() => null);
     if (!res.ok) {
       const message = body?.message || body?.error || `WaveSpeed submit failed with status ${res.status}`;
-      throw new Error(message);
+      throw new ProviderError(classifyError(message), message);
     }
 
     const taskId = body?.data?.id;
     if (!taskId) {
-      throw new Error("WaveSpeed submit response missing task id.");
+      throw new ProviderError("unknown", "WaveSpeed submit response missing task id.");
     }
 
     return { providerTaskId: taskId };
@@ -73,7 +85,7 @@ export const wavespeedAdapter: MediaAdapter = {
     const body: any = await res.json().catch(() => null);
     if (!res.ok) {
       const message = body?.message || body?.error || `WaveSpeed poll failed with status ${res.status}`;
-      throw new Error(message);
+      throw new ProviderError(classifyError(message), message);
     }
 
     const data = body?.data;

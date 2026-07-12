@@ -10,8 +10,18 @@ import {
 } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { getAdapter } from "../lib/media/registry";
+import { ProviderError } from "../lib/media/types";
 import { enhancePrompt, autoSelectModel } from "../lib/llm/planner";
 import { decryptSecret } from "../lib/crypto";
+
+// User-safe copy for a provider-side failure. Never includes `providerMessage`
+// (WaveSpeed account/billing details, raw validation text) — that's for logs
+// only. Distinguishing "capacity" vs "validation" doesn't change what the end
+// user sees (there's nothing they can do about either), but it's what makes
+// the log line actionable for us: "capacity" means top up/rotate the provider
+// key, "validation" means a model's paramsSchema doesn't match what the
+// provider actually expects and needs a code fix.
+const GENERATION_UNAVAILABLE_MESSAGE = "Generation temporarily unavailable — please try again later.";
 
 const router: IRouter = Router();
 
@@ -120,8 +130,20 @@ router.post("/generations", requireAuth, async (req, res): Promise<void> => {
     const submitted = await adapter.submit(model.providerModelPath, providerParams, apiKey);
     providerTaskId = submitted.providerTaskId;
   } catch (err) {
-    req.log.error({ err }, "Provider submit failed");
-    res.status(502).json({ error: err instanceof Error ? err.message : "Failed to submit generation to provider." });
+    if (err instanceof ProviderError) {
+      // Full detail (which provider, which model, capacity vs validation,
+      // and the raw provider message) goes to server logs only — grep for
+      // `"kind":"capacity"` to find provider account/billing issues, or
+      // `"kind":"validation"` to find a model's paramsSchema drifting from
+      // what the provider actually accepts.
+      req.log.error(
+        { adapter: model.adapter, modelId: model.modelId, kind: err.kind, providerMessage: err.providerMessage },
+        "Provider submit failed",
+      );
+    } else {
+      req.log.error({ err }, "Provider submit failed (unexpected error shape)");
+    }
+    res.status(502).json({ error: GENERATION_UNAVAILABLE_MESSAGE });
     return;
   }
 
@@ -226,7 +248,17 @@ router.get("/generations/:id", requireAuth, async (req, res): Promise<void> => {
         }
       }
     } catch (err) {
-      req.log.error({ err }, "Provider poll failed");
+      if (err instanceof ProviderError) {
+        req.log.error(
+          { adapter: model.adapter, modelId: model.modelId, kind: err.kind, providerMessage: err.providerMessage },
+          "Provider poll failed",
+        );
+      } else {
+        req.log.error({ err }, "Provider poll failed (unexpected error shape)");
+      }
+      // Swallowed intentionally: this is a background status check. The
+      // generation just stays "processing" for the client and we retry on
+      // the next poll rather than surfacing a transient poll error to the user.
     }
   }
 
