@@ -91,7 +91,7 @@ export default function Tools() {
                         <div className="flex justify-between items-start mb-6">
                           <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center border border-white/10 overflow-hidden relative">
                             {tool.thumbnailUrl ? (
-                              <img src={`/thumbnails/tool-${(i%6)+1}.jpg`} alt="" className="w-full h-full object-cover" />
+                              <img src={tool.thumbnailUrl} alt={tool.name} className="w-full h-full object-cover" />
                             ) : (
                               <div className="w-full h-full" style={{ background: tool.gradient || 'linear-gradient(45deg, #111, #333)' }} />
                             )}
