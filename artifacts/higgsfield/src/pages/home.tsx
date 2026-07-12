@@ -84,18 +84,18 @@ export default function Home() {
           
           <motion.h1 
             initial="hidden" animate="visible" variants={fadeIn} transition={{ delay: 0.1 }}
-            className="text-6xl md:text-8xl font-black text-white tracking-tighter mb-6 leading-[1.1]"
+            className="text-6xl md:text-8xl font-black text-white tracking-tighter mb-6 leading-[1.05]"
           >
-            Generate the <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-white via-white to-white/50">Impossible.</span>
+            Every Frame <br />
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-white via-white to-white/50">You Imagine.</span>
           </motion.h1>
           
           <motion.p 
             initial="hidden" animate="visible" variants={fadeIn} transition={{ delay: 0.2 }}
             className="text-xl md:text-2xl text-muted-foreground mb-10 max-w-3xl font-light"
           >
-            The premier AI creative suite. Cinematic video, hyper-realistic images, 
-            and studio-grade audio generated in seconds.
+            One studio for cinematic video, photoreal imagery, and expressive audio —
+            all from a single prompt, powered by the world's leading generative models.
           </motion.p>
           
           <motion.div 
@@ -118,7 +118,7 @@ export default function Home() {
       <section className="py-20 bg-black relative border-y border-white/5">
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold text-white tracking-tight">Featured Studio Tools</h2>
+            <h2 className="text-3xl md:text-4xl font-black text-white tracking-tight">Featured Studio Tools</h2>
             <Button variant="link" className="text-muted-foreground hover:text-white" asChild>
               <Link href="/tools">View all tools <ArrowRight className="ml-1 w-4 h-4" /></Link>
             </Button>
@@ -216,7 +216,7 @@ export default function Home() {
       <section className="py-24 bg-white/[0.02] border-y border-white/5">
         <div className="container mx-auto px-4">
           <div className="text-center max-w-2xl mx-auto mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-white mb-4 tracking-tight">Built by the Community</h2>
+            <h2 className="text-3xl md:text-4xl font-black text-white mb-4 tracking-tight">Built by the Community</h2>
             <p className="text-muted-foreground">
               Discover powerful micro-apps built on top of the Higgsfield API by our community of developers and creators.
             </p>

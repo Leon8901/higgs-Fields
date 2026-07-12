@@ -24,10 +24,10 @@ export default function Tools() {
   );
 
   return (
-    <div className="container mx-auto px-4 py-12 md:py-20 min-h-screen">
+    <div className="container mx-auto px-4 py-16 md:py-24 min-h-screen">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-12 gap-6">
         <div>
-          <h1 className="text-4xl md:text-5xl font-black text-white tracking-tight mb-4">
+          <h1 className="text-4xl md:text-6xl font-black text-white tracking-tighter mb-4">
             Studio Tools
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl">

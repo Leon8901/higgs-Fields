@@ -129,7 +129,7 @@ export default function Pricing() {
   return (
     <div className="container mx-auto px-4 py-16 md:py-24 min-h-screen">
       <div className="text-center max-w-3xl mx-auto mb-16">
-        <h1 className="text-4xl md:text-6xl font-black text-white tracking-tight mb-6">
+        <h1 className="text-4xl md:text-6xl font-black text-white tracking-tighter mb-6">
           Simple, transparent pricing
         </h1>
         <p className="text-xl text-muted-foreground mb-6">
@@ -263,7 +263,7 @@ export default function Pricing() {
       {creditPacks && creditPacks.length > 0 && (
         <div className="max-w-6xl mx-auto mt-24 border-t border-white/5 pt-16">
           <div className="text-center mb-10">
-            <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">Need credits without a subscription?</h2>
+            <h2 className="text-2xl md:text-3xl font-black text-white mb-3 tracking-tight">Need credits without a subscription?</h2>
             <p className="text-muted-foreground">One-time credit top-ups — no recurring billing, use them whenever.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -312,7 +312,7 @@ export default function Pricing() {
       )}
 
       <div className="mt-24 text-center border-t border-white/5 pt-16 max-w-3xl mx-auto">
-        <h3 className="text-2xl font-bold text-white mb-4">Need an enterprise solution?</h3>
+        <h3 className="text-2xl font-black text-white mb-4 tracking-tight">Need an enterprise solution?</h3>
         <p className="text-muted-foreground mb-8">
           Custom SLA, dedicated account manager, private instances, and unlimited generations.
         </p>
