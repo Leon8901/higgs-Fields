@@ -49,7 +49,7 @@ function ModelIcon({ thumbnailUrl, name }: { thumbnailUrl?: string | null; name:
   );
 }
 
-function ModelsColumn({ category }: { category: Category }) {
+function ModelsColumn({ category, onSelect }: { category: Category; onSelect: () => void }) {
   const [, navigate] = useLocation();
   const { data: models, isLoading } = useListModels({ category });
 
@@ -86,7 +86,7 @@ function ModelsColumn({ category }: { category: Category }) {
       {models.map((model) => (
         <button
           key={model.modelId}
-          onClick={() => navigate(`${catPath}?model=${model.modelId}`)}
+          onClick={() => { navigate(`${catPath}?model=${model.modelId}`); onSelect(); }}
           className="flex items-center gap-3 px-3 py-2.5 hover:bg-white/[0.06] rounded-lg mx-1 transition-colors text-left group"
         >
           <ModelIcon thumbnailUrl={model.thumbnailUrl} name={model.name} />
@@ -257,7 +257,7 @@ export function MegaMenuTrigger({ category, label, active }: MegaMenuProps) {
                     Models
                   </span>
                 </div>
-                <ModelsColumn category={category} />
+                <ModelsColumn category={category} onSelect={closeMenu} />
               </div>
             </div>
           </div>
