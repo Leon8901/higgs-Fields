@@ -318,6 +318,11 @@ export function Footer() {
 }
 
 export function Layout({ children }: { children: React.ReactNode }) {
+  const [location] = useLocation();
+  // Marketing Studio has its own full-screen layout with sidebar — skip global chrome
+  if (location.startsWith("/marketing-studio")) {
+    return <>{children}</>;
+  }
   return (
     <div className="min-h-[100dvh] flex flex-col bg-noise">
       <AnnouncementBanner />

@@ -64,6 +64,14 @@ A full-stack AI creative platform website inspired by higgsfield.ai — featurin
 
 _Populate as you build — explicit user instructions worth remembering across sessions._
 
+## Marketing Studio
+
+The `/marketing-studio` route uses its own full-screen layout — it bypasses the global Navbar/Footer (handled in `layout.tsx` by path check). The page renders a two-panel layout: a 220px left sidebar + main scrollable area with a sticky bottom generation bar.
+
+Key files:
+- `artifacts/higgsfield/src/pages/marketing-studio.tsx` — full self-contained layout with sidebar, dot-grid bg, template cards, sticky gen bar
+- `artifacts/higgsfield/src/components/layout.tsx` — skips global chrome for `/marketing-studio*` paths
+
 ## Setup notes (imported project)
 
 - Auth: Replit-managed Clerk is provisioned (`CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, `VITE_CLERK_PUBLISHABLE_KEY` secrets set). Frontend/backend Clerk wiring was already present in the imported code.
