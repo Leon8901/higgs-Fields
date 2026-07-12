@@ -7,10 +7,9 @@ import {
   useGetMe,
   useListApiKeys,
   useCreateGeneration,
-  useGetGeneration,
+  useListGenerations,
   getGetMeQueryKey,
   getListGenerationsQueryKey,
-  getGetGenerationQueryKey,
   type Model,
   type Generation,
 } from "@workspace/api-client-react";
@@ -29,37 +28,37 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Button } from "@/components/ui/button";
 import {
   Zap,
   Key,
   Upload,
   X,
-  AlertCircle,
   Download,
   ImageIcon,
   Film,
   Music,
   ChevronDown,
   Settings2,
-  Heart,
-  LayoutGrid,
-  Rows3,
-  Wand2,
   Plus,
+  Minus,
   Pencil,
+  AlertCircle,
+  Wand2,
 } from "lucide-react";
 
 type Category = "image" | "video" | "audio";
+type ParamField = {
+  key: string; label: string; type: string;
+  options?: string[]; default?: unknown;
+  min?: number; max?: number; step?: number;
+  required?: boolean; helpText?: string;
+};
 
 const basePath = import.meta.env.BASE_URL;
 
-/* ─── File upload ─────────────────────────────────────────────────────────── */
 async function uploadFile(file: File): Promise<string> {
   const res = await fetch(`${basePath}api/storage/uploads/request-url`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
+    method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
     body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type || "application/octet-stream" }),
   });
   if (!res.ok) throw new Error("Failed to request upload URL");
@@ -69,240 +68,219 @@ async function uploadFile(file: File): Promise<string> {
   return `${window.location.origin}${basePath}api/storage${objectPath}`;
 }
 
-/* ─── Per-category theming ────────────────────────────────────────────────── */
-const CATEGORY_THEME = {
-  image: {
-    label: "IMAGE",
-    headline: "Describe the image\nyou want to create",
-    glow: "radial-gradient(ellipse 60% 40% at 50% 50%, rgba(139,92,246,0.35) 0%, rgba(109,40,217,0.12) 50%, transparent 100%)",
-    textGradient: "from-white via-violet-200 to-violet-400",
-    promptPlaceholder: "Describe the scene you imagine...",
-  },
-  video: {
-    label: "VIDEO",
-    headline: "Bring your idea\nto life in motion",
-    glow: "radial-gradient(ellipse 60% 40% at 50% 50%, rgba(37,99,235,0.35) 0%, rgba(29,78,216,0.12) 50%, transparent 100%)",
-    textGradient: "from-white via-blue-200 to-blue-400",
-    promptPlaceholder: "Describe the scene you imagine...",
-  },
-  audio: {
-    label: "AUDIO",
-    headline: "Ready to give your\nscene a voice?",
-    glow: "radial-gradient(ellipse 60% 40% at 50% 50%, rgba(219,39,119,0.35) 0%, rgba(157,23,77,0.12) 50%, transparent 100%)",
-    textGradient: "from-white via-pink-200 to-fuchsia-400",
-    promptPlaceholder: "Describe the sound you imagine...",
-  },
-} as const;
-
 const CATEGORY_ICON: Record<Category, React.ReactNode> = {
-  image: <ImageIcon className="w-4 h-4" />,
-  video: <Film className="w-4 h-4" />,
-  audio: <Music className="w-4 h-4" />,
+  image: <ImageIcon className="w-3.5 h-3.5" />,
+  video: <Film className="w-3.5 h-3.5" />,
+  audio: <Music className="w-3.5 h-3.5" />,
 };
 
-/* ─── Empty state canvas ──────────────────────────────────────────────────── */
-function EmptyCanvas({ category }: { category: Category }) {
-  const theme = CATEGORY_THEME[category];
+const PROMPT_PLACEHOLDER: Record<Category, string> = {
+  image: "Describe the scene you imagine...",
+  video: "Describe the scene you imagine...",
+  audio: "Describe the sound you imagine...",
+};
+
+/* ─── Example image card stack (empty state visual) ──────────────────────── */
+function ExampleCardStack({ model }: { model: Model | null }) {
+  if (!model) return null;
+
+  const hasThumb = Boolean(model.thumbnailUrl);
+  const cards = [
+    { rotate: "-rotate-6", z: "z-10", scale: "scale-90", opacity: "opacity-40", translate: "-translate-x-6 translate-y-3" },
+    { rotate: "-rotate-2", z: "z-20", scale: "scale-95", opacity: "opacity-60", translate: "-translate-x-2 translate-y-1" },
+    { rotate: "rotate-0", z: "z-30", scale: "scale-100", opacity: "opacity-100", translate: "" },
+  ];
+
   return (
-    <div className="flex-1 flex items-center justify-center relative overflow-hidden select-none">
-      {/* Background glow */}
-      <div className="absolute inset-0" style={{ background: theme.glow }} />
-
-      {/* Crosshair brackets + text */}
-      <div className="relative flex flex-col items-center gap-4 px-8">
-        {/* Top-left + top-right corner brackets */}
-        <div className="absolute -top-10 -left-10 w-8 h-8 border-t-2 border-l-2 border-white/20" />
-        <div className="absolute -top-10 -right-10 w-8 h-8 border-t-2 border-r-2 border-white/20" />
-        <div className="absolute -bottom-10 -left-10 w-8 h-8 border-b-2 border-l-2 border-white/20" />
-        <div className="absolute -bottom-10 -right-10 w-8 h-8 border-b-2 border-r-2 border-white/20" />
-
-        <p className="text-[11px] font-semibold tracking-[0.4em] text-white/40 uppercase">
-          {theme.label}
-        </p>
-        <h1
+    <div className="relative flex items-center justify-center" style={{ width: 220, height: 220 }}>
+      {cards.map((c, i) => (
+        <div
+          key={i}
           className={cn(
-            "text-4xl md:text-5xl font-black text-center leading-tight whitespace-pre-line bg-gradient-to-b bg-clip-text text-transparent",
-            theme.textGradient,
+            "absolute w-36 h-44 rounded-2xl border border-white/10 overflow-hidden shadow-2xl transition-all",
+            c.rotate, c.z, c.scale, c.opacity, c.translate,
           )}
-          style={{
-            textShadow: "0 0 60px rgba(255,255,255,0.15)",
-            filter: "drop-shadow(0 0 30px rgba(255,255,255,0.1))",
-          }}
+          style={{ background: "linear-gradient(135deg, #1a1a1a 0%, #111 100%)" }}
         >
-          {theme.headline}
-        </h1>
-      </div>
-
-      {/* Subtle noise texture overlay */}
-      <div
-        className="absolute inset-0 pointer-events-none opacity-[0.03]"
-        style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E")`,
-          backgroundRepeat: "repeat",
-          backgroundSize: "128px 128px",
-        }}
-      />
+          {hasThumb && i === cards.length - 1 ? (
+            <img src={model.thumbnailUrl!} alt={model.name} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-white/10">
+              {CATEGORY_ICON[model.category as Category]}
+            </div>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
 
-/* ─── Result canvas ───────────────────────────────────────────────────────── */
-function ResultCanvas({ generation }: { generation: Generation }) {
-  if (generation.status === "pending" || generation.status === "processing") {
+/* ─── Canvas area ─────────────────────────────────────────────────────────── */
+function CanvasArea({
+  model,
+  batchGenerations,
+  isSubmitting,
+}: {
+  model: Model | null;
+  batchGenerations: Generation[];
+  isSubmitting: boolean;
+}) {
+  const allDone = batchGenerations.length > 0 && batchGenerations.every(
+    (g) => g.status === "completed" || g.status === "failed",
+  );
+  const anyProcessing = batchGenerations.some(
+    (g) => g.status === "pending" || g.status === "processing",
+  );
+  const hasResults = batchGenerations.some((g) => g.status === "completed" && (g.outputUrls?.length ?? 0) > 0);
+
+  /* Loading state */
+  if (isSubmitting || anyProcessing) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-5">
-        <div className="w-14 h-14 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
-        <p className="text-sm text-white/40 font-medium tracking-wide">Generating…</p>
+        <div className="w-12 h-12 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
+        <p className="text-sm text-white/40 font-medium">Generating{batchGenerations.length > 1 ? ` ${batchGenerations.length} images` : ""}…</p>
       </div>
     );
   }
 
-  if (generation.status === "failed") {
+  /* Results grid */
+  if (allDone && hasResults) {
+    const completed = batchGenerations.filter((g) => g.status === "completed" && (g.outputUrls?.length ?? 0) > 0);
+    const failed = batchGenerations.filter((g) => g.status === "failed");
     return (
-      <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center px-8">
-        <AlertCircle className="w-10 h-10 text-red-400/70" />
-        <p className="text-sm text-red-400/80">{generation.errorMessage ?? "Generation failed. Try again."}</p>
+      <div className="flex-1 flex items-center justify-center p-8 overflow-auto">
+        <div className={cn("grid gap-4 max-h-full", completed.length === 1 ? "grid-cols-1" : "grid-cols-2")}>
+          {completed.map((g) => {
+            const url = g.outputUrls?.[0];
+            return (
+              <div key={g.id} className="relative group rounded-2xl overflow-hidden border border-white/10 shadow-xl">
+                {g.category === "video" ? (
+                  <video src={url} controls autoPlay loop className="max-h-[55vh] max-w-full object-contain" />
+                ) : g.category === "audio" ? (
+                  <div className="w-48 h-48 flex flex-col items-center justify-center gap-3 bg-white/[0.03]">
+                    <Music className="w-10 h-10 text-white/20" />
+                    <audio src={url} controls className="w-full" />
+                  </div>
+                ) : (
+                  <img src={url} alt={g.prompt} className="max-h-[55vh] max-w-full object-contain" />
+                )}
+                {url && (
+                  <a href={url} download target="_blank" rel="noreferrer"
+                    className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/70 flex items-center justify-center text-white/70 hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Download className="w-3.5 h-3.5" />
+                  </a>
+                )}
+              </div>
+            );
+          })}
+          {failed.map((g) => (
+            <div key={g.id} className="rounded-2xl border border-red-500/20 bg-red-500/5 flex flex-col items-center justify-center gap-2 p-6 text-red-400 text-xs text-center w-36 h-44">
+              <AlertCircle className="w-6 h-6" />
+              {g.errorMessage ?? "Failed"}
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
 
-  const output = generation.outputUrls?.[0];
+  /* Empty state */
   return (
-    <div className="flex-1 flex items-center justify-center p-8 overflow-auto">
-      <div className="relative group max-h-full max-w-full">
-        {generation.category === "video" ? (
-          <video src={output} controls autoPlay loop className="max-h-[65vh] max-w-full rounded-2xl border border-white/10 shadow-2xl" />
-        ) : generation.category === "audio" ? (
-          <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-10 flex flex-col items-center gap-4">
-            <Music className="w-16 h-16 text-white/20" />
-            <audio src={output} controls className="w-72" />
-          </div>
-        ) : (
-          <img src={output} alt={generation.prompt} className="max-h-[65vh] max-w-full rounded-2xl border border-white/10 shadow-2xl object-contain" />
-        )}
-        {output && (
-          <a
-            href={output}
-            download
-            target="_blank"
-            rel="noreferrer"
-            className="absolute top-3 right-3 w-9 h-9 rounded-full bg-black/70 flex items-center justify-center text-white/70 hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
-          >
-            <Download className="w-4 h-4" />
-          </a>
-        )}
-      </div>
+    <div className="flex-1 flex flex-col items-center justify-center gap-8 select-none">
+      <ExampleCardStack model={model} />
+      {model && (
+        <div className="text-center space-y-2">
+          <p className="text-white/40 text-sm font-medium">Start creating with</p>
+          <p className="text-2xl md:text-3xl font-black">
+            <span className="text-white/60">using </span>
+            <span className="text-primary">{model.name}</span>
+          </p>
+          {model.description && (
+            <p className="text-sm text-white/30 max-w-sm mx-auto leading-relaxed">{model.description}</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
-/* ─── Image upload param ──────────────────────────────────────────────────── */
-function ImageParamField({
-  field,
-  value,
-  onChange,
-}: {
-  field: { key: string; label: string; helpText?: string; required?: boolean };
-  value: string | undefined;
-  onChange: (v: string | undefined) => void;
+/* ─── Image upload field ──────────────────────────────────────────────────── */
+function ImageUploadField({ field, value, onChange }: {
+  field: ParamField; value: string | undefined; onChange: (v: string | undefined) => void;
 }) {
   const [uploading, setUploading] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const handleFile = async (file: File | undefined) => {
-    if (!file) return;
-    setUploading(true);
-    try { onChange(await uploadFile(file)); } catch { onChange(undefined); } finally { setUploading(false); }
+  const ref = useRef<HTMLInputElement>(null);
+  const handle = async (f: File | undefined) => {
+    if (!f) return; setUploading(true);
+    try { onChange(await uploadFile(f)); } catch { onChange(undefined); } finally { setUploading(false); }
   };
-
   return (
     <div>
-      <label className="text-xs text-white/60 mb-1.5 block">
-        {field.label}{field.required && <span className="text-primary ml-1">*</span>}
-      </label>
-      <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleFile(e.target.files?.[0])} />
+      <label className="text-xs text-white/60 mb-1.5 block">{field.label}{field.required && <span className="text-primary ml-1">*</span>}</label>
+      <input ref={ref} type="file" accept="image/*" className="hidden" onChange={(e) => handle(e.target.files?.[0])} />
       {value ? (
-        <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-white/10 group cursor-pointer">
-          <img src={value} alt={field.label} className="w-full h-full object-cover" />
+        <div className="relative w-14 h-14 rounded-lg overflow-hidden border border-white/10 group cursor-pointer">
+          <img src={value} alt="" className="w-full h-full object-cover" />
           <button type="button" onClick={() => onChange(undefined)} className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-            <X className="w-4 h-4 text-white" />
+            <X className="w-3.5 h-3.5 text-white" />
           </button>
         </div>
       ) : (
-        <button type="button" onClick={() => inputRef.current?.click()} disabled={uploading}
-          className="w-16 h-16 rounded-lg border border-dashed border-white/15 flex flex-col items-center justify-center gap-1 text-white/40 hover:text-primary hover:border-primary/50 transition-colors text-[10px]">
-          <Upload className="w-3.5 h-3.5" />
-          {uploading ? "…" : "Upload"}
+        <button type="button" onClick={() => ref.current?.click()} disabled={uploading}
+          className="w-14 h-14 rounded-lg border border-dashed border-white/15 flex flex-col items-center justify-center gap-1 text-white/40 hover:text-primary hover:border-primary/50 transition-colors text-[9px]">
+          <Upload className="w-3 h-3" />{uploading ? "…" : "Upload"}
         </button>
       )}
     </div>
   );
 }
 
-/* ─── Advanced params popover ─────────────────────────────────────────────── */
-function AdvancedParams({
-  model,
-  params,
-  onParam,
-  imageParams,
-  onImageParam,
-}: {
-  model: Model;
+/* ─── Extra settings popover (non-surfaced params) ────────────────────────── */
+function ExtraSettings({ extraFields, params, onParam, imageParams, onImageParam }: {
+  extraFields: ParamField[];
   params: Record<string, unknown>;
-  onParam: (key: string, val: unknown) => void;
+  onParam: (k: string, v: unknown) => void;
   imageParams: Record<string, string | undefined>;
-  onImageParam: (key: string, val: string | undefined) => void;
+  onImageParam: (k: string, v: string | undefined) => void;
 }) {
-  const extra = model.paramsSchema.fields.filter(
-    (f: { key: string }) => f.key !== "aspect_ratio",
-  );
-  if (extra.length === 0) return null;
-
+  if (extraFields.length === 0) return null;
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <button className="flex items-center gap-1.5 px-3 h-8 rounded-full bg-white/[0.07] border border-white/10 hover:bg-white/12 transition-colors text-xs text-white/60 hover:text-white/90 shrink-0">
+        <button className={chipClass}>
           <Settings2 className="w-3.5 h-3.5" />
-          <span>Settings</span>
+          <span>More</span>
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-72 p-4 bg-[#181818] border-white/10 shadow-2xl" side="top" align="end" sideOffset={10}>
-        <p className="text-[11px] font-semibold text-white/40 uppercase tracking-wider mb-3">Advanced settings</p>
+      <PopoverContent className="w-68 p-4 bg-[#181818] border-white/10 shadow-2xl" side="top" align="end" sideOffset={10}>
+        <p className="text-[11px] font-semibold text-white/40 uppercase tracking-wider mb-3">Extra settings</p>
         <div className="flex flex-col gap-4">
-          {extra.map((field: { key: string; type: string; label: string; options?: string[]; default?: unknown; min?: number; max?: number; step?: number; required?: boolean }) => {
-            if (field.type === "image") {
-              return (
-                <ImageParamField key={field.key} field={field} value={imageParams[field.key]} onChange={(v) => onImageParam(field.key, v)} />
-              );
-            }
-            if (field.type === "select") {
-              return (
-                <div key={field.key}>
-                  <label className="text-xs text-white/60 mb-1.5 block">{field.label}</label>
-                  <Select value={String(params[field.key] ?? field.default ?? "")} onValueChange={(v) => onParam(field.key, v)}>
-                    <SelectTrigger className="h-8 bg-white/[0.04] border-white/10 text-white text-xs focus:ring-0">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-[#181818] border-white/10">
-                      {field.options?.map((o: string) => (
-                        <SelectItem key={o} value={o} className="text-white/80 focus:bg-white/10 text-xs">{o}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              );
-            }
-            if (field.type === "number") {
-              return (
-                <div key={field.key}>
-                  <label className="text-xs text-white/60 mb-1.5 block">{field.label}</label>
-                  <input type="number" min={field.min} max={field.max} step={field.step ?? 1}
-                    value={params[field.key] === undefined ? "" : String(params[field.key])}
-                    onChange={(e) => onParam(field.key, e.target.value === "" ? undefined : Number(e.target.value))}
-                    className="w-full h-8 px-3 bg-white/[0.04] border border-white/10 rounded-md text-white text-xs focus:outline-none focus:border-primary/50" />
-                </div>
-              );
-            }
+          {extraFields.map((field) => {
+            if (field.type === "image") return (
+              <ImageUploadField key={field.key} field={field} value={imageParams[field.key]} onChange={(v) => onImageParam(field.key, v)} />
+            );
+            if (field.type === "select") return (
+              <div key={field.key}>
+                <label className="text-xs text-white/60 mb-1.5 block">{field.label}</label>
+                <Select value={String(params[field.key] ?? field.default ?? "")} onValueChange={(v) => onParam(field.key, v)}>
+                  <SelectTrigger className="h-8 bg-white/[0.04] border-white/10 text-white text-xs focus:ring-0">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#181818] border-white/10">
+                    {field.options?.map((o) => <SelectItem key={o} value={o} className="text-white/80 focus:bg-white/10 text-xs">{o}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            );
+            if (field.type === "number") return (
+              <div key={field.key}>
+                <label className="text-xs text-white/60 mb-1.5 block">{field.label}</label>
+                <input type="number" min={field.min} max={field.max} step={field.step ?? 1}
+                  value={params[field.key] === undefined ? "" : String(params[field.key])}
+                  onChange={(e) => onParam(field.key, e.target.value === "" ? undefined : Number(e.target.value))}
+                  className="w-full h-8 px-3 bg-white/[0.04] border border-white/10 rounded-md text-white text-xs focus:outline-none focus:border-primary/50" />
+              </div>
+            );
             if (field.type === "toggle") {
               const on = Boolean(params[field.key] ?? field.default);
               return (
@@ -323,28 +301,21 @@ function AdvancedParams({
   );
 }
 
-/* ─── Model picker popover ────────────────────────────────────────────────── */
+/* ─── Model picker ────────────────────────────────────────────────────────── */
 function ModelPicker({ models, selectedId, onSelect }: {
-  models: Model[];
-  selectedId: string;
-  onSelect: (id: string) => void;
+  models: Model[]; selectedId: string; onSelect: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const selected = models.find((m) => m.modelId === selectedId);
-
+  const sel = models.find((m) => m.modelId === selectedId);
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button className="flex items-center gap-1.5 px-3 h-8 rounded-full bg-white/[0.07] border border-white/10 hover:bg-white/12 transition-colors text-xs font-medium text-white/80 shrink-0 max-w-[200px]">
-          <div className="w-3.5 h-3.5 rounded-full bg-primary/70 shrink-0 flex items-center justify-center">
-            {CATEGORY_ICON[(selected?.category ?? "image") as Category]}
-          </div>
-          <span className="truncate">{selected?.name ?? "Select model"}</span>
-          {selected?.badge && (
-            <span className="text-[8px] font-black bg-primary text-black px-1 py-0.5 rounded uppercase shrink-0 leading-none">
-              {selected.badge}
-            </span>
-          )}
+        <button className={chipClass}>
+          <span className="w-3.5 h-3.5 rounded-full bg-primary/80 flex items-center justify-center shrink-0">
+            {CATEGORY_ICON[(sel?.category ?? "image") as Category]}
+          </span>
+          <span className="truncate max-w-[140px]">{sel?.name ?? "Model"}</span>
+          {sel?.badge && <span className="text-[8px] font-black bg-primary text-black px-1 py-0.5 rounded uppercase shrink-0">{sel.badge}</span>}
           <ChevronDown className="w-3 h-3 text-white/40 shrink-0" />
         </button>
       </PopoverTrigger>
@@ -352,11 +323,9 @@ function ModelPicker({ models, selectedId, onSelect }: {
         <div className="flex flex-col gap-px max-h-72 overflow-y-auto">
           {models.map((m) => (
             <button key={m.modelId} onClick={() => { onSelect(m.modelId); setOpen(false); }}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors w-full",
-                m.modelId === selectedId ? "bg-primary/10 text-white" : "hover:bg-white/[0.05] text-white/70 hover:text-white",
-              )}>
-              <div className="w-8 h-8 rounded-lg bg-white/8 border border-white/10 flex items-center justify-center text-white/30 shrink-0 overflow-hidden">
+              className={cn("flex items-center gap-3 px-3 py-2.5 rounded-lg text-left w-full transition-colors",
+                m.modelId === selectedId ? "bg-primary/10 text-white" : "hover:bg-white/[0.05] text-white/70 hover:text-white")}>
+              <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-white/30 shrink-0 overflow-hidden">
                 {m.thumbnailUrl ? <img src={m.thumbnailUrl} alt={m.name} className="w-full h-full object-cover" /> : CATEGORY_ICON[m.category as Category]}
               </div>
               <div className="flex-1 min-w-0">
@@ -375,13 +344,34 @@ function ModelPicker({ models, selectedId, onSelect }: {
   );
 }
 
-/* ─── Main studio page ───────────────────────────────────────────────────── */
+/* ─── Shared chip style ───────────────────────────────────────────────────── */
+const chipClass =
+  "flex items-center gap-1.5 px-3 h-7 rounded-full bg-white/[0.06] border border-white/[0.09] hover:bg-white/10 transition-colors text-xs font-medium text-white/70 hover:text-white shrink-0";
+
+/* ─── Batch stepper ───────────────────────────────────────────────────────── */
+function BatchStepper({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  return (
+    <div className="flex items-center gap-1 h-7 rounded-full bg-white/[0.06] border border-white/[0.09] px-2 shrink-0">
+      <button onClick={() => onChange(Math.max(1, value - 1))}
+        className="w-5 h-5 rounded-full flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-colors">
+        <Minus className="w-2.5 h-2.5" />
+      </button>
+      <span className="text-xs font-medium text-white/70 w-8 text-center tabular-nums">{value}/4</span>
+      <button onClick={() => onChange(Math.min(4, value + 1))}
+        className="w-5 h-5 rounded-full flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-colors">
+        <Plus className="w-2.5 h-2.5" />
+      </button>
+    </div>
+  );
+}
+
+/* ─── Main page ───────────────────────────────────────────────────────────── */
 export default function CategoryStudio({ category }: { category: Category }) {
   const search = useSearch();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const theme = CATEGORY_THEME[category];
 
+  /* Models */
   const { data: models, isLoading: modelsLoading } = useListModels(
     { category },
     { query: { queryKey: getListModelsQueryKey({ category }) } },
@@ -411,7 +401,7 @@ export default function CategoryStudio({ category }: { category: Category }) {
     window.history.replaceState({}, "", url);
   };
 
-  /* Generation */
+  /* Generation state */
   const { data: me } = useGetMe();
   const { data: apiKeys } = useListApiKeys();
   const [prompt, setPrompt] = useState("");
@@ -419,11 +409,12 @@ export default function CategoryStudio({ category }: { category: Category }) {
   const [imageParams, setImageParams] = useState<Record<string, string | undefined>>({});
   const [enhance, setEnhance] = useState(true);
   const [useOwnKey, setUseOwnKey] = useState(false);
-  const [activeGenerationId, setActiveGenerationId] = useState<number | null>(null);
-  const [tab, setTab] = useState<"all" | "liked">("all");
-  const [viewMode, setViewMode] = useState<"grid" | "rows">("grid");
+  const [batchQty, setBatchQty] = useState(1);
+  const [activeBatchIds, setActiveBatchIds] = useState<number[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const promptRef = useRef<HTMLTextAreaElement>(null);
 
+  /* Reset on model change */
   useEffect(() => {
     if (!selectedModel) return;
     const raw = sessionStorage.getItem("regeneratePrefill");
@@ -432,273 +423,287 @@ export default function CategoryStudio({ category }: { category: Category }) {
         const pf = JSON.parse(raw) as { modelId: string; prompt: string; params: Record<string, unknown> };
         if (pf.modelId === selectedModel.modelId) {
           sessionStorage.removeItem("regeneratePrefill");
-          setPrompt(pf.prompt);
-          setParams(pf.params ?? {});
-          setActiveGenerationId(null);
-          return;
+          setPrompt(pf.prompt); setParams(pf.params ?? {}); setActiveBatchIds([]); return;
         }
       } catch { sessionStorage.removeItem("regeneratePrefill"); }
     }
     const defaults: Record<string, unknown> = {};
-    for (const field of selectedModel.paramsSchema.fields) {
-      if (field.default !== undefined) defaults[field.key] = field.default;
+    for (const f of selectedModel.paramsSchema.fields) {
+      if (f.default !== undefined) defaults[f.key] = f.default;
     }
-    setParams(defaults);
-    setImageParams({});
-    setActiveGenerationId(null);
+    setParams(defaults); setImageParams({}); setActiveBatchIds([]);
   }, [selectedModel?.modelId]);
 
-  const hasOwnKey = useMemo(() => apiKeys?.some((k: { provider: string }) => k.provider === selectedModel?.adapter), [apiKeys, selectedModel]);
-  const effectiveCost = useOwnKey && hasOwnKey ? 0 : (selectedModel?.creditCost ?? 0);
-  const insufficientCredits = !useOwnKey && (me?.creditsBalance ?? 0) < effectiveCost;
-  const canSubmit = prompt.trim().length > 0 && !insufficientCredits && selectedModel !== null;
+  /* Poll batch via list query */
+  const { data: allGenerations } = useListGenerations({
+    query: {
+      queryKey: getListGenerationsQueryKey(),
+      enabled: activeBatchIds.length > 0,
+      refetchInterval: activeBatchIds.length > 0 ? 2000 : false,
+    },
+  } as any);
 
-  const createGeneration = useCreateGeneration({
-    mutation: {
-      onSuccess: (gen) => {
-        setActiveGenerationId(gen.id);
+  const batchGenerations: Generation[] = useMemo(() => {
+    if (!allGenerations || activeBatchIds.length === 0) return [];
+    return allGenerations.filter((g: Generation) => activeBatchIds.includes(g.id));
+  }, [allGenerations, activeBatchIds]);
+
+  /* Stop polling when all done */
+  useEffect(() => {
+    if (batchGenerations.length === activeBatchIds.length && activeBatchIds.length > 0) {
+      const allDone = batchGenerations.every((g) => g.status === "completed" || g.status === "failed");
+      if (allDone) {
         queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
         queryClient.invalidateQueries({ queryKey: getListGenerationsQueryKey() });
-      },
-      onError: (err: any) => {
-        toast({ title: "Generation failed to start", description: err?.data?.error ?? err?.message ?? "Please try again.", variant: "destructive" });
-      },
-    },
-  });
-
-  const { data: activeGeneration } = useGetGeneration(activeGenerationId ?? 0, {
-    query: {
-      queryKey: getGetGenerationQueryKey(activeGenerationId ?? 0),
-      enabled: !!activeGenerationId,
-      refetchInterval: (query) => {
-        const s = query.state.data?.status;
-        return s === "pending" || s === "processing" ? 2000 : false;
-      },
-    },
-  });
-
-  useEffect(() => {
-    if (activeGeneration?.status === "completed" || activeGeneration?.status === "failed") {
-      queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
-      queryClient.invalidateQueries({ queryKey: getListGenerationsQueryKey() });
+      }
     }
-  }, [activeGeneration?.status]);
+  }, [batchGenerations]);
 
-  const handleSubmit = () => {
-    if (!selectedModel || !canSubmit || createGeneration.isPending) return;
-    const merged = { ...params };
-    for (const [k, v] of Object.entries(imageParams)) {
-      if (v !== undefined) merged[k] = v;
+  /* Derived fields from model schema */
+  const allFields: ParamField[] = selectedModel?.paramsSchema.fields ?? [];
+  const aspectField = allFields.find((f) => f.key === "aspect_ratio");
+  const resField = allFields.find((f) => f.key === "resolution");
+  const surfacedKeys = new Set(["aspect_ratio", "resolution"]);
+  const extraFields = allFields.filter((f) => !surfacedKeys.has(f.key) && f.type !== "image");
+  const imageFields = allFields.filter((f) => f.type === "image");
+
+  const aspectValue = String(params["aspect_ratio"] ?? aspectField?.default ?? "16:9");
+  const resValue = String(params["resolution"] ?? resField?.default ?? "");
+
+  /* Credits */
+  const hasOwnKey = useMemo(
+    () => apiKeys?.some((k: { provider: string }) => k.provider === selectedModel?.adapter),
+    [apiKeys, selectedModel],
+  );
+  const perGenCost = useOwnKey && hasOwnKey ? 0 : (selectedModel?.creditCost ?? 0);
+  const totalCost = perGenCost * batchQty;
+  const insufficientCredits = !!me && !useOwnKey && (me.creditsBalance ?? 0) < totalCost;
+  const canSubmit = prompt.trim().length > 0 && !insufficientCredits && selectedModel !== null && !isSubmitting;
+
+  /* Submit — fire N parallel calls */
+  const createGeneration = useCreateGeneration();
+
+  const handleSubmit = async () => {
+    if (!selectedModel || !canSubmit) return;
+    setIsSubmitting(true);
+    const merged: Record<string, unknown> = { ...params };
+    for (const [k, v] of Object.entries(imageParams)) { if (v) merged[k] = v; }
+
+    const calls = Array.from({ length: batchQty }, () =>
+      (createGeneration.mutateAsync as Function)({
+        data: {
+          modelId: selectedModel.modelId,
+          prompt: prompt.trim(),
+          params: merged,
+          autoSelect: false,
+          useOwnKey: useOwnKey && hasOwnKey,
+          skipEnhance: !enhance,
+        },
+      }).catch((err: any) => {
+        const msg = err?.data?.error ?? err?.message ?? "Generation failed";
+        toast({ title: "Generation failed", description: msg, variant: "destructive" });
+        return null;
+      })
+    );
+
+    try {
+      const results = await Promise.all(calls);
+      const ids = (results as any[]).filter(Boolean).map((r: any) => r.id as number);
+      if (ids.length > 0) {
+        setActiveBatchIds(ids);
+        queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getListGenerationsQueryKey() });
+      }
+    } finally {
+      setIsSubmitting(false);
     }
-    createGeneration.mutate({
-      data: { modelId: selectedModel.modelId, prompt: prompt.trim(), params: merged, autoSelect: false, useOwnKey: useOwnKey && hasOwnKey, skipEnhance: !enhance },
-    });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSubmit(); }
   };
 
-  const aspectField = selectedModel?.paramsSchema.fields.find((f: { key: string }) => f.key === "aspect_ratio");
-  const aspectValue = String(params["aspect_ratio"] ?? aspectField?.default ?? "16:9");
-
-  const isGenerating = createGeneration.isPending || activeGeneration?.status === "pending" || activeGeneration?.status === "processing";
+  const anyStillProcessing = batchGenerations.some(
+    (g) => g.status === "pending" || g.status === "processing",
+  );
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] bg-[#0a0a0a] overflow-hidden">
+    <div className="flex flex-col h-[calc(100vh-4rem)] bg-[#0a0a0a] overflow-hidden">
 
-      {/* ── Left mini-sidebar ───────────────────────────────────────────── */}
-      <aside className="w-11 border-r border-white/[0.06] flex flex-col items-center pt-2 pb-3 gap-1 shrink-0">
-        <button
-          onClick={() => setTab("all")}
-          title="All generations"
-          className={cn(
-            "w-8 h-8 rounded-lg flex items-center justify-center text-sm transition-colors",
-            tab === "all" ? "bg-white/10 text-white" : "text-white/30 hover:text-white/60 hover:bg-white/5",
-          )}
-        >
-          ≡
-        </button>
-        <button
-          onClick={() => setTab("liked")}
-          title="Liked"
-          className={cn(
-            "w-8 h-8 rounded-lg flex items-center justify-center transition-colors",
-            tab === "liked" ? "bg-white/10 text-white" : "text-white/30 hover:text-white/60 hover:bg-white/5",
-          )}
-        >
-          <Heart className="w-3.5 h-3.5" />
-        </button>
-      </aside>
-
-      {/* ── Main column ─────────────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col min-w-0">
-
-        {/* Filter bar */}
-        <div className="h-9 border-b border-white/[0.06] flex items-center px-3 gap-1 shrink-0">
-          <button
-            onClick={() => setTab("all")}
-            className={cn("px-3 h-6 rounded text-xs font-medium transition-colors", tab === "all" ? "text-white bg-white/8" : "text-white/40 hover:text-white/70")}
-          >
-            All
-          </button>
-          <button
-            onClick={() => setTab("liked")}
-            className={cn("flex items-center gap-1 px-3 h-6 rounded text-xs font-medium transition-colors", tab === "liked" ? "text-white bg-white/8" : "text-white/40 hover:text-white/70")}
-          >
-            <Heart className="w-3 h-3" /> Liked
-          </button>
-          <div className="ml-auto flex items-center gap-0.5">
-            <button
-              onClick={() => setViewMode("grid")}
-              className={cn("w-6 h-6 rounded flex items-center justify-center transition-colors", viewMode === "grid" ? "bg-white/10 text-white" : "text-white/30 hover:text-white/60")}
-            >
-              <LayoutGrid className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={() => setViewMode("rows")}
-              className={cn("w-6 h-6 rounded flex items-center justify-center transition-colors", viewMode === "rows" ? "bg-white/10 text-white" : "text-white/30 hover:text-white/60")}
-            >
-              <Rows3 className="w-3.5 h-3.5" />
-            </button>
-          </div>
+      {/* ── Canvas ─────────────────────────────────────────────────────── */}
+      {modelsLoading ? (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="w-8 h-8 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
         </div>
+      ) : (
+        <CanvasArea
+          model={selectedModel}
+          batchGenerations={batchGenerations}
+          isSubmitting={isSubmitting || anyStillProcessing}
+        />
+      )}
 
-        {/* Canvas */}
-        {modelsLoading ? (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="w-8 h-8 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
-          </div>
-        ) : activeGeneration ? (
-          <ResultCanvas generation={activeGeneration} />
-        ) : (
-          <EmptyCanvas category={category} />
-        )}
+      {/* ── Unified generation card ─────────────────────────────────────── */}
+      <div className="shrink-0 px-4 pb-4 pt-0">
+        <div className="max-w-4xl mx-auto flex items-stretch gap-3">
 
-        {/* ── Bottom toolbar ──────────────────────────────────────────── */}
-        <div className="shrink-0 px-3 pb-3 pt-2 border-t border-white/[0.06]">
-          <div className="flex items-end gap-2 max-w-4xl mx-auto">
+          {/* Main card: prompt + chips */}
+          <div className="flex-1 bg-[#141414] border border-white/[0.09] rounded-2xl overflow-hidden min-w-0">
 
-            {/* Prompt pill + chips row */}
-            <div className="flex-1 flex flex-col gap-2 min-w-0">
-              {/* Prompt input */}
-              <div className="flex items-center gap-2 bg-[#161616] border border-white/[0.09] rounded-2xl px-4 py-3">
-                {/* + icon */}
-                <button className="text-white/30 hover:text-white/70 transition-colors shrink-0">
-                  <Plus className="w-4 h-4" />
-                </button>
-
-                <textarea
-                  ref={promptRef}
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder={theme.promptPlaceholder}
-                  rows={1}
-                  className="flex-1 bg-transparent text-sm text-white placeholder:text-white/30 resize-none focus:outline-none leading-relaxed max-h-28 overflow-y-auto"
-                  style={{ fieldSizing: "content" } as React.CSSProperties}
-                />
-              </div>
-
-              {/* Chips row */}
-              <div className="flex items-center gap-2 flex-wrap px-1">
-                {/* Model chip */}
-                {models && models.length > 0 && (
-                  <ModelPicker models={models} selectedId={selectedModelId} onSelect={handleSelectModel} />
-                )}
-
-                {/* Aspect ratio */}
-                {aspectField && (
-                  <Select value={aspectValue} onValueChange={(v) => setParams((p) => ({ ...p, aspect_ratio: v }))}>
-                    <SelectTrigger className="h-8 px-3 bg-white/[0.07] border border-white/10 text-white/80 text-xs font-medium w-auto gap-1.5 hover:bg-white/12 focus:ring-0 rounded-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-[#181818] border-white/10">
-                      {["1:1", "16:9", "9:16", "4:3", "3:4"].map((o) => (
-                        <SelectItem key={o} value={o} className="text-white/80 focus:bg-white/10 text-xs">{o}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-
-                {/* Enhance toggle */}
-                <button
-                  onClick={() => setEnhance(!enhance)}
-                  title={enhance ? "Prompt enhance on" : "Prompt enhance off"}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3 h-8 rounded-full border text-xs font-medium transition-colors",
-                    enhance
-                      ? "bg-primary/10 border-primary/30 text-primary hover:bg-primary/20"
-                      : "bg-white/[0.07] border-white/10 text-white/50 hover:text-white/80 hover:bg-white/12",
-                  )}
-                >
-                  <Wand2 className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Enhance</span>
-                </button>
-
-                {/* Draw (placeholder) */}
-                <button className="flex items-center gap-1.5 px-3 h-8 rounded-full bg-white/[0.07] border border-white/10 hover:bg-white/12 transition-colors text-xs text-white/50 hover:text-white/80">
-                  <Pencil className="w-3 h-3" />
-                  <span className="hidden sm:inline">Draw</span>
-                </button>
-
-                {/* Advanced settings */}
-                {selectedModel && (
-                  <AdvancedParams
-                    model={selectedModel}
-                    params={params}
-                    onParam={(k, v) => setParams((p) => ({ ...p, [k]: v }))}
-                    imageParams={imageParams}
-                    onImageParam={(k, v) => setImageParams((p) => ({ ...p, [k]: v }))}
-                  />
-                )}
-
-                {/* BYOK toggle */}
-                <Show when="signed-in">
-                  {hasOwnKey && (
-                    <button onClick={() => setUseOwnKey(!useOwnKey)} className={cn("flex items-center gap-1.5 px-3 h-8 rounded-full border text-xs transition-colors", useOwnKey ? "bg-amber-500/10 border-amber-500/30 text-amber-400" : "bg-white/[0.07] border-white/10 text-white/40 hover:text-white/70 hover:bg-white/12")}>
-                      <Key className="w-3 h-3" />
-                      <span className="hidden sm:inline">Own key</span>
-                    </button>
-                  )}
-                </Show>
-
-                {/* Credit balance */}
-                <Show when="signed-in">
-                  {insufficientCredits && (
-                    <Link href="/pricing">
-                      <span className="text-xs text-red-400 px-3 h-8 flex items-center rounded-full border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 transition-colors cursor-pointer">
-                        Low credits — Top up
-                      </span>
-                    </Link>
-                  )}
-                </Show>
-              </div>
+            {/* Prompt row */}
+            <div className="flex items-center gap-3 px-4 pt-3.5 pb-2">
+              <button className="text-white/30 hover:text-white/60 transition-colors shrink-0">
+                <Plus className="w-4 h-4" />
+              </button>
+              <textarea
+                ref={promptRef}
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={PROMPT_PLACEHOLDER[category]}
+                rows={1}
+                className="flex-1 bg-transparent text-sm text-white placeholder:text-white/30 resize-none focus:outline-none leading-relaxed max-h-24 overflow-y-auto"
+                style={{ fieldSizing: "content" } as React.CSSProperties}
+              />
             </div>
 
-            {/* Generate button — large, separate, right side */}
+            {/* Divider */}
+            <div className="h-px bg-white/[0.06] mx-4" />
+
+            {/* Controls row */}
+            <div className="flex items-center gap-2 px-4 py-2.5 flex-wrap">
+
+              {/* Model */}
+              {models && models.length > 0 && (
+                <ModelPicker models={models} selectedId={selectedModelId} onSelect={handleSelectModel} />
+              )}
+
+              {/* Aspect ratio */}
+              {aspectField && (
+                <Select value={aspectValue} onValueChange={(v) => setParams((p) => ({ ...p, aspect_ratio: v }))}>
+                  <SelectTrigger className="h-7 px-3 w-auto gap-1.5 rounded-full bg-white/[0.06] border border-white/[0.09] hover:bg-white/10 text-white/70 hover:text-white text-xs font-medium focus:ring-0 focus:ring-offset-0 shrink-0">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#181818] border-white/10">
+                    {(aspectField.options ?? ["1:1","16:9","9:16","4:3","3:4"]).map((o) => (
+                      <SelectItem key={o} value={o} className="text-white/80 focus:bg-white/10 text-xs">{o}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+
+              {/* Resolution — only show if model has this field */}
+              {resField && (
+                <Select value={resValue} onValueChange={(v) => setParams((p) => ({ ...p, resolution: v }))}>
+                  <SelectTrigger className="h-7 px-3 w-auto gap-1.5 rounded-full bg-white/[0.06] border border-white/[0.09] hover:bg-white/10 text-white/70 hover:text-white text-xs font-medium focus:ring-0 focus:ring-offset-0 shrink-0">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#181818] border-white/10">
+                    {(resField.options ?? ["1K","2K","4K"]).map((o) => (
+                      <SelectItem key={o} value={o} className="text-white/80 focus:bg-white/10 text-xs">{o}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+
+              {/* Batch quantity */}
+              <BatchStepper value={batchQty} onChange={setBatchQty} />
+
+              {/* Enhance toggle */}
+              <button
+                onClick={() => setEnhance(!enhance)}
+                title={enhance ? "Prompt enhance on (click to disable)" : "Prompt enhance off (click to enable)"}
+                className={cn(
+                  chipClass,
+                  enhance ? "bg-primary/10 border-primary/30 text-primary hover:bg-primary/20" : "",
+                )}
+              >
+                <Wand2 className="w-3 h-3" />
+                <span className="hidden sm:inline">Enhance</span>
+              </button>
+
+              {/* Draw placeholder */}
+              <button className={chipClass}>
+                <Pencil className="w-3 h-3" />
+                <span className="hidden sm:inline">Draw</span>
+              </button>
+
+              {/* Image upload fields (inline for small models like Edit) */}
+              {imageFields.map((f) => (
+                <ImageUploadField
+                  key={f.key}
+                  field={f}
+                  value={imageParams[f.key]}
+                  onChange={(v) => setImageParams((p) => ({ ...p, [f.key]: v }))}
+                />
+              ))}
+
+              {/* Extra params */}
+              <ExtraSettings
+                extraFields={extraFields}
+                params={params}
+                onParam={(k, v) => setParams((p) => ({ ...p, [k]: v }))}
+                imageParams={imageParams}
+                onImageParam={(k, v) => setImageParams((p) => ({ ...p, [k]: v }))}
+              />
+
+              {/* BYOK toggle (signed-in only, when key exists) */}
+              <Show when="signed-in">
+                {hasOwnKey && (
+                  <button
+                    onClick={() => setUseOwnKey(!useOwnKey)}
+                    className={cn(chipClass, useOwnKey ? "bg-amber-500/10 border-amber-500/30 text-amber-400" : "")}
+                  >
+                    <Key className="w-3 h-3" />
+                    <span className="hidden sm:inline">Own key</span>
+                  </button>
+                )}
+              </Show>
+
+              {/* Insufficient credits warning */}
+              {insufficientCredits && (
+                <Link href="/pricing">
+                  <span className="text-xs text-red-400 px-3 h-7 flex items-center rounded-full border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 transition-colors cursor-pointer shrink-0">
+                    Low credits
+                  </span>
+                </Link>
+              )}
+            </div>
+          </div>
+
+          {/* Generate button — right side, spans full card height */}
+          <div className="flex items-stretch shrink-0">
             <Show when="signed-in">
               <button
                 onClick={handleSubmit}
-                disabled={!canSubmit || isGenerating}
+                disabled={!canSubmit || isSubmitting || anyStillProcessing}
                 className={cn(
-                  "flex flex-col items-center justify-center rounded-2xl font-bold transition-all shrink-0 shadow-lg",
-                  "w-[88px] h-[88px] text-black bg-primary hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed",
-                  !isGenerating && canSubmit && "shadow-[0_0_30px_rgba(206,255,0,0.25)] hover:shadow-[0_0_40px_rgba(206,255,0,0.35)]",
+                  "flex flex-col items-center justify-center rounded-2xl font-bold transition-all w-24 text-black",
+                  "bg-primary hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed",
+                  canSubmit && !isSubmitting && "shadow-[0_0_24px_rgba(206,255,0,0.20)] hover:shadow-[0_0_32px_rgba(206,255,0,0.30)]",
                 )}
               >
-                {isGenerating ? (
+                {isSubmitting || anyStillProcessing ? (
                   <>
-                    <div className="w-5 h-5 rounded-full border-2 border-black/30 border-t-black animate-spin mb-1" />
-                    <span className="text-[10px] font-black leading-none">GEN…</span>
+                    <div className="w-5 h-5 rounded-full border-2 border-black/30 border-t-black animate-spin mb-1.5" />
+                    <span className="text-[10px] font-black">Working…</span>
                   </>
                 ) : (
                   <>
-                    <span className="text-sm font-black leading-none">Generate</span>
-                    <div className="flex items-center gap-0.5 mt-1.5 opacity-70">
-                      <Zap className="w-3 h-3" />
-                      <span className="text-xs font-bold">{effectiveCost > 0 ? effectiveCost : "free"}</span>
+                    <span className="text-sm font-black leading-tight">Generate</span>
+                    <div className="flex items-center gap-0.5 mt-1 opacity-75">
+                      {totalCost === 0 ? (
+                        <Key className="w-3 h-3" />
+                      ) : (
+                        <>
+                          <Zap className="w-3 h-3" />
+                          <span className="text-xs font-bold">{totalCost}</span>
+                        </>
+                      )}
                     </div>
+                    {batchQty > 1 && (
+                      <span className="text-[9px] font-semibold opacity-60 mt-0.5">×{batchQty}</span>
+                    )}
                   </>
                 )}
               </button>
@@ -706,8 +711,8 @@ export default function CategoryStudio({ category }: { category: Category }) {
 
             <Show when="signed-out">
               <Link href="/sign-up">
-                <button className="flex flex-col items-center justify-center rounded-2xl font-bold bg-primary text-black hover:bg-primary/90 transition-all shrink-0 shadow-[0_0_30px_rgba(206,255,0,0.25)] w-[88px] h-[88px]">
-                  <span className="text-xs font-black leading-tight text-center px-1">Sign up to<br />generate</span>
+                <button className="flex flex-col items-center justify-center rounded-2xl font-bold bg-primary text-black hover:bg-primary/90 transition-all w-24 h-full shadow-[0_0_24px_rgba(206,255,0,0.20)]">
+                  <span className="text-xs font-black text-center leading-tight px-2">Sign up to generate</span>
                 </button>
               </Link>
             </Show>

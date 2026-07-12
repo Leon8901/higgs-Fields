@@ -1,0 +1,68 @@
+MASTER PROMPT — Image/Video/Audio Generate Page: Structural UI Fix
+
+Paste into Replit as its own isolated task.
+
+Implementation Rules
+
+
+Do not rewrite existing working functionality (generation logic, credit deduction, model routing all stay untouched — this is a UI/layout task only).
+Do not touch the avatar system.
+If a Library/History page already exists, reuse it — don't build a second one.
+This should need zero or minimal new generation cost (see item 2 below for the one exception, which needs cost confirmation first).
+
+
+The core problem
+
+The current /image (and likely /video, /audio) generate page mixes two different page types together: a focused "generate" page and a "gallery/library" page. This creates visual clutter and a disconnected, unpolished generation bar. Fix by separating concerns properly.
+
+1. Remove gallery controls from the generate page
+
+Remove entirely from /image, /video, /audio: the left sidebar menu icon, the heart/Liked icon, the "All / Liked" filter tabs, and the grid/list view toggle. These belong on the Library/History page, not the generate page. If a Library page already exists (it should, from an earlier build), verify these controls already live there correctly; if not, that's a separate small task, not part of this one.
+
+2. Replace the placeholder frame with real example content
+
+Remove the dashed-corner "viewfinder" box and the purple/violet glow background entirely — purple is inconsistent with the site's established lime-green accent used everywhere else.
+
+Replace with: a small stack of 2-4 real generated example images (tilted/overlapping card style), pulled from either (a) existing real generations already in the system for that model, or (b) the tool thumbnails already built in an earlier task if applicable. Do not generate new images specifically for this unless nothing suitable already exists — if new generations are genuinely needed, confirm the expected cost with me first before running them.
+
+Headline should be dynamic based on the currently selected model: "Start creating with [Model Name]" with the model name in the accent color, replacing the static generic text and the redundant "IMAGE" label above it.
+
+Keep the background dark/black, matching the rest of the site — no purple.
+
+3. Consolidate the generation bar into one unified card
+
+Currently the text input, the control row (model/aspect ratio/enhance/draw), and the Generate button render as three visually disconnected pieces. Restructure into a single card/container:
+
+
+Top line inside the card: the "+" icon and text input ("Describe the scene you imagine...").
+Below it, inside the same card border: a horizontal row of pill controls — model selector (with provider icon), aspect ratio, resolution, a batch quantity stepper (see item 4), and Draw.
+The Generate button sits to the right, vertically aligned to match the height of the control row — not oversized, not floating at a different vertical position than the rest of the bar.
+
+
+Match the visual weight and padding style already established elsewhere on the site (existing button/pill styles), not a literal copy of Higgsfield's exact spacing/colors — same structural pattern, your own design details.
+
+4. Add missing controls
+
+
+Resolution selector — pill control next to aspect ratio, options depending on what the currently selected model actually supports (check the model catalog's metadata rather than hardcoding the same options for every model).
+Batch quantity stepper — a simple - 1/4 + style control letting the user request 1-4 generations from a single submission. Note: this multiplies credit cost by the quantity selected — make sure the credit-cost display (item 5) and the actual deduction logic account for this correctly, not just the UI control.
+
+
+5. Show credit cost on the Generate button
+
+Once a user is logged in, the Generate button should show the actual credit cost for the current model + settings + quantity combination (e.g. "Generate +2"), calculated from the existing per-model credit-cost data, updating live as the user changes model/resolution/quantity. For logged-out users, keep the existing "Sign up to generate" behavior unchanged.
+
+Definition of Success
+
+
+Generate page (/image at minimum, /video and /audio if the same pattern applies there) has no gallery/library controls (sidebar menu, Liked tab, grid/list toggle).
+Placeholder frame and purple background are gone, replaced with real example images and a dynamic model-based headline.
+The generation bar renders as one cohesive card, not disconnected floating pieces.
+Resolution and batch quantity controls exist and function correctly, including correct credit-cost calculation for batch quantity > 1.
+Generate button shows live credit cost for logged-in users.
+Color scheme is consistent with the rest of the site (no purple).
+No existing generation/credit/model-routing logic is broken.
+TypeScript compiles with no new warnings or errors.
+
+
+Show me a screenshot of the resulting /image page once done.
