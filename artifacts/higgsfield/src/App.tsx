@@ -10,6 +10,9 @@ import { shadcn } from "@clerk/themes";
 import Home from "@/pages/home";
 import Tools from "@/pages/tools";
 import ToolDetail from "@/pages/tool-detail";
+import MarketingStudio from "@/pages/marketing-studio";
+import Presets from "@/pages/presets";
+import Shorts from "@/pages/shorts";
 import Apps from "@/pages/apps";
 import Pricing from "@/pages/pricing";
 import Library from "@/pages/library";
@@ -129,6 +132,9 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/tools" component={Tools} />
       <Route path="/tools/:slug" component={ToolDetail} />
+      <Route path="/marketing-studio" component={MarketingStudio} />
+      <Route path="/presets" component={Presets} />
+      <Route path="/shorts" component={Shorts} />
       <Route path="/apps" component={Apps} />
       <Route path="/pricing" component={Pricing} />
       <Route path="/library" component={Library} />

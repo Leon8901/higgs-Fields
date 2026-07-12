@@ -156,6 +156,9 @@ export function Navbar() {
 
   const navLinks = [
     { href: "/tools", label: "Tools" },
+    { href: "/marketing-studio", label: "Marketing Studio" },
+    { href: "/presets", label: "Presets" },
+    { href: "/shorts", label: "Shorts" },
     { href: "/apps", label: "App Gallery" },
     { href: "/pricing", label: "Pricing" },
   ];
@@ -258,6 +261,9 @@ export function Footer() {
             <h4 className="font-semibold text-white mb-4">Product</h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li><Link href="/tools" className="hover:text-primary transition-colors">Tools</Link></li>
+              <li><Link href="/marketing-studio" className="hover:text-primary transition-colors">Marketing Studio</Link></li>
+              <li><Link href="/presets" className="hover:text-primary transition-colors">Presets</Link></li>
+              <li><Link href="/shorts" className="hover:text-primary transition-colors">Shorts</Link></li>
               <li><Link href="/apps" className="hover:text-primary transition-colors">App Gallery</Link></li>
               <li><Link href="/pricing" className="hover:text-primary transition-colors">Pricing</Link></li>
             </ul>
