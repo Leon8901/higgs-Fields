@@ -1,5 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { startGenerationBackgroundPoller } from "./lib/generation/backgroundPoller";
 
 const rawPort = process.env["PORT"];
 
@@ -22,4 +23,8 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+
+  // Runs inside this same long-lived process, independent of any browser
+  // tab — see backgroundPoller.ts for why this exists.
+  startGenerationBackgroundPoller(logger);
 });

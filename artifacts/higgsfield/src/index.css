@@ -130,6 +130,17 @@
   -webkit-backdrop-filter: blur(12px);
 }
 
+/* Hide scrollbars everywhere while preserving native scroll behavior.
+   Applied globally via `*` so every scrollable container (sidebars, modals,
+   result lists, etc.) is covered without hunting down each one individually. */
+* {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* old Edge/IE */
+}
+*::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, new Edge */
+}
+
 /* Noise overlay */
 .bg-noise {
   position: relative;

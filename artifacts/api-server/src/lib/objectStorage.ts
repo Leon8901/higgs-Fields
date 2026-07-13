@@ -133,6 +133,28 @@ export class ObjectStorageService {
     });
   }
 
+  // Uploads a buffer directly (server-side, no presigned URL round-trip) into
+  // the private object dir under `generations/<filename>`. Used to re-host
+  // provider-returned generation assets on our own storage — see
+  // lib/media/assetPersistence.ts. Returns an `/objects/...` path in the same
+  // shape `getObjectEntityFile` expects, so it can be served via the
+  // existing `/storage/objects/*` route with no new serving logic.
+  async uploadGeneratedAsset(
+    buffer: Buffer,
+    filename: string,
+    contentType: string,
+  ): Promise<string> {
+    let privateObjectDir = this.getPrivateObjectDir();
+    if (!privateObjectDir.endsWith('/')) {
+      privateObjectDir = `${privateObjectDir}/`;
+    }
+    const fullPath = `${privateObjectDir}generations/${filename}`;
+    const { bucketName, objectName } = parseObjectPath(fullPath);
+    const bucket = objectStorageClient.bucket(bucketName);
+    await bucket.file(objectName).save(buffer, { contentType, resumable: false });
+    return `/objects/generations/${filename}`;
+  }
+
   async getObjectEntityFile(objectPath: string): Promise<File> {
     if (!objectPath.startsWith('/objects/')) {
       throw new ObjectNotFoundError();

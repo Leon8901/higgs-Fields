@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { desc, eq, and } from "drizzle-orm";
-import { db, generationsTable, modelsTable, usersTable, creditLedgerTable, userApiKeysTable, type Model } from "@workspace/db";
+import { db, generationsTable, modelsTable, usersTable, creditLedgerTable, type Model } from "@workspace/db";
 import {
   CreateGenerationBody,
   CreateGenerationResponse,
@@ -13,9 +13,9 @@ import { requireAuth } from "../middlewares/requireAuth";
 import { getAdapter } from "../lib/media/registry";
 import { ProviderError } from "../lib/media/types";
 import { enhancePrompt, autoSelectModel } from "../lib/llm/planner";
-import { decryptSecret } from "../lib/crypto";
-import { resolveGenerationKey, getPlatformApiKey } from "../lib/generation/keyRouting";
+import { resolveGenerationKey } from "../lib/generation/keyRouting";
 import { computeCreditsCharged } from "../lib/generation/pricing";
+import { syncGenerationStatus } from "../lib/generation/statusSync";
 
 // User-safe copy for a provider-side failure. Never includes `providerMessage`
 // (WaveSpeed account/billing details, raw validation text) — that's for logs
@@ -185,69 +185,12 @@ router.get("/generations/:id", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  let generation = row.generations;
   const model = row.models;
-
-  if ((generation.status === "pending" || generation.status === "processing") && generation.providerTaskId) {
-    try {
-      const apiKey = generation.usedOwnKey
-        ? await (async () => {
-            const [ownKey] = await db
-              .select()
-              .from(userApiKeysTable)
-              .where(and(eq(userApiKeysTable.userId, req.appUser!.id), eq(userApiKeysTable.provider, model.adapter)));
-            return ownKey ? decryptSecret(ownKey.encryptedKey) : getPlatformApiKey(model.adapter);
-          })()
-        : getPlatformApiKey(model.adapter);
-
-      if (apiKey) {
-        const adapter = getAdapter(model.adapter);
-        const polled = await adapter.poll(generation.providerTaskId, apiKey);
-
-        if (polled.status !== generation.status) {
-          const [updated] = await db
-            .update(generationsTable)
-            .set({
-              status: polled.status,
-              outputUrls: polled.outputUrls,
-              errorMessage: polled.errorMessage ?? null,
-              completedAt: polled.status === "completed" || polled.status === "failed" ? new Date() : null,
-            })
-            .where(eq(generationsTable.id, generation.id))
-            .returning();
-          generation = updated;
-
-          // Refund credits on provider-side failure so a failed job never costs the user.
-          if (polled.status === "failed" && generation.creditsCharged > 0) {
-            const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.appUser!.id));
-            if (user) {
-              const newBalance = user.creditsBalance + generation.creditsCharged;
-              await db.update(usersTable).set({ creditsBalance: newBalance }).where(eq(usersTable.id, user.id));
-              await db.insert(creditLedgerTable).values({
-                userId: user.id,
-                delta: generation.creditsCharged,
-                reason: "refund",
-                balanceAfter: newBalance,
-                generationId: generation.id,
-              });
-            }
-          }
-        }
-      }
-    } catch (err) {
-      if (err instanceof ProviderError) {
-        req.log.error(
-          { adapter: model.adapter, modelId: model.modelId, kind: err.kind, providerMessage: err.providerMessage },
-          "Provider poll failed",
-        );
-      } else {
-        req.log.error({ err }, "Provider poll failed (unexpected error shape)");
-      }
-      // Swallowed intentionally: this is a background status check. The
-      // generation just stays "processing" for the client and we retry on
-      // the next poll rather than surfacing a transient poll error to the user.
-    }
-  }
+  // The real source of truth for completion is the background poller
+  // (lib/generation/backgroundPoller.ts), which keeps checking the provider
+  // even if no client is open. This on-demand sync just gives an open tab a
+  // snappy result instead of waiting up to one poller interval.
+  const generation = await syncGenerationStatus(row.generations, model, req.log);
 
   res.json(GetGenerationResponse.parse(toGenerationResponse(generation, model)));
 });
