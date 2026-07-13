@@ -48,6 +48,14 @@ function guessExtension(contentType: string, sourceUrl: string): string {
 // rather than throwing — the generation succeeds with a temporary URL instead
 // of failing and refunding credits.
 export async function persistGeneratedAsset(sourceUrl: string): Promise<string> {
+  // Already on our own storage — skip the re-host. This happens when a
+  // synchronous adapter (e.g. ElevenLabs) uploads binary output directly to
+  // object storage inside submit() and returns an /api/storage path from
+  // poll(). Re-downloading and re-uploading the same bytes would be wasteful
+  // and potentially circular (the server serving /api/storage would be the
+  // same process receiving the fetch).
+  if (sourceUrl.startsWith("/api/storage/")) return sourceUrl;
+
   if (!isStorageConfigured()) {
     // Storage not set up yet (e.g. fresh re-import). Return the provider URL
     // so the generation is still usable; the URL has a limited retention window

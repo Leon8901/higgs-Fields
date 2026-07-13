@@ -265,6 +265,124 @@ const models: Array<{
       DURATION(["10", "30", "60"], "30"),
     ],
   },
+
+  // ── BYOK-only adapters ────────────────────────────────────────────────────
+  // These models require the user to have saved their own API key for the
+  // provider (via the "Add Your Keys" panel). The platform does not supply a
+  // key for these adapters; creditCost is 0 since BYOK pricing is billed
+  // directly by the provider on the user's own account.
+
+  {
+    modelId: "dall-e-3",
+    name: "DALL·E 3",
+    category: "image",
+    description:
+      "OpenAI's flagship image model — photorealistic detail with exceptional prompt adherence. Requires your own OpenAI key.",
+    badge: null,
+    isFeatured: false,
+    sortOrder: 20,
+    adapter: "openai",
+    providerModelPath: "dall-e-3", // passed as `model` in OpenAI images/generations body
+    basePriceUsd: 0.04, // ~$0.04/image at standard quality (1024×1024) — confirmed openai.com/api/pricing
+    creditCost: 0, // BYOK — billed by OpenAI on the user's account
+    fields: [
+      {
+        key: "size",
+        label: "Size",
+        type: "select",
+        options: ["1024x1024", "1792x1024", "1024x1792"],
+        default: "1024x1024",
+      },
+      {
+        key: "quality",
+        label: "Quality",
+        type: "select",
+        options: ["standard", "hd"],
+        default: "standard",
+      },
+      {
+        key: "style",
+        label: "Style",
+        type: "select",
+        options: ["vivid", "natural"],
+        default: "vivid",
+      },
+    ] as ParamField[],
+  },
+
+  {
+    modelId: "kling-v1-5-direct",
+    name: "Kling v1.5 (Direct)",
+    category: "video",
+    description:
+      "Kuaishou's Kling v1.5 via the official Kling API — smooth cinematic motion with a direct provider connection. Requires your own Kling key.",
+    badge: null,
+    isFeatured: false,
+    sortOrder: 21,
+    adapter: "kling",
+    providerModelPath: "kling-v1-5", // passed as `model_name` in Kling text2video request
+    basePriceUsd: 0.28, // ~$0.28 / 5 s standard — approximate; verify at klingai.com/pricing
+    creditCost: 0, // BYOK — billed by Kling on the user's account
+    fields: [
+      ASPECT_RATIO,
+      DURATION(["5", "10"], "5"),
+      {
+        key: "mode",
+        label: "Mode",
+        type: "select",
+        options: ["standard", "professional"],
+        default: "standard",
+        helpText: "Professional mode produces sharper detail at higher cost.",
+      },
+    ] as ParamField[],
+  },
+
+  {
+    modelId: "elevenlabs-tts",
+    name: "ElevenLabs TTS",
+    category: "audio",
+    description:
+      "Studio-quality text-to-speech with expressive, character-driven voices. Requires your own ElevenLabs key.",
+    badge: null,
+    isFeatured: false,
+    sortOrder: 22,
+    adapter: "elevenlabs",
+    // Format: "<model_id>/<default_voice_name>" — the adapter splits on "/" to
+    // extract defaults; the paramsSchema voice_id select overrides the voice.
+    providerModelPath: "eleven_multilingual_v2/Rachel",
+    basePriceUsd: 0.09, // ~$0.09 / 30 s of speech (≈ 300 chars × $0.30/1 K chars)
+    creditCost: 0, // BYOK — billed by ElevenLabs on the user's account
+    fields: [
+      {
+        key: "voice_id",
+        label: "Voice",
+        type: "select",
+        // Human-readable names — elevenlabs.ts maps these to ElevenLabs voice IDs.
+        options: ["Rachel", "Domi", "Bella", "Antoni", "Elli", "Josh", "Adam", "Sam"],
+        default: "Rachel",
+      },
+      {
+        key: "stability",
+        label: "Stability",
+        type: "number",
+        min: 0,
+        max: 1,
+        step: 0.05,
+        default: 0.5,
+        helpText: "Higher = more consistent delivery; lower = more expressive.",
+      },
+      {
+        key: "similarity_boost",
+        label: "Similarity",
+        type: "number",
+        min: 0,
+        max: 1,
+        step: 0.05,
+        default: 0.75,
+        helpText: "How closely the output matches the original voice character.",
+      },
+    ] as ParamField[],
+  },
 ];
 
 const CATEGORY_GRADIENT: Record<string, string> = {

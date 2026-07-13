@@ -1,0 +1,236 @@
+# Master Prompt: Add OpenAI, Kling, ElevenLabs Adapters — Audit First, Zero New Hardcoding, No Regressions
+
+## Read this whole prompt before writing any code.
+This task has three phases, in order: **audit → build → verify.** Do not skip
+the audit phase to get to the "real work" faster — the audit is what prevents
+this change from silently breaking something else in the app, which has
+happened before in this project when isolated-looking changes touched shared
+code paths.
+
+---
+
+## Phase 0: Codebase Audit (do this first, report back before building)
+
+Before touching any code, trace and write out — as a short report, not just
+in your head — every place in the codebase that currently touches:
+1. The `providers` DB table and anything that reads from it
+   (`GET /providers`, `add-keys-panel.tsx`, `ProviderKey` component, etc.)
+2. The `user_api_keys` table and BYOK key lifecycle (save, validate, list,
+   delete, decrypt-for-use)
+3. `lib/media/registry.ts` and every adapter currently registered
+4. `lib/generation/keyRouting.ts` — `resolveGenerationKey()` and
+   `getPlatformApiKey()`
+5. The `models` table and everywhere `paramsSchema` gets consumed to render
+   the dynamic generation form (`category-studio.tsx`, `model-studio.tsx`)
+6. `backgroundPoller.ts` / `statusSync.ts` — how they call `poll()` on
+   whatever adapter a given generation used
+7. The credit ledger — where debit/refund happens relative to adapter
+   success/failure
+
+For each of these, note: what currently depends on there being exactly one
+adapter (WaveSpeed)? Anywhere that assumes `adapter === "wavespeed"`, or
+assumes synchronous vs. asynchronous submission, or assumes a specific error
+shape, is a place this change can silently break something. List these
+explicitly before you start writing the new adapters, so you know what to
+re-test afterward.
+
+Do not proceed to Phase 1 until you can state, in your own words, exactly
+which existing behaviors could regress from adding new adapters.
+
+**Rollback safety**: if the audit reveals that implementing one of these
+adapters would require changes likely to regress WaveSpeed or other shared
+generation infrastructure, stop after the audit and report the required
+architectural change instead of partially implementing adapters around it.
+Do not leave the codebase in a mixed state where some adapters follow the
+approach described below and others were forced into a different shape
+because the shared infrastructure wasn't actually ready for them.
+
+---
+
+## What "no hardcoding" means here — the actual boundary
+
+You cannot make *everything* database-driven — an adapter has to contain real
+code that knows how to call a specific provider's specific API (its base URL,
+its request shape, its error format). That part is unavoidably code, for
+every provider, forever. That is not the thing being flagged as hardcoded.
+
+**What must stay dynamic (DB-driven), with zero exceptions:**
+- The list of which providers exist and are shown in the BYOK UI — comes
+  from the `providers` table. Never add a second, parallel list of provider
+  names/logos/capabilities anywhere in frontend or backend code.
+- The list of which models exist, which adapter each one uses, and what
+  parameters each one accepts — comes from the `models` table's
+  `paramsSchema`. Never hardcode a model's fields into a frontend component.
+- Whether a given user has a usable key for a given provider — comes from
+  `user_api_keys`, resolved at request time, never assumed.
+
+**What is allowed to be code** (this is normal, not a violation):
+- Each adapter file (`openai.ts`, `kling.ts`, `elevenlabs.ts`) containing the
+  actual HTTP calls, field-name normalization, and status-mapping logic for
+  that specific provider.
+- The `adapters` registry map in `registry.ts` that connects an `adapter`
+  string (stored in the `models` table) to its implementation. This map only
+  needs a new line when a genuinely new adapter is written — it is not the
+  kind of "hardcoding" this project has been trying to eliminate. The thing
+  we eliminated earlier was a hardcoded *provider list in the UI*; a
+  registry of adapter *implementations* is a normal, necessary piece of any
+  plugin-style architecture and is not in scope to "fix."
+
+If anything in your implementation adds a second source of truth for
+provider names, model lists, or capabilities — anywhere a value could get out
+of sync with the `providers` or `models` tables — that's the kind of
+hardcoding to avoid. Adapter implementation code itself is not.
+
+---
+
+## Phase 1: Build three new adapters
+
+Add real adapters for **OpenAI** (image), **Kling** (video), and
+**ElevenLabs** (audio) — the three providers users can already save BYOK keys
+for in "Add Your Keys" but which currently do nothing, since every model in
+the catalog routes through `wavespeedAdapter` only.
+
+Each implements the existing `MediaAdapter` interface
+(`artifacts/api-server/src/lib/media/types.ts`) — do not modify that
+interface. More generally: do not modify any existing public interface or
+contract (`MediaAdapter`, `GenerationStatus`, `keyRouting`'s function
+signatures, the adapter registry's shape) unless the Phase 0 audit
+demonstrates one is genuinely insufficient for this task — and if that
+happens, stop and report back before implementing the change, rather than
+quietly redesigning shared code that other systems depend on:
+```ts
+export interface MediaAdapter {
+  submit(providerModelPath: string, params: Record<string, unknown>, apiKey: string): Promise<SubmitResult>;
+  poll(providerTaskId: string, apiKey: string): Promise<PollResult>;
+  validateKey?(apiKey: string): Promise<boolean>;
+}
+```
+Use `artifacts/api-server/src/lib/media/wavespeed.ts` as the structural
+reference: a `classifyError()` helper mapping provider error text to
+`ProviderErrorKind`, a `normalizeParams()` helper for provider-specific field
+quirks, and a `mapStatus()` helper translating the provider's status strings
+into our `GenerationStatus` enum. Match that shape, don't invent a new one.
+
+All three adapters must satisfy the `MediaAdapter` interface without changing
+the background poller's contract. For providers whose API is synchronous
+(OpenAI, ElevenLabs — see below), `submit()` may embed the completed result
+so that `poll()` returns `"completed"` immediately on first check — the
+poller doesn't need to know or care that no real waiting happened.
+
+### `lib/media/openai.ts` — image
+- `validateKey`: cheap read-only call (e.g. `GET /v1/models`); 401/403 =
+  invalid.
+- OpenAI's image endpoint is synchronous — apply the submit/poll pattern
+  described above.
+
+### `lib/media/kling.ts` — video
+- Asynchronous like WaveSpeed: `submit` creates a task, `poll` checks status.
+- `validateKey`: use Kling's cheapest authenticated read-only endpoint.
+- Apply any real field-naming/casing quirks you find in Kling's actual API
+  docs via `normalizeParams`, the same way WaveSpeed needed lowercase
+  `resolution`.
+
+### `lib/media/elevenlabs.ts` — audio (text-to-speech)
+- `validateKey`: `GET /v1/user`.
+- Synchronous like OpenAI — same immediate-completion pattern described above.
+
+### Register them
+```ts
+const adapters: Record<string, MediaAdapter> = {
+  wavespeed: wavespeedAdapter,
+  openai: openaiAdapter,
+  kling: klingAdapter,
+  elevenlabs: elevenlabsAdapter,
+};
+```
+
+**Defensive check**: if a model row's `adapter` slug has no matching entry in
+this registry, the registry lookup must surface a clear, specific backend
+error ("no adapter registered for slug 'X'") rather than failing silently or
+throwing a generic/unhelpful error. This matters more once there are several
+adapters — a typo'd or not-yet-implemented slug should be obvious in logs
+immediately, not discovered later as a mysterious generation failure.
+
+**Isolation**: a failure, timeout, or exception inside one adapter (e.g. Kling
+timing out) must not affect other adapters or prevent registry
+initialization. Each adapter call should fail independently — one provider
+having a bad day shouldn't degrade or block generations on any other
+provider.
+
+### Add matching model catalog rows
+In `lib/db/seed.ts`, add representative seed models for each adapter that
+currently has none (at minimum: one OpenAI image model, one Kling video
+model, one ElevenLabs audio model) — this isn't capped at exactly one per
+provider forever, just the minimum to prove each adapter end-to-end now, with
+more addable later as plain DB rows. Match the exact `paramsSchema` shape of
+existing rows so the dynamic form "just works" with no frontend changes.
+
+For `basePriceUsd`/`creditCost`, seed reasonable defaults rather than
+hand-verifying each provider's current published pricing — provider pricing
+changes over time and varies by billing unit (per-image, per-second,
+per-character, etc.), so treating it as a hardcoded fact to get exactly right
+in this task is the wrong place for that concern. If a separate pricing
+configuration mechanism already exists elsewhere in the app (check during
+Phase 0), use it; if not, seed defaults and note in a comment that real
+pricing should be confirmed before this is live for real users.
+
+### Platform-key fallback
+`getPlatformApiKey()` only has a `"wavespeed"` case today. For each new
+adapter, explicitly decide and comment: platform-subsidized (add a case +
+env var) or BYOK-only (no case — frontend's existing `hasOwnKey` check
+already handles showing "Add your own key to use this model" correctly, no
+change needed there).
+
+---
+
+## Phase 2: Regression Verification
+
+Using the list you produced in Phase 0, confirm none of it broke:
+
+1. **WaveSpeed still works end-to-end** — run one real WaveSpeed generation
+   after all changes. This is the single most important regression check.
+2. **Existing BYOK flows for wavespeed/fal/google/anthropic/openrouter keys**
+   (save, validate, mask, delete) are unaffected — you only added code, you
+   shouldn't have touched `routes/api-keys.ts` or `crypto.ts` at all.
+3. **Credit ledger** — debit and refund-on-failure still behave correctly for
+   a WaveSpeed generation, and correctly skip debit for a BYOK generation on
+   any provider (old or new).
+4. **`backgroundPoller.ts` / `statusSync.ts`** still correctly poll and
+   resolve WaveSpeed generations without interference from the new
+   synchronous adapters (OpenAI/ElevenLabs resolving immediately shouldn't
+   cause the poller to double-process or error on them).
+5. **New adapters work**: if real API keys for OpenAI, Kling, and/or
+   ElevenLabs are available in the environment, perform live verification —
+   save the key, run one real generation via BYOK, confirm `usedOwnKey: true`
+   and no credit debit, and test one deliberately wrong key to confirm
+   `validateKey` rejects it. If no real keys are available for a given
+   provider, verify via integration/unit tests against a mocked HTTP response
+   instead, and explicitly say in your report which providers were verified
+   live versus simulated — don't blur that distinction or block on getting
+   real keys.
+6. **New models render correctly** on `/image`, `/video`, `/audio` with
+   their `paramsSchema` fields showing the right form controls. If a
+   provider's real parameters don't fit the existing `paramsSchema` field
+   types cleanly, fix the underlying schema shape or the adapter's param
+   mapping — do not patch around it with provider-specific conditional logic
+   in a frontend component. The form must stay driven entirely by
+   `paramsSchema`, with no per-provider branches in the UI layer.
+7. **Capability-based routing is still correct**: each provider/model only
+   appears in the studio matching its declared capability (image/video/audio)
+   — confirm this comes from the `providers`/`models` table data, not any
+   frontend conditional that hardcodes which provider belongs in which tab.
+8. **A deliberately invalid generation** on each new adapter fails cleanly
+   with `status: "failed"` and a real error message — not a hang or a
+   silent 500.
+9. **Adapter isolation holds**: simulate one adapter throwing/timing out
+   (e.g. temporarily point a test call at a bad URL) and confirm generations
+   on other adapters are unaffected.
+
+Report which of these you actually verified (via real requests/logs, not
+just "the code looks right") — that distinction has mattered on this project
+before. Be explicit about which checks were live versus simulated. Do not
+silently skip any item above: if one can't be completed (missing API key,
+unavailable provider, missing test fixture, etc.), mark it explicitly as
+**Not Verified**, state why, and keep it visually distinct from the items
+that actually passed. "Everything looks good" is not an acceptable summary
+if some checks weren't actually run.

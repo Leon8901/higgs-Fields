@@ -1,10 +1,16 @@
 import type { MediaAdapter } from "./types";
 import { wavespeedAdapter } from "./wavespeed";
+import { openaiAdapter } from "./openai";
+import { klingAdapter } from "./kling";
+import { elevenlabsAdapter } from "./elevenlabs";
 
 // Adapter registry keyed by the `models.adapter` column. Add new providers
 // here as they come online; nothing else in the app needs to change.
 const adapters: Record<string, MediaAdapter> = {
   wavespeed: wavespeedAdapter,
+  openai: openaiAdapter,
+  kling: klingAdapter,
+  elevenlabs: elevenlabsAdapter,
 };
 
 export function getAdapter(adapterKey: string): MediaAdapter {
