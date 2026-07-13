@@ -16,6 +16,8 @@ export const providersTable = pgTable("providers", {
   capabilities: jsonb("capabilities").notNull().default([]), // e.g. ["image", "video", "audio"]
   supportsByok: boolean("supports_byok").notNull().default(true),
   keyFormatHint: text("key_format_hint"), // shown as input placeholder/help text, e.g. "Starts with sk-"
+  description: text("description"), // short tagline shown under the provider name, e.g. "GPT-4o, DALL-E 3, Whisper"
+  docsUrl: text("docs_url"), // link to the provider's API key page, e.g. "https://platform.openai.com/api-keys"
   status: text("status").notNull().default("active"), // active | disabled
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

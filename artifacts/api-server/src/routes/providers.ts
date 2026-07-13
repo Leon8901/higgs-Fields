@@ -32,6 +32,8 @@ router.get("/providers", async (req, res): Promise<void> => {
       capabilities: p.capabilities as string[],
       supportsByok: p.supportsByok,
       keyFormatHint: p.keyFormatHint,
+      description: p.description ?? null,
+      docsUrl: p.docsUrl ?? null,
     }));
 
   const missing = adaptersInUse.filter((slug) => !rows.some((p) => p.slug === slug));

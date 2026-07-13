@@ -15,4 +15,8 @@ export interface Provider {
   supportsByok: boolean;
   /** @nullable */
   keyFormatHint: string | null;
+  /** @nullable */
+  description: string | null;
+  /** @nullable */
+  docsUrl: string | null;
 }

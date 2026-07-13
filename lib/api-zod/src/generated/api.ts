@@ -481,7 +481,9 @@ export const ListProvidersResponseItem = zod.object({
   "icon": zod.string().nullable(),
   "capabilities": zod.array(zod.string()),
   "supportsByok": zod.boolean(),
-  "keyFormatHint": zod.string().nullable()
+  "keyFormatHint": zod.string().nullable(),
+  "description": zod.string().nullable(),
+  "docsUrl": zod.string().nullable()
 })
 export const ListProvidersResponse = zod.array(ListProvidersResponseItem)
 
