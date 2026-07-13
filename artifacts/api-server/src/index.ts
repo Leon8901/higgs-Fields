@@ -24,6 +24,18 @@ app.listen(port, (err) => {
 
   logger.info({ port }, "Server listening");
 
+  // Warn loudly if object storage isn't configured so misconfiguration is
+  // obvious in logs rather than silently failing at generation-complete time.
+  // Fix: call setupObjectStorage() in the Replit CodeExecution sandbox, then
+  // restart this workflow to pick up the new env vars.
+  if (!process.env.PRIVATE_OBJECT_DIR || !process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID) {
+    logger.warn(
+      "Object storage is NOT configured (PRIVATE_OBJECT_DIR / DEFAULT_OBJECT_STORAGE_BUCKET_ID missing). " +
+      "Generated assets will use temporary provider URLs and may expire. " +
+      "Run setupObjectStorage() in the Replit sandbox to fix.",
+    );
+  }
+
   // Runs inside this same long-lived process, independent of any browser
   // tab — see backgroundPoller.ts for why this exists.
   startGenerationBackgroundPoller(logger);
