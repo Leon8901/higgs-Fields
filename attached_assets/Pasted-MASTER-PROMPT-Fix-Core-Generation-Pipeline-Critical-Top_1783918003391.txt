@@ -1,0 +1,58 @@
+MASTER PROMPT — Fix Core Generation Pipeline (Critical, Top Priority)
+
+Paste into Replit as its own isolated task. This supersedes all other queued work — nothing else should be built until generation itself is confirmed genuinely reliable, since every other feature depends on this working correctly.
+
+Implementation Rules
+
+
+Diagnose before fixing, for every item below — explain the actual root cause you find before writing any fix.
+Do not touch the avatar system.
+Confirm expected cost before running any real test generation.
+
+
+1. Diagnose: why does generation fail entirely right now?
+
+Attempt a real generation on /image and report back the exact failure — server logs, the actual error, which step it fails at (credit check, provider call, response handling, database write). Do not guess or assume; show me the real error output.
+
+2. Fix result display
+
+Once generation succeeds, confirm the result (image/video URL) actually renders in the UI — check whether this is broken by the same root cause as #1, or a separate bug in how the frontend reads/displays the completed generation's data.
+
+3. Make generation completion independent of the browser staying open
+
+Diagnose first: is generation status currently tracked only via client-side polling (a setInterval/similar in a React component that stops when the component unmounts on navigation)? If so, this is the root cause of generations "dying" when the user navigates away — the actual job on WaveSpeed's side keeps running regardless, but nothing server-side is checking on it or saving the result once the client stops asking.
+
+Fix: move completion-tracking server-side, independent of any client connection. Options, pick whichever fits the existing architecture with the least new infrastructure:
+
+
+If WaveSpeedAI supports webhooks/callbacks for job completion, use that — the provider calls your server directly when done, no polling needed at all.
+If not, implement a lightweight server-side polling mechanism (e.g. a scheduled job/cron checking any generation with status: "processing" every N seconds and updating it when complete) — this runs regardless of whether any user has the page open.
+The frontend's job becomes purely cosmetic: it can poll for a nicer live-updating UI while the user is present, but the actual source of truth for "is this done and saved" must not depend on the frontend being open at all.
+
+
+Verify: start a generation, immediately navigate to a different page or close the tab, wait, then check the Library later — the result should be there, correctly saved, correctly charged, regardless of what the browser did in between.
+
+4. Fix asset persistence — check if this is an active data-loss bug
+
+Diagnose first: when a generation completes, does the app store WaveSpeedAI's raw returned URL directly in the generations table, or does it download the file and re-upload it to your own storage (R2/Supabase Storage/wherever assets are meant to live)? Check this now — it matters urgently, not as a future feature.
+
+If it's storing the raw provider URL directly: this is an active bug, not a nice-to-have. WaveSpeedAI's hosted URLs are not permanent — per their own docs, generated assets have a limited retention window before removal. Any generation already saved this way will silently break (dead link) once that window passes, for every user, for every past generation.
+
+Fix: immediately after a generation completes, download the resulting file from the provider's URL and upload it to your own permanent storage, saving your own storage URL in the generations table — not the provider's temporary one. If there are already-completed generations in the database using raw provider URLs, flag how many exist and whether they're still within a safe window to migrate (download-and-re-host) before they expire — don't just fix it going forward and leave existing data to rot.
+
+5. Hide scrollbars while preserving scroll functionality
+
+Site-wide CSS fix: hide the visible scrollbar UI (matching the reference sites' behavior) while keeping actual scroll behavior fully functional. Standard approach: scrollbar-width: none (Firefox) and ::-webkit-scrollbar { display: none } (Chrome/Safari/Edge) on the relevant scrollable containers, keeping overflow: auto or overflow-y: scroll unchanged so scrolling still works via mouse wheel, trackpad, and keyboard — only the visual scrollbar disappears, not the functionality.
+
+Definition of Success
+
+
+A real test generation on /image completes successfully and the result displays correctly — verified live, not assumed.
+Starting a generation and immediately navigating away or closing the tab still results in a correctly saved, correctly charged generation appearing in the Library afterward.
+Newly generated assets are stored on your own infrastructure, not relying on the provider's temporary URL.
+Confirmed whether any existing generations are at risk from provider-URL expiry, and addressed if so.
+No visible scrollbars anywhere on the site, scrolling still works everywhere it did before.
+TypeScript compiles with no new warnings or errors.
+
+
+This is the highest priority task right now — confirm each item is genuinely fixed and verified before considering this done, not just typechecked. Show me the diagnosis for each numbered issue, then the fix, then real verification.
