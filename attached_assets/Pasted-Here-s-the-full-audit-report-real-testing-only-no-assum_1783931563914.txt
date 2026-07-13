@@ -1,0 +1,62 @@
+Here's the full audit report — real testing only, no assumptions.
+
+1. Generation pipeline — root cause of "stuck on generating forever"
+Broken (root cause identified). Traced one real generation end-to-end:
+
+WaveSpeed API call: succeeds (confirmed — image was actually generated, credits charged by provider)
+Reaches polling logic: yes, background poller (backgroundPoller.ts, 15s interval) picks it up correctly
+Attempts permanent-storage upload: yes, persistGeneratedAssets tries to re-host the WaveSpeed URL into Object Storage
+That upload fails with: no allowed resources — the same Object Storage sidecar authorization error from the previous session, confirmed still present. I verified this isn't app code: a raw request straight to the sidecar (http://127.0.0.1:1106/token) is rejected with the identical error, independent of any of this app's code. Env vars (PRIVATE_OBJECT_DIR, PUBLIC_OBJECT_SEARCH_PATHS, bucket ID) are all correctly set and match .replit — this is a platform-level authorization gap on the bucket itself, not a config or code bug.
+One side note I already fixed (safe, no-op if already correct): those same Object Storage env vars had been wiped empty by the re-import — restored via the idempotent setup call. That wasn't the actual blocker, but it was a real bug on its own and is now fixed.
+Stuck generations in DB: 0 — the table was empty (fresh reseed), so nothing was stuck before my test. My one test generation correctly ended in failed (not stuck) with credits auto-refunded — see Credit System below.
+2. Every generation path — real test results
+Path	Status	Evidence
+Image via /image (Seedream v5.0 Lite)	Broken — generation succeeds at the provider, fails to save	Real API call, WaveSpeed charged, storage step threw no allowed resources, generation marked failed, credit refunded
+Video via /video	Unverified — blocked before testing	Your WaveSpeed key had ~$0.2–0.4 left, not enough to safely run even the cheapest true text-to-video (Sora 2, ~$0.40/8 credits); you asked me to stop before risking more spend
+Audio via /audio	Unverified — not tested (not reached before stopping)	—
+Platform-shared key generation	Partially working — request/charge/refund logic all correct; blocked by the same storage bug	See ledger evidence below
+BYOK generation (WaveSpeed)	Unverified — not tested live	Code path confirmed to exist (resolveGenerationKey), not exercised end-to-end
+Enhance prompt on/off	Unverified — my test used skipEnhance: true only	—
+Model selection actually used	Working (verified) — confirmed via code: providerModelPath from the models table is passed directly into the WaveSpeed URL, no hardcoded default; my test used seedream-v5-lite and the log shows that exact model path was called	
+3. Generate-page controls (model/aspect ratio/resolution/batch)
+Unverified. Confirmed by reading code that params from the request body are passed through mostly as-is (only resolution lowercased, duration coerced to number) — nothing suggests silent overrides. But I did not click through the UI changing each control and diff the actual network payload, so this is a code-read finding, not a live-tested one.
+
+4. Marketing Studio — URL to Ad
+Partial/stub, not the fully-specified version.
+
+Extraction: fetches the URL, strips HTML with regex (not real HTML parsing), sends up to 4,000 chars of raw text to an LLM to guess productName/tagline/description
+No JSON-LD parsing, no image extraction — it never looks at metadata or <img> tags
+No review screen — results are auto-filled into the sidebar the moment extraction finishes; user never confirms/edits before it's "accepted"
+No persistent product — there is no products table; the extracted data lives only in local component state until a generation is submitted, then it's just part of that one generation's params. It does not become a saved, reusable, selectable entity afterward.
+5. BYOK / Add Your Keys
+Provider list is real, from the providers DB table: wavespeed, openrouter, kling, google, anthropic, openai, elevenlabs, fal (8 rows, all status: active)
+Key validation logic exists (user_api_keys table, status/validatedAt fields, adapter-based validation) — not live-tested (would require a real third-party key)
+Routing logic (resolveGenerationKey) correctly prefers a valid BYOK key over the platform key and skips credit deduction for BYOK — confirmed by code, not exercised live
+6. Credit system
+Working (verified). My real test proved both halves:
+
+Generation start: balance went 50 → 49, a credit_ledger row was created with reason: "generation", delta: -1
+Generation failure: balance was correctly restored 49 → 50, with a second ledger row reason: "refund", delta: +1
+This part of the system is solid — it never silently charges for a failed generation.
+
+7. Account / Library / Profile
+Library: fetches real generations via useListGenerations(); delete, download, and re-run (stashes params, navigates to the tool page) are all implemented — not click-tested live, verified by code
+Usage stats and credit ledger view: computed from real generation/ledger data, not placeholders — confirmed by code
+Avatar system: no explicit "paused" flag found in code; it currently just reuses Clerk's user.imageUrl rather than being its own feature — appears intentionally minimal/not built out further, consistent with "paused"
+8. Pricing / Razorpay
+Placeholder, by design — working as intended. isRazorpayConfigured() gates both /billing/subscribe and /billing/purchase-credits; confirmed live via curl that /api/billing/status returns {"configured":false} and the routes return 503 with a clear, non-crashing message. No change from the earlier design decision.
+
+9. Avatar system
+Confirmed still not a distinct feature — see #7. No build/fix attempted, per your instructions.
+
+10. Nav and UI
+Mega-menu: hover-triggered (150ms open delay, 200ms close delay), with click fallback and Escape-to-close — matches "click-vs-hover fix," not regressed
+Scrollbars: hidden site-wide, confirmed in index.css (scrollbar-width: none + ::-webkit-scrollbar { display: none })
+What's still outstanding
+Video and audio generation paths not live-tested (stopped per your call on remaining WaveSpeed balance)
+Generate-page control → payload verification not done live (code-read only)
+BYOK key validation and BYOK-routed generation not exercised live
+Enhance-prompt on/off comparison not tested
+What's fixed already (safe, done in this pass)
+Object Storage env vars restored (were wiped by re-import) — necessary but not sufficient; the real blocker is the sidecar's "no allowed resources" bucket authorization, which needs platform-side attention, not app code
+The generation pipeline's real blocker is now precisely identified — every generation (image, video, or audio; platform key or BYOK) will succeed at the provider and then fail to save, refunding credits each time. That's the one fix worth prioritizing before anything else on this list.

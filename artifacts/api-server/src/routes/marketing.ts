@@ -12,10 +12,67 @@ import {
 
 const router: IRouter = Router();
 
+// ─── Structured HTML extraction helpers ───────────────────────────────────────
+
+/** Read a <meta property|name="key" content="..."> tag (tries both attribute orderings). */
+function extractMeta(html: string, ...keys: string[]): string {
+  for (const key of keys) {
+    const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const patterns = [
+      new RegExp(`<meta[^>]+(?:property|name)=["']${escaped}["'][^>]+content=["']([^"'<>]+)["']`, "i"),
+      new RegExp(`<meta[^>]+content=["']([^"'<>]+)["'][^>]+(?:property|name)=["']${escaped}["']`, "i"),
+    ];
+    for (const re of patterns) {
+      const m = html.match(re);
+      if (m?.[1]?.trim()) return m[1].trim();
+    }
+  }
+  return "";
+}
+
+/** Read the text of the first <title> element. */
+function extractTitle(html: string): string {
+  const m = html.match(/<title[^>]*>([^<]{1,200})<\/title>/i);
+  return m?.[1]?.trim() ?? "";
+}
+
+/**
+ * Scan all application/ld+json blocks and return the first node whose @type
+ * matches a known product/brand type.
+ */
+function extractJsonLd(html: string): Record<string, unknown> {
+  const blocks = [
+    ...html.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi),
+  ];
+  const preferredTypes = [
+    "Product",
+    "SoftwareApplication",
+    "MobileApplication",
+    "Organization",
+    "LocalBusiness",
+    "WebSite",
+  ];
+  for (const block of blocks) {
+    try {
+      const data = JSON.parse(block[1]) as Record<string, unknown>;
+      const items: Record<string, unknown>[] = Array.isArray(data?.["@graph"])
+        ? (data["@graph"] as Record<string, unknown>[])
+        : [data];
+      for (const item of items) {
+        if (preferredTypes.includes(item?.["@type"] as string)) return item;
+      }
+    } catch {
+      /* ignore malformed JSON-LD */
+    }
+  }
+  return {};
+}
+
 // ─── POST /marketing/url-analyze ─────────────────────────────────────────────
 /**
- * Fetch a product page URL and use OpenRouter to extract product name +
- * description for the Marketing Studio URL-to-Ad flow.
+ * Fetch a product page URL and use structured HTML signals + OpenRouter to
+ * extract productName, tagline, description, and imageUrl for the Marketing
+ * Studio URL-to-Ad flow.
  */
 router.post("/marketing/url-analyze", requireAuth, async (req, res): Promise<void> => {
   const { url } = req.body as { url?: string };
@@ -61,21 +118,71 @@ router.post("/marketing/url-analyze", requireAuth, async (req, res): Promise<voi
     return;
   }
 
-  // Strip scripts/styles/tags, collapse whitespace, limit to 4 000 chars
-  const pageText = htmlText
+  // ── Extract structured signals ─────────────────────────────────────────────
+  const ogTitle       = extractMeta(htmlText, "og:title", "twitter:title");
+  const ogDescription = extractMeta(htmlText, "og:description", "twitter:description", "description");
+  const ogImage       = extractMeta(htmlText, "og:image", "twitter:image");
+  const ogSiteName    = extractMeta(htmlText, "og:site_name");
+  const pageTitle     = extractTitle(htmlText);
+  const jsonLd        = extractJsonLd(htmlText);
+  const ldName        = String(jsonLd["name"] ?? "").trim();
+  const ldDescription = String(jsonLd["description"] ?? "").trim();
+
+  // Resolve the product image URL; make relative URLs absolute
+  let imageUrl = ogImage;
+  if (imageUrl && !imageUrl.startsWith("http")) {
+    try {
+      imageUrl = new URL(imageUrl, parsedUrl.origin).toString();
+    } catch {
+      imageUrl = "";
+    }
+  }
+
+  // Build a structured hint block for the LLM — richer input → better output
+  const structuredHints = [
+    (ogTitle || pageTitle) ? `Page title: ${ogTitle || pageTitle}` : null,
+    ogSiteName            ? `Site name: ${ogSiteName}`            : null,
+    ldName                ? `Schema.org name: ${ldName}`          : null,
+    ogDescription         ? `Meta description: ${ogDescription}`  : null,
+    ldDescription         ? `Schema.org description: ${ldDescription}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  // Strip scripts/styles/tags, collapse whitespace, limit body to 3 000 chars
+  const bodyText = htmlText
     .replace(/<script[\s\S]*?<\/script>/gi, "")
     .replace(/<style[\s\S]*?<\/style>/gi, "")
     .replace(/<[^>]+>/g, " ")
-    .replace(/&[a-z]+;/gi, " ")
+    .replace(/&[a-z#0-9]+;/gi, " ")
     .replace(/\s+/g, " ")
     .trim()
-    .slice(0, 4000);
+    .slice(0, 3000);
 
-  // Require OpenRouter for the AI step
+  const pageText = [
+    structuredHints,
+    bodyText ? `\nPage body (truncated):\n${bodyText}` : "",
+  ]
+    .join("\n")
+    .trim();
+
+  // ── LLM analysis ──────────────────────────────────────────────────────────
   let client;
   try {
     client = getOpenRouterClient();
   } catch {
+    // No LLM key — return whatever structured signals we have, or 503
+    const fallbackName = ldName || ogTitle || pageTitle || ogSiteName || "";
+    const fallbackDesc = ldDescription || ogDescription || "";
+    if (fallbackName || fallbackDesc) {
+      res.json({
+        productName: fallbackName,
+        tagline: "",
+        description: fallbackDesc,
+        ...(imageUrl ? { imageUrl } : {}),
+      });
+      return;
+    }
     res.status(503).json({
       error: "AI analysis is not configured — OPENROUTER_API_KEY is missing.",
     });
@@ -88,15 +195,15 @@ router.post("/marketing/url-analyze", requireAuth, async (req, res): Promise<voi
       messages: [
         {
           role: "system",
-          content: `You are a marketing analyst. Extract product information from webpage text.
+          content: `You are a marketing analyst. Extract product information from webpage signals.
 Return ONLY valid JSON with exactly these fields:
-- productName: short product or brand name (2–5 words)
-- tagline: one concise value-proposition sentence
-- description: 1–2 sentences describing what the product does and its key benefit, written as an ad brief`,
+- productName: short product or brand name (2–5 words, prefer the actual product/brand name over a generic description)
+- tagline: one concise value-proposition sentence (max 12 words)
+- description: 1–2 sentences describing what the product does and its key benefit, written as a punchy ad brief for a short-form video`,
         },
         {
           role: "user",
-          content: `Extract product info from this page text:\n\n${pageText}`,
+          content: `Extract product info from these page signals:\n\n${pageText}`,
         },
       ],
       response_format: { type: "json_object" },
@@ -106,15 +213,16 @@ Return ONLY valid JSON with exactly these fields:
     const raw = completion.choices[0]?.message?.content ?? "{}";
     let parsed: Record<string, string>;
     try {
-      parsed = JSON.parse(raw);
+      parsed = JSON.parse(raw) as Record<string, string>;
     } catch {
       parsed = {};
     }
 
     res.json({
       productName: (parsed.productName ?? "").trim(),
-      tagline: (parsed.tagline ?? "").trim(),
+      tagline:     (parsed.tagline     ?? "").trim(),
       description: (parsed.description ?? "").trim(),
+      ...(imageUrl ? { imageUrl } : {}),
     });
   } catch (err) {
     req.log.error({ err }, "OpenRouter URL analysis failed");

@@ -52,6 +52,7 @@ import {
   Wand2,
   Pencil,
   Check,
+  ChevronLeft,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -654,11 +655,15 @@ function UrlToAdModal({
   const [url, setUrl] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [step, setStep] = useState<"url" | "review">("url");
+  const [preview, setPreview] = useState<{ productName: string; tagline: string; description: string; imageUrl?: string } | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editDesc, setEditDesc] = useState("");
   const { toast } = useToast();
 
   // Reset state when modal opens
   useEffect(() => {
-    if (open) { setUrl(""); setError(null); setAnalyzing(false); }
+    if (open) { setUrl(""); setError(null); setAnalyzing(false); setStep("url"); setPreview(null); }
   }, [open]);
 
   const handleContinue = async () => {
@@ -678,9 +683,16 @@ function UrlToAdModal({
         setError(data.error ?? "Couldn't analyse that page — try another URL.");
         return;
       }
-      onFill(data.productName ?? "", data.description || data.tagline || "");
-      toast({ title: "Product info loaded", description: "Brief pre-filled — hit Generate when ready." });
-      onClose();
+      const pd = {
+        productName: data.productName ?? "",
+        tagline: data.tagline ?? "",
+        description: data.description || data.tagline || "",
+        imageUrl: data.imageUrl ?? undefined,
+      };
+      setPreview(pd);
+      setEditName(pd.productName);
+      setEditDesc(pd.description);
+      setStep("review");
     } catch {
       setError("Network error — check your connection and try again.");
     } finally {
@@ -688,7 +700,14 @@ function UrlToAdModal({
     }
   };
 
+  const handleUseThis = () => {
+    onFill(editName.trim(), editDesc.trim());
+    toast({ title: "Product info applied", description: "Hit Generate when ready." });
+    onClose();
+  };
+
   const canContinue = isPlausibleUrl(url) && !analyzing;
+  const canUse = editDesc.trim().length > 0;
 
   return (
     <AnimatePresence>
@@ -719,125 +738,223 @@ function UrlToAdModal({
               <X className="w-4 h-4" />
             </button>
 
-            <div className="flex min-h-[480px]">
-              {/* ── Left panel */}
-              <div className="flex-1 flex flex-col justify-between p-8 md:p-10">
-                {/* Header */}
-                <div>
-                  {/* Icon */}
-                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-fuchsia-500 to-pink-600 flex items-center justify-center mb-6 shadow-lg shadow-pink-900/30">
-                    <Wand2 className="w-6 h-6 text-white" />
-                  </div>
-
-                  <h2 className="text-2xl md:text-3xl font-black text-white leading-tight mb-3">
-                    One link.<br />A ready-to-post ad.
-                  </h2>
-                  <p className="text-sm text-white/50 leading-relaxed max-w-sm">
-                    Drop your product URL — we'll scrape the page, extract the brief, and
-                    fill the generator. No filming, no editing, no form to fill.
-                  </p>
-                </div>
-
-                {/* Input */}
-                <div className="mt-10 space-y-3">
-                  <div className="relative">
-                    <Link2 className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 pointer-events-none" />
-                    <input
-                      type="text"
-                      value={url}
-                      onChange={(e) => { setUrl(e.target.value); setError(null); }}
-                      onKeyDown={(e) => e.key === "Enter" && canContinue && handleContinue()}
-                      placeholder="www.yourproduct.com"
-                      autoFocus
-                      className="w-full bg-white/[0.06] border border-white/10 rounded-xl pl-11 pr-4 py-3.5 text-sm text-white placeholder-white/30 outline-none focus:border-white/25 transition-colors"
-                    />
-                  </div>
-
-                  {error && (
-                    <p className="text-xs text-red-400 flex items-center gap-1.5">
-                      <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {error}
-                    </p>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={handleContinue}
-                    disabled={!canContinue}
-                    className="w-full py-3.5 rounded-xl font-black text-sm transition-all flex items-center justify-center gap-2 disabled:cursor-not-allowed"
-                    style={{
-                      background: canContinue
-                        ? "linear-gradient(135deg, #e040fb 0%, #f06292 100%)"
-                        : "rgba(255,255,255,0.06)",
-                      color: canContinue ? "#fff" : "rgba(255,255,255,0.2)",
-                      boxShadow: canContinue ? "0 0 24px rgba(224,64,251,0.28)" : "none",
-                    }}
-                  >
-                    {analyzing ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        Analysing your page…
-                      </>
-                    ) : (
-                      "Continue"
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              {/* ── Right panel — example output */}
-              <div className="hidden md:flex w-[46%] shrink-0 relative overflow-hidden">
-                {/* Gradient background */}
-                <div
-                  className="absolute inset-0"
-                  style={{
-                    background:
-                      "linear-gradient(135deg, #0d1f0a 0%, #1a3a10 40%, #0d2b17 70%, #061508 100%)",
-                  }}
-                />
-                {/* Noise texture overlay */}
-                <div
-                  className="absolute inset-0 opacity-[0.06]"
-                  style={{
-                    backgroundImage:
-                      "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",
-                  }}
-                />
-                {/* Glow orbs */}
-                <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 rounded-full"
-                  style={{ background: "radial-gradient(circle, rgba(206,255,0,0.18) 0%, transparent 70%)" }} />
-                <div className="absolute bottom-1/4 right-1/4 w-32 h-32 rounded-full"
-                  style={{ background: "radial-gradient(circle, rgba(224,64,251,0.12) 0%, transparent 70%)" }} />
-
-                {/* Faux product card */}
-                <div className="relative z-10 flex flex-col items-center justify-center w-full h-full gap-4 px-8">
-                  <div className="w-[180px] h-[220px] rounded-2xl border border-white/[0.12] overflow-hidden relative"
-                    style={{ background: "linear-gradient(160deg,#1e3d12,#0c1f09)" }}>
-                    {/* Abstract product shape */}
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="w-20 h-20 rounded-full"
-                        style={{ background: "radial-gradient(circle, rgba(206,255,0,0.7) 0%, rgba(100,200,50,0.3) 60%, transparent 100%)", filter: "blur(2px)" }} />
+            <AnimatePresence mode="wait">
+              {step === "url" ? (
+                <motion.div
+                  key="url-step"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="flex min-h-[480px]"
+                >
+                  {/* ── Left panel */}
+                  <div className="flex-1 flex flex-col justify-between p-8 md:p-10">
+                    {/* Header */}
+                    <div>
+                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-fuchsia-500 to-pink-600 flex items-center justify-center mb-6 shadow-lg shadow-pink-900/30">
+                        <Wand2 className="w-6 h-6 text-white" />
+                      </div>
+                      <h2 className="text-2xl md:text-3xl font-black text-white leading-tight mb-3">
+                        One link.<br />A ready-to-post ad.
+                      </h2>
+                      <p className="text-sm text-white/50 leading-relaxed max-w-sm">
+                        Drop your product URL — we'll scrape the page, extract the brief, and
+                        fill the generator. No filming, no editing, no form to fill.
+                      </p>
                     </div>
-                    <div className="absolute bottom-0 left-0 right-0 px-4 py-3 backdrop-blur-sm"
-                      style={{ background: "linear-gradient(to top, rgba(0,0,0,0.8), transparent)" }}>
-                      <p className="text-[10px] font-bold text-primary uppercase tracking-widest">Generated</p>
-                      <p className="text-xs text-white/70 font-semibold">15-sec product ad</p>
+
+                    {/* Input */}
+                    <div className="mt-10 space-y-3">
+                      <div className="relative">
+                        <Link2 className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 pointer-events-none" />
+                        <input
+                          type="text"
+                          value={url}
+                          onChange={(e) => { setUrl(e.target.value); setError(null); }}
+                          onKeyDown={(e) => e.key === "Enter" && canContinue && handleContinue()}
+                          placeholder="www.yourproduct.com"
+                          autoFocus
+                          className="w-full bg-white/[0.06] border border-white/10 rounded-xl pl-11 pr-4 py-3.5 text-sm text-white placeholder-white/30 outline-none focus:border-white/25 transition-colors"
+                        />
+                      </div>
+
+                      {error && (
+                        <p className="text-xs text-red-400 flex items-center gap-1.5">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {error}
+                        </p>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={handleContinue}
+                        disabled={!canContinue}
+                        className="w-full py-3.5 rounded-xl font-black text-sm transition-all flex items-center justify-center gap-2 disabled:cursor-not-allowed"
+                        style={{
+                          background: canContinue
+                            ? "linear-gradient(135deg, #e040fb 0%, #f06292 100%)"
+                            : "rgba(255,255,255,0.06)",
+                          color: canContinue ? "#fff" : "rgba(255,255,255,0.2)",
+                          boxShadow: canContinue ? "0 0 24px rgba(224,64,251,0.28)" : "none",
+                        }}
+                      >
+                        {analyzing ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                            Analysing your page…
+                          </>
+                        ) : (
+                          "Continue"
+                        )}
+                      </button>
                     </div>
                   </div>
 
-                  <div className="text-center">
-                    <p className="text-[11px] text-white/40 font-medium">TikTok · Reels · Shorts</p>
+                  {/* ── Right panel — decorative */}
+                  <div className="hidden md:flex w-[46%] shrink-0 relative overflow-hidden">
+                    <div className="absolute inset-0" style={{ background: "linear-gradient(135deg, #0d1f0a 0%, #1a3a10 40%, #0d2b17 70%, #061508 100%)" }} />
+                    <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")" }} />
+                    <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 rounded-full" style={{ background: "radial-gradient(circle, rgba(206,255,0,0.18) 0%, transparent 70%)" }} />
+                    <div className="absolute bottom-1/4 right-1/4 w-32 h-32 rounded-full" style={{ background: "radial-gradient(circle, rgba(224,64,251,0.12) 0%, transparent 70%)" }} />
+                    <div className="relative z-10 flex flex-col items-center justify-center w-full h-full gap-4 px-8">
+                      <div className="w-[180px] h-[220px] rounded-2xl border border-white/[0.12] overflow-hidden relative" style={{ background: "linear-gradient(160deg,#1e3d12,#0c1f09)" }}>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="w-20 h-20 rounded-full" style={{ background: "radial-gradient(circle, rgba(206,255,0,0.7) 0%, rgba(100,200,50,0.3) 60%, transparent 100%)", filter: "blur(2px)" }} />
+                        </div>
+                        <div className="absolute bottom-0 left-0 right-0 px-4 py-3 backdrop-blur-sm" style={{ background: "linear-gradient(to top, rgba(0,0,0,0.8), transparent)" }}>
+                          <p className="text-[10px] font-bold text-primary uppercase tracking-widest">Generated</p>
+                          <p className="text-xs text-white/70 font-semibold">15-sec product ad</p>
+                        </div>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[11px] text-white/40 font-medium">TikTok · Reels · Shorts</p>
+                      </div>
+                    </div>
+                    <div className="absolute bottom-5 left-0 right-0 flex justify-center">
+                      <div className="flex items-center gap-1.5 bg-black/40 border border-white/[0.08] rounded-full px-3 py-1.5 backdrop-blur-sm">
+                        <CheckCircle2 className="w-3 h-3 text-primary" />
+                        <span className="text-[10px] text-white/50 font-medium">No filming or editing needed</span>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                </motion.div>
+              ) : (
+                /* ── Review step */
+                <motion.div
+                  key="review-step"
+                  initial={{ opacity: 0, x: 24 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -24 }}
+                  transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                  className="flex min-h-[480px]"
+                >
+                  {/* ── Left panel — editable review */}
+                  <div className="flex-1 flex flex-col justify-between p-8 md:p-10">
+                    <div>
+                      {/* Back link */}
+                      <button
+                        type="button"
+                        onClick={() => setStep("url")}
+                        className="flex items-center gap-1.5 text-xs text-white/40 hover:text-white/70 transition-colors mb-6"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5" />
+                        Back
+                      </button>
 
-                {/* Bottom label */}
-                <div className="absolute bottom-5 left-0 right-0 flex justify-center">
-                  <div className="flex items-center gap-1.5 bg-black/40 border border-white/[0.08] rounded-full px-3 py-1.5 backdrop-blur-sm">
-                    <CheckCircle2 className="w-3 h-3 text-primary" />
-                    <span className="text-[10px] text-white/50 font-medium">No filming or editing needed</span>
+                      <div className="flex items-center gap-3 mb-1">
+                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-fuchsia-500 to-pink-600 flex items-center justify-center shadow-lg shadow-pink-900/30 shrink-0">
+                          <CheckCircle2 className="w-4 h-4 text-white" />
+                        </div>
+                        <p className="text-xs font-bold text-white/50 uppercase tracking-widest">Review extracted info</p>
+                      </div>
+                      <p className="text-sm text-white/40 mb-6 ml-11">
+                        Edit anything before applying to the generator.
+                      </p>
+
+                      <div className="space-y-4">
+                        {/* Product name */}
+                        <div>
+                          <label className="block text-[11px] font-semibold text-white/40 uppercase tracking-wider mb-1.5">Product name</label>
+                          <input
+                            type="text"
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            placeholder="e.g. Acme Pro"
+                            className="w-full bg-white/[0.06] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-white/25 outline-none focus:border-white/25 transition-colors"
+                          />
+                        </div>
+
+                        {/* Description */}
+                        <div>
+                          <label className="block text-[11px] font-semibold text-white/40 uppercase tracking-wider mb-1.5">Ad brief</label>
+                          <textarea
+                            value={editDesc}
+                            onChange={(e) => setEditDesc(e.target.value)}
+                            rows={4}
+                            placeholder="Describe what makes this product worth an ad…"
+                            className="w-full bg-white/[0.06] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-white/25 outline-none focus:border-white/25 transition-colors resize-none leading-relaxed"
+                          />
+                        </div>
+
+                        {/* Tagline hint */}
+                        {preview?.tagline && (
+                          <p className="text-xs text-white/30 italic leading-relaxed">
+                            "{preview.tagline}"
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Use This button */}
+                    <button
+                      type="button"
+                      onClick={handleUseThis}
+                      disabled={!canUse}
+                      className="mt-8 w-full py-3.5 rounded-xl font-black text-sm transition-all flex items-center justify-center gap-2 disabled:cursor-not-allowed"
+                      style={{
+                        background: canUse
+                          ? "linear-gradient(135deg, #e040fb 0%, #f06292 100%)"
+                          : "rgba(255,255,255,0.06)",
+                        color: canUse ? "#fff" : "rgba(255,255,255,0.2)",
+                        boxShadow: canUse ? "0 0 24px rgba(224,64,251,0.28)" : "none",
+                      }}
+                    >
+                      Use This
+                    </button>
                   </div>
-                </div>
-              </div>
-            </div>
+
+                  {/* ── Right panel — product image or decorative */}
+                  <div className="hidden md:flex w-[46%] shrink-0 relative overflow-hidden">
+                    <div className="absolute inset-0" style={{ background: "linear-gradient(135deg, #1a0d2b 0%, #2b1040 40%, #180d2a 70%, #0d0619 100%)" }} />
+                    <div className="absolute inset-0 opacity-[0.05]" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")" }} />
+                    <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-56 h-56 rounded-full" style={{ background: "radial-gradient(circle, rgba(224,64,251,0.15) 0%, transparent 70%)" }} />
+
+                    <div className="relative z-10 flex flex-col items-center justify-center w-full h-full gap-5 px-8">
+                      {/* Product image thumbnail if extracted */}
+                      {preview?.imageUrl ? (
+                        <div className="w-[180px] h-[180px] rounded-2xl border border-white/[0.12] overflow-hidden shadow-xl shadow-black/60">
+                          <img
+                            src={preview.imageUrl}
+                            alt="Product"
+                            className="w-full h-full object-cover"
+                            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-[180px] h-[180px] rounded-2xl border border-white/[0.08] flex items-center justify-center" style={{ background: "rgba(255,255,255,0.03)" }}>
+                          <ImageIcon className="w-10 h-10 text-white/10" />
+                        </div>
+                      )}
+
+                      <div className="text-center space-y-1">
+                        {editName && <p className="text-sm font-bold text-white truncate max-w-[180px]">{editName}</p>}
+                        <p className="text-[10px] text-white/30 font-medium">Ready to generate</p>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         </motion.div>
       )}
