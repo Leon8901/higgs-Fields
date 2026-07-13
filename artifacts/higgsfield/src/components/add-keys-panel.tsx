@@ -19,7 +19,15 @@ import { ProviderKey } from "./provider-key";
  * provider. Optionally scoped to providers that support a given capability
  * (e.g. only "image" providers on the /image studio).
  */
-export function AddYourKeysList({ capability }: { capability?: string }) {
+export function AddYourKeysList({
+  capability,
+  layout = "list",
+  appendChildren,
+}: {
+  capability?: string;
+  layout?: "list" | "grid";
+  appendChildren?: React.ReactNode;
+}) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data: providers, isLoading: providersLoading } = useListProviders();
@@ -54,10 +62,13 @@ export function AddYourKeysList({ capability }: { capability?: string }) {
   const filteredProviders = (providers ?? []).filter((p) => !capability || p.capabilities.includes(capability));
 
   if (providersLoading || keysLoading) {
+    const skeletonClass = layout === "grid"
+      ? "grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4"
+      : "space-y-3";
     return (
-      <div className="space-y-3">
-        {[1, 2].map((i) => (
-          <Skeleton key={i} className="h-20 bg-white/5 rounded-xl" />
+      <div className={skeletonClass}>
+        {[1, 2, 3, 4].map((i) => (
+          <Skeleton key={i} className={layout === "grid" ? "h-52 bg-white/5 rounded-2xl" : "h-20 bg-white/5 rounded-xl"} />
         ))}
       </div>
     );
@@ -65,6 +76,29 @@ export function AddYourKeysList({ capability }: { capability?: string }) {
 
   if (filteredProviders.length === 0) {
     return <p className="text-sm text-muted-foreground">No providers available yet.</p>;
+  }
+
+  if (layout === "grid") {
+    return (
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 items-start">
+        {filteredProviders.map((provider) => (
+          <ProviderKey
+            key={provider.slug}
+            provider={provider}
+            savedKey={keys?.find((k) => k.provider === provider.slug)}
+            saving={upsert.isPending && upsert.variables?.data.provider === provider.slug}
+            deleting={del.isPending && del.variables?.provider === provider.slug}
+            error={errors[provider.slug]}
+            onSave={(slug, apiKey) => {
+              setErrors((e) => ({ ...e, [slug]: "" }));
+              upsert.mutate({ data: { provider: slug, apiKey } });
+            }}
+            onDelete={(slug) => del.mutate({ provider: slug })}
+          />
+        ))}
+        {appendChildren}
+      </div>
+    );
   }
 
   return (
