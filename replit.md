@@ -79,7 +79,7 @@ Key files:
 - AI generation: `OPENROUTER_API_KEY` (prompt planning) and `WAVESPEED_API_KEY` (image/video generation) are set as user-provided BYOK secrets — this project intentionally bypasses Replit's AI Integrations proxy (see code comment in `artifacts/api-server/src/lib/llm/client.ts`).
 - Billing: Razorpay (`RAZORPAY_KEY_ID`/`RAZORPAY_KEY_SECRET`/`RAZORPAY_WEBHOOK_SECRET`) is not configured — checkout/billing routes degrade gracefully (503 with a clear message) until real keys are added. Add them later if the user wants live billing.
 - All three workflows (`higgsfield` web, `api-server`, `mockup-sandbox`) run cleanly after `pnpm install`. Note: secrets and DB data do not survive re-import into a fresh environment — re-check `checkClerkManagementStatus()`, DB row counts, and these env vars on any future fresh setup pass.
-- Re-verified and re-provisioned on 2026-07-12 after a fresh re-import: Clerk keys, DB schema+seed, and OPENROUTER_API_KEY/WAVESPEED_API_KEY were all re-added from scratch. Razorpay remains unconfigured (degrades gracefully).
+- Re-verified and re-provisioned on 2026-07-13 after a fresh re-import: Clerk keys, DB schema+seed, and OPENROUTER_API_KEY/WAVESPEED_API_KEY were all re-added from scratch. Razorpay remains unconfigured (degrades gracefully).
 
 ## Gotchas
 
