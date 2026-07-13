@@ -1,0 +1,47 @@
+# MASTER PROMPT — Fix Multi-Provider BYOK Gaps Found in Testing
+
+Paste into Replit as a follow-up to the Multi-Provider BYOK System task — same isolated task, addressing what testing revealed wasn't actually complete.
+
+## Implementation Rules
+
+- Do not touch the avatar system.
+- Do not modify unrelated features.
+- Keep the existing encryption/security approach exactly as-is — nothing about the security model needs to change, only what's described below.
+
+## What testing found
+
+1. Only WaveSpeed AI appears in the "Add Your Keys" panel — the provider registry wasn't actually seeded with multiple providers, so the system still behaves like the old single-provider version underneath the new UI.
+2. The panel renders as an inline card embedded in the account settings page, not as a modal/popup — the original spec called for reusing the Url-to-Ad modal pattern (centered overlay, icon, headline, close button), and that wasn't followed.
+3. Attempting to save a WaveSpeed key returns "Unauthorized" — root cause not yet confirmed.
+
+## 1. Seed the provider registry with real multiple providers
+
+Add rows to the `providers` table for:
+- WaveSpeedAI (already present, keep as-is)
+- OpenRouter (already integrated for the LLM planning layer — capabilities: `["text"]`, `supportsBYOK: true`)
+- Placeholder entries for providers not yet code-integrated but relevant to the model catalog and future generation options: Kling, Google (Veo), OpenAI, Anthropic, ElevenLabs, fal.ai — each with appropriate `capabilities` (e.g. ElevenLabs → `["audio"]`, Google → `["image", "video"]`) and `supportsBYOK: true`. These can have `status: "unknown"` for validation since no adapter/validator exists for them yet — per the original spec, missing validation code should not block a provider from appearing in the registry.
+
+After seeding, confirm by showing me the actual contents of the `providers` table — I want to see this is real database data, not hardcoded anywhere in frontend or backend code.
+
+## 2. Rebuild "Add Your Keys" as a modal, not an inline card
+
+Move the trigger and panel to open as a centered modal overlay, following the exact same component/pattern already used for the Url-to-Ad modal (icon at top, headline, description, list content, close button in the corner). The current inline-card version embedded directly in the account page should be replaced, not left as an alternate path.
+
+## 3. Diagnose the "Unauthorized" error — root cause first, then fix
+
+Before changing any code:
+- Show me the exact request being sent when saving a WaveSpeed key (method, URL, headers, body — with the actual key value redacted in what you show me, but confirm whether a real key value is present in the request or not).
+- Show me the exact response received from WaveSpeed's validation endpoint.
+- Determine: is this because an invalid/empty/placeholder value was submitted in the key field during testing, or is there a genuine bug in how the validation request is constructed (wrong header format, wrong endpoint, wrong auth scheme, etc.)?
+- Only after identifying the actual cause, fix it. Do not guess-and-patch.
+
+## Definition of Success
+
+- The "Add Your Keys" panel shows multiple real providers from the database, not just WaveSpeed — verified by showing the actual `providers` table contents.
+- The panel opens as a modal matching the Url-to-Ad visual pattern, not an inline account-page card.
+- The root cause of the "Unauthorized" error is identified and explained before any fix is applied.
+- A real WaveSpeed key (valid, actually funded/working) can be successfully saved and shows "✓ Connected" status.
+- No existing working functionality (auth, generation, credits) is affected.
+- TypeScript compiles with no new warnings or errors.
+
+Show me a screenshot of the corrected modal with multiple providers visible, and the diagnostic output for the Unauthorized error, before confirming this is done.

@@ -1,21 +1,28 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { Show, useUser } from "@clerk/react";
 import { useGetMe, useListCreditLedger, useListPricingPlans, useListGenerations } from "@workspace/api-client-react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { Zap, CreditCard, BarChart3 } from "lucide-react";
-import { AddYourKeysPanel, AddYourKeysHeading } from "@/components/add-keys-panel";
+import { Zap, CreditCard, BarChart3, Key } from "lucide-react";
+import { AddYourKeysModal } from "@/components/add-keys-panel";
 
 function BYOKSection() {
+  const [open, setOpen] = useState(false);
   return (
     <div className="bg-white/[0.03] border border-white/8 rounded-2xl p-6">
-      <AddYourKeysHeading />
+      <div className="flex items-center gap-2 mb-1">
+        <Key className="w-5 h-5 text-primary" />
+        <h2 className="text-lg font-bold text-white">Add Your Keys</h2>
+      </div>
       <p className="text-sm text-muted-foreground mb-5">
         Add your own provider API keys to generate without spending platform credits.
       </p>
-      <AddYourKeysPanel />
+      <Button className="bg-primary text-black font-bold hover:bg-primary/90" onClick={() => setOpen(true)}>
+        <Key className="w-4 h-4 mr-2" /> Manage keys
+      </Button>
+      <AddYourKeysModal open={open} onClose={() => setOpen(false)} />
     </div>
   );
 }
