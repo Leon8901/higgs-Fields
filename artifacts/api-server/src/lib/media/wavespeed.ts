@@ -53,6 +53,17 @@ function mapStatus(waveStatus: string): GenerationStatus {
 }
 
 export const wavespeedAdapter: MediaAdapter = {
+  // Cheap, read-only account check — costs nothing and never triggers a
+  // generation. WaveSpeed returns 200 with a balance for any valid key and
+  // 401/403 for a bad one. See https://wavespeed.ai/docs/check-balance.
+  async validateKey(apiKey): Promise<boolean> {
+    const res = await fetch(`${BASE_URL}/balance`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    if (res.status === 401 || res.status === 403) return false;
+    return res.ok;
+  },
+
   async submit(providerModelPath, params, apiKey): Promise<SubmitResult> {
     const res = await fetch(`${BASE_URL}/${providerModelPath}`, {
       method: "POST",

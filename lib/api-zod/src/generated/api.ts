@@ -442,6 +442,8 @@ export const DeleteGenerationResponse = zod.void()
 export const ListApiKeysResponseItem = zod.object({
   "provider": zod.string(),
   "lastFour": zod.string(),
+  "status": zod.enum(['valid', 'invalid', 'unknown']).describe('Result of validating this key against the provider before it was saved.'),
+  "validatedAt": zod.coerce.date().nullable(),
   "createdAt": zod.coerce.date(),
   "lastUsedAt": zod.coerce.date().nullish()
 })
@@ -454,17 +456,34 @@ export const ListApiKeysResponse = zod.array(ListApiKeysResponseItem)
 
 
 
+
 export const UpsertApiKeyBody = zod.object({
-  "provider": zod.enum(['wavespeed']),
+  "provider": zod.string().min(1).describe('Provider slug, e.g. \"wavespeed\". Must match an active, BYOK-capable row from GET \/providers.'),
   "apiKey": zod.string().min(1)
 })
 
 export const UpsertApiKeyResponse = zod.object({
   "provider": zod.string(),
   "lastFour": zod.string(),
+  "status": zod.enum(['valid', 'invalid', 'unknown']).describe('Result of validating this key against the provider before it was saved.'),
+  "validatedAt": zod.coerce.date().nullable(),
   "createdAt": zod.coerce.date(),
   "lastUsedAt": zod.coerce.date().nullish()
 })
+
+
+/**
+ * @summary List BYOK-capable providers (data-driven — drives the "Add Your Keys" panel)
+ */
+export const ListProvidersResponseItem = zod.object({
+  "slug": zod.string(),
+  "name": zod.string(),
+  "icon": zod.string().nullable(),
+  "capabilities": zod.array(zod.string()),
+  "supportsByok": zod.boolean(),
+  "keyFormatHint": zod.string().nullable()
+})
+export const ListProvidersResponse = zod.array(ListProvidersResponseItem)
 
 
 /**

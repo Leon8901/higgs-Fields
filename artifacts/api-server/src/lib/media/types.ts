@@ -22,6 +22,13 @@ export interface MediaAdapter {
   submit(providerModelPath: string, params: Record<string, unknown>, apiKey: string): Promise<SubmitResult>;
   // Polls a previously submitted task for completion.
   poll(providerTaskId: string, apiKey: string): Promise<PollResult>;
+  // Checks whether `apiKey` is actually valid for this provider, via a cheap
+  // read-only call (never a paid generation). Optional: a provider can be
+  // registered in the `providers` DB table (so it shows up in the BYOK UI)
+  // before its adapter implements this — routes/api-keys.ts treats a missing
+  // `validateKey` as "can't verify yet" and saves the key with status
+  // "unknown" instead of blocking the save.
+  validateKey?(apiKey: string): Promise<boolean>;
 }
 
 // Classifies a failure raised by an adapter so route handlers can log the

@@ -40,6 +40,7 @@ import type {
   Model,
   PlatformStats,
   PricingPlan,
+  Provider,
   PurchaseCreditsRequest,
   PurchaseCreditsResult,
   SubscribeRequest,
@@ -1906,6 +1907,83 @@ export const useUpsertApiKey = <TError = ErrorType<ErrorResponse>,
       > => {
       return useMutation(getUpsertApiKeyMutationOptions(options));
     }
+
+export const getListProvidersUrl = () => {
+
+
+
+
+  return `/api/providers`
+}
+
+/**
+ * @summary List BYOK-capable providers (data-driven — drives the "Add Your Keys" panel)
+ */
+export const listProviders = async ( options?: RequestInit): Promise<Provider[]> => {
+
+  return customFetch<Provider[]>(getListProvidersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListProvidersQueryKey = () => {
+    return [
+    `/api/providers`
+    ] as const;
+    }
+
+
+export const getListProvidersQueryOptions = <TData = Awaited<ReturnType<typeof listProviders>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listProviders>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListProvidersQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listProviders>>> = ({ signal }) => listProviders({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listProviders>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListProvidersQueryResult = NonNullable<Awaited<ReturnType<typeof listProviders>>>
+export type ListProvidersQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List BYOK-capable providers (data-driven — drives the "Add Your Keys" panel)
+ */
+
+export function useListProviders<TData = Awaited<ReturnType<typeof listProviders>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listProviders>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListProvidersQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getDeleteApiKeyUrl = (provider: string,) => {
 

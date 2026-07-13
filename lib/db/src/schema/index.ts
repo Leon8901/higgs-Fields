@@ -7,5 +7,6 @@ export * from "./models";
 export * from "./generations";
 export * from "./credit-ledger";
 export * from "./user-api-keys";
+export * from "./providers";
 export * from "./credit-packs";
 export * from "./avatars";

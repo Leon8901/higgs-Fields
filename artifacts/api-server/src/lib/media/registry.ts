@@ -14,3 +14,10 @@ export function getAdapter(adapterKey: string): MediaAdapter {
   }
   return adapter;
 }
+
+// Non-throwing lookup for call sites that must degrade gracefully when a
+// provider is registered in the DB (so it's visible in the BYOK UI) before
+// its adapter code exists — e.g. key validation in routes/api-keys.ts.
+export function tryGetAdapter(adapterKey: string): MediaAdapter | undefined {
+  return adapters[adapterKey];
+}

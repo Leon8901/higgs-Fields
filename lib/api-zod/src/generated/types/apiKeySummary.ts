@@ -5,10 +5,15 @@
  * Higgsfield AI platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { ApiKeySummaryStatus } from './apiKeySummaryStatus';
 
 export interface ApiKeySummary {
   provider: string;
   lastFour: string;
+  /** Result of validating this key against the provider before it was saved. */
+  status: ApiKeySummaryStatus;
+  /** @nullable */
+  validatedAt: Date | null;
   createdAt: Date;
   /** @nullable */
   lastUsedAt?: Date | null;

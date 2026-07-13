@@ -605,6 +605,21 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /providers:
+    get:
+      operationId: listProviders
+      tags: [api-keys]
+      summary: List BYOK-capable providers (data-driven — drives the "Add Your Keys" panel)
+      responses:
+        "200":
+          description: Providers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Provider"
+
   /api-keys/{provider}:
     delete:
       operationId: deleteApiKey
@@ -1292,7 +1307,8 @@ components:
       properties:
         provider:
           type: string
-          enum: [wavespeed]
+          minLength: 1
+          description: Provider slug, e.g. "wavespeed". Must match an active, BYOK-capable row from GET /providers.
         apiKey:
           type: string
           minLength: 1
@@ -1307,6 +1323,13 @@ components:
           type: string
         lastFour:
           type: string
+        status:
+          type: string
+          enum: [valid, invalid, unknown]
+          description: Result of validating this key against the provider before it was saved.
+        validatedAt:
+          type: ["string", "null"]
+          format: date-time
         createdAt:
           type: string
           format: date-time
@@ -1316,7 +1339,34 @@ components:
       required:
         - provider
         - lastFour
+        - status
+        - validatedAt
         - createdAt
+
+    Provider:
+      type: object
+      properties:
+        slug:
+          type: string
+        name:
+          type: string
+        icon:
+          type: ["string", "null"]
+        capabilities:
+          type: array
+          items:
+            type: string
+        supportsByok:
+          type: boolean
+        keyFormatHint:
+          type: ["string", "null"]
+      required:
+        - slug
+        - name
+        - icon
+        - capabilities
+        - supportsByok
+        - keyFormatHint
 
     UploadUrlRequest:
       type: object

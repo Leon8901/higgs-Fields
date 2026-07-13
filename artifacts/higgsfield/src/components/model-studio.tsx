@@ -304,7 +304,10 @@ export function ModelStudio({ model }: { model: Model }) {
     setActiveGenerationId(null);
   }, [model.modelId]);
 
-  const hasOwnKey = useMemo(() => apiKeys?.some((k) => k.provider === model.adapter), [apiKeys, model]);
+  const hasOwnKey = useMemo(
+    () => apiKeys?.some((k) => k.provider === model.adapter && k.status === "valid"),
+    [apiKeys, model],
+  );
 
   const createGeneration = useCreateGeneration({
     mutation: {

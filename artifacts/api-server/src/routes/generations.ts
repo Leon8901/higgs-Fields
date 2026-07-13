@@ -14,6 +14,8 @@ import { getAdapter } from "../lib/media/registry";
 import { ProviderError } from "../lib/media/types";
 import { enhancePrompt, autoSelectModel } from "../lib/llm/planner";
 import { decryptSecret } from "../lib/crypto";
+import { resolveGenerationKey, getPlatformApiKey } from "../lib/generation/keyRouting";
+import { computeCreditsCharged } from "../lib/generation/pricing";
 
 // User-safe copy for a provider-side failure. Never includes `providerMessage`
 // (WaveSpeed account/billing details, raw validation text) — that's for logs
@@ -92,29 +94,13 @@ router.post("/generations", requireAuth, async (req, res): Promise<void> => {
 
   const user = req.appUser!;
 
-  // Resolve which provider key to use: the user's own BYOK key (if requested
-  // and configured) bypasses the platform credit charge since they're paying
-  // the provider directly; otherwise fall back to the platform's key.
-  let apiKey: string | undefined;
-  let usedOwnKey = false;
-  if (useOwnKey) {
-    const [ownKey] = await db
-      .select()
-      .from(userApiKeysTable)
-      .where(and(eq(userApiKeysTable.userId, user.id), eq(userApiKeysTable.provider, model.adapter)));
-    if (ownKey) {
-      apiKey = decryptSecret(ownKey.encryptedKey);
-      usedOwnKey = true;
-      await db.update(userApiKeysTable).set({ lastUsedAt: new Date() }).where(eq(userApiKeysTable.id, ownKey.id));
-    }
-  }
+  // Routing ("which key?") and billing ("what does it cost?") are resolved
+  // by separate, independently swappable helpers — see lib/generation/.
+  const { apiKey, usedOwnKey } = await resolveGenerationKey(user.id, model, useOwnKey);
 
-  if (!usedOwnKey) {
-    if (user.creditsBalance < model.creditCost) {
-      res.status(402).json({ error: "Insufficient credits. Upgrade your plan or add your own API key." });
-      return;
-    }
-    apiKey = process.env.WAVESPEED_API_KEY;
+  if (!usedOwnKey && user.creditsBalance < model.creditCost) {
+    res.status(402).json({ error: "Insufficient credits. Upgrade your plan or add your own API key." });
+    return;
   }
 
   if (!apiKey) {
@@ -148,7 +134,7 @@ router.post("/generations", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  const creditsCharged = usedOwnKey ? 0 : model.creditCost;
+  const creditsCharged = computeCreditsCharged(usedOwnKey, model);
 
   const [generation] = await db
     .insert(generationsTable)
@@ -210,9 +196,9 @@ router.get("/generations/:id", requireAuth, async (req, res): Promise<void> => {
               .select()
               .from(userApiKeysTable)
               .where(and(eq(userApiKeysTable.userId, req.appUser!.id), eq(userApiKeysTable.provider, model.adapter)));
-            return ownKey ? decryptSecret(ownKey.encryptedKey) : process.env.WAVESPEED_API_KEY;
+            return ownKey ? decryptSecret(ownKey.encryptedKey) : getPlatformApiKey(model.adapter);
           })()
-        : process.env.WAVESPEED_API_KEY;
+        : getPlatformApiKey(model.adapter);
 
       if (apiKey) {
         const adapter = getAdapter(model.adapter);

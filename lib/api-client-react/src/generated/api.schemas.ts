@@ -304,25 +304,49 @@ export interface CreditLedgerEntry {
   createdAt: string;
 }
 
-export type ApiKeyInputProvider = typeof ApiKeyInputProvider[keyof typeof ApiKeyInputProvider];
-
-
-export const ApiKeyInputProvider = {
-  wavespeed: 'wavespeed',
-} as const;
-
 export interface ApiKeyInput {
-  provider: ApiKeyInputProvider;
+  /**
+     * Provider slug, e.g. "wavespeed". Must match an active, BYOK-capable row from GET /providers.
+     * @minLength 1
+     */
+  provider: string;
   /** @minLength 1 */
   apiKey: string;
 }
 
+/**
+ * Result of validating this key against the provider before it was saved.
+ */
+export type ApiKeySummaryStatus = typeof ApiKeySummaryStatus[keyof typeof ApiKeySummaryStatus];
+
+
+export const ApiKeySummaryStatus = {
+  valid: 'valid',
+  invalid: 'invalid',
+  unknown: 'unknown',
+} as const;
+
 export interface ApiKeySummary {
   provider: string;
   lastFour: string;
+  /** Result of validating this key against the provider before it was saved. */
+  status: ApiKeySummaryStatus;
+  /** @nullable */
+  validatedAt: string | null;
   createdAt: string;
   /** @nullable */
   lastUsedAt?: string | null;
+}
+
+export interface Provider {
+  slug: string;
+  name: string;
+  /** @nullable */
+  icon: string | null;
+  capabilities: string[];
+  supportsByok: boolean;
+  /** @nullable */
+  keyFormatHint: string | null;
 }
 
 export interface UploadUrlRequest {

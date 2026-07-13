@@ -547,7 +547,7 @@ export default function CategoryStudio({ category }: { category: Category }) {
 
   /* Credits */
   const hasOwnKey = useMemo(
-    () => apiKeys?.some((k: { provider: string }) => k.provider === selectedModel?.adapter),
+    () => apiKeys?.some((k: { provider: string; status: string }) => k.provider === selectedModel?.adapter && k.status === "valid"),
     [apiKeys, selectedModel],
   );
   const perGenCost = useOwnKey && hasOwnKey ? 0 : (selectedModel?.creditCost ?? 0);

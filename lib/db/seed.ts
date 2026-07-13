@@ -2,7 +2,7 @@
 //   pnpm --filter @workspace/db run seed
 // Safe to re-run: each section upserts on its natural unique key.
 import { db } from "./src/index";
-import { toolsTable, modelsTable, pricingPlansTable, appsTable, creditPacksTable } from "./src/schema";
+import { toolsTable, modelsTable, pricingPlansTable, appsTable, creditPacksTable, providersTable } from "./src/schema";
 import { sql } from "drizzle-orm";
 
 type ParamField = {
@@ -418,6 +418,26 @@ async function main() {
       .insert(creditPacksTable)
       .values(p)
       .onConflictDoUpdate({ target: creditPacksTable.packKey, set: p });
+  }
+
+  console.log("Seeding BYOK provider registry...");
+  const providers = [
+    {
+      slug: "wavespeed",
+      name: "WaveSpeed AI",
+      icon: null,
+      capabilities: ["image", "video", "audio"],
+      supportsByok: true,
+      keyFormatHint: "Find this in your WaveSpeed AI account settings.",
+      status: "active",
+    },
+  ];
+
+  for (const p of providers) {
+    await db
+      .insert(providersTable)
+      .values(p)
+      .onConflictDoUpdate({ target: providersTable.slug, set: p });
   }
 
   console.log("Seeding community apps gallery...");

@@ -1,135 +1,21 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Link } from "wouter";
 import { Show, useUser } from "@clerk/react";
-import {
-  useGetMe,
-  useListCreditLedger,
-  useListApiKeys,
-  useUpsertApiKey,
-  useDeleteApiKey,
-  useListPricingPlans,
-  useListGenerations,
-  getListApiKeysQueryKey,
-} from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { useGetMe, useListCreditLedger, useListPricingPlans, useListGenerations } from "@workspace/api-client-react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useToast } from "@/hooks/use-toast";
-import { Zap, Key, Trash2, Plus, Eye, EyeOff, CreditCard, RefreshCw, BarChart3 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Zap, CreditCard, BarChart3 } from "lucide-react";
+import { AddYourKeysPanel, AddYourKeysHeading } from "@/components/add-keys-panel";
 
 function BYOKSection() {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const { data: keys, isLoading } = useListApiKeys();
-  const [newKey, setNewKey] = useState("");
-  const [mode, setMode] = useState<"idle" | "add" | "rotate">("idle");
-  const [reveal, setReveal] = useState(false);
-
-  const upsert = useUpsertApiKey({
-    mutation: {
-      onSuccess: (_, vars) => {
-        queryClient.invalidateQueries({ queryKey: getListApiKeysQueryKey() });
-        setNewKey("");
-        setMode("idle");
-        toast({
-          title: vars.data.apiKey ? "API key saved" : "API key saved",
-          description:
-            mode === "rotate"
-              ? "Your WaveSpeed key has been rotated — the old key no longer works for this account."
-              : "Your WaveSpeed key is now active for this account.",
-        });
-      },
-      onError: () => toast({ title: "Failed to save key", variant: "destructive" }),
-    },
-  });
-
-  const del = useDeleteApiKey({
-    mutation: {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getListApiKeysQueryKey() });
-        toast({ title: "API key removed" });
-      },
-    },
-  });
-
-  const wavespeedKey = keys?.find((k) => k.provider === "wavespeed");
-
   return (
     <div className="bg-white/[0.03] border border-white/8 rounded-2xl p-6">
-      <div className="flex items-center gap-2 mb-1">
-        <Key className="w-5 h-5 text-primary" />
-        <h2 className="text-lg font-bold text-white">Bring Your Own Key</h2>
-      </div>
+      <AddYourKeysHeading />
       <p className="text-sm text-muted-foreground mb-5">
-        Add your own WaveSpeed AI API key to generate without spending platform credits.
+        Add your own provider API keys to generate without spending platform credits.
       </p>
-
-      {isLoading ? (
-        <Skeleton className="h-14 bg-white/5 rounded-xl" />
-      ) : wavespeedKey && mode !== "rotate" ? (
-        <div className="flex items-center justify-between bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3">
-          <div>
-            <div className="text-sm font-semibold text-white">WaveSpeed AI</div>
-            <div className="text-xs text-muted-foreground">
-              {reveal ? `wsp_••••••••${wavespeedKey.lastFour}` : "•••• •••• •••• " + wavespeedKey.lastFour}
-            </div>
-          </div>
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" className="text-white/50 hover:text-white" onClick={() => setReveal((r) => !r)}>
-              {reveal ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-white/50 hover:text-white"
-              onClick={() => setMode("rotate")}
-              title="Replace this key"
-            >
-              <RefreshCw className="w-4 h-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-red-400 hover:text-red-300"
-              onClick={() => del.mutate({ provider: "wavespeed" })}
-              disabled={del.isPending}
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
-      ) : mode === "add" || mode === "rotate" ? (
-        <div className="flex flex-col gap-3">
-          {mode === "rotate" && (
-            <p className="text-xs text-white/50">Paste a new key to replace the current one. The old key stops working immediately.</p>
-          )}
-          <Input
-            type="password"
-            placeholder="Paste your WaveSpeed API key"
-            value={newKey}
-            onChange={(e) => setNewKey(e.target.value)}
-            className="bg-white/[0.04] border-white/10 text-white"
-          />
-          <div className="flex gap-2">
-            <Button
-              className="bg-primary text-black font-bold hover:bg-primary/90"
-              disabled={!newKey.trim() || upsert.isPending}
-              onClick={() => upsert.mutate({ data: { provider: "wavespeed", apiKey: newKey.trim() } })}
-            >
-              {upsert.isPending ? "Saving…" : mode === "rotate" ? "Replace key" : "Save key"}
-            </Button>
-            <Button variant="ghost" className="text-muted-foreground" onClick={() => setMode("idle")}>
-              Cancel
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <Button variant="outline" className="border-white/15 text-white hover:bg-white/5" onClick={() => setMode("add")}>
-          <Plus className="w-4 h-4 mr-1.5" /> Add WaveSpeed key
-        </Button>
-      )}
+      <AddYourKeysPanel />
     </div>
   );
 }

@@ -5,10 +5,13 @@
  * Higgsfield AI platform API
  * OpenAPI spec version: 0.1.0
  */
-import type { ApiKeyInputProvider } from './apiKeyInputProvider';
 
 export interface ApiKeyInput {
-  provider: ApiKeyInputProvider;
+  /**
+     * Provider slug, e.g. "wavespeed". Must match an active, BYOK-capable row from GET /providers.
+     * @minLength 1
+     */
+  provider: string;
   /** @minLength 1 */
   apiKey: string;
 }
