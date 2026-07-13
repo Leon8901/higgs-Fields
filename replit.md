@@ -80,6 +80,7 @@ Key files:
 - Billing: Razorpay (`RAZORPAY_KEY_ID`/`RAZORPAY_KEY_SECRET`/`RAZORPAY_WEBHOOK_SECRET`) is not configured — checkout/billing routes degrade gracefully (503 with a clear message) until real keys are added. Add them later if the user wants live billing.
 - All three workflows (`higgsfield` web, `api-server`, `mockup-sandbox`) run cleanly after `pnpm install`. Note: secrets and DB data do not survive re-import into a fresh environment — re-check `checkClerkManagementStatus()`, DB row counts, and these env vars on any future fresh setup pass.
 - Re-verified and re-provisioned on 2026-07-13 after a fresh re-import: Clerk keys, DB schema+seed, and OPENROUTER_API_KEY/WAVESPEED_API_KEY were all re-added from scratch. Razorpay remains unconfigured (degrades gracefully).
+- Re-provisioned again later on 2026-07-13 after another fresh re-import wiped `node_modules`, Clerk keys, `OPENROUTER_API_KEY`/`WAVESPEED_API_KEY`, and DB tables: ran `pnpm install`, `setupClerkWhitelabelAuth()`, `drizzle-kit push`, and `pnpm --filter @workspace/db run seed`. All three workflows (higgsfield web, API Server, mockup-sandbox) verified running; homepage confirmed rendering with seeded data via screenshot.
 
 ## Gotchas
 
