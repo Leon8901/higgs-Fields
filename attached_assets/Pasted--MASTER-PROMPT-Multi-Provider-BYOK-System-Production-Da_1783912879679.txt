@@ -1,0 +1,99 @@
+# MASTER PROMPT — Multi-Provider BYOK System (Production, Data-Driven)
+
+Paste into Replit as its own isolated task, after the "Fix Non-Functional Generate Controls" task is complete and verified. Do not combine with other work.
+
+## Implementation Rules
+
+- Do not touch the avatar system.
+- The provider list AND the UI that renders it must both be data-driven — not hardcoded in frontend components. Adding a new supported provider later should mean updating backend data only, zero frontend code changes.
+- **Do not create per-provider frontend components** (no `OpenAIKeyModal`, `ClaudeKeyModal`, `ElevenLabsKeyCard`, `WaveSpeedCard`, etc.). There must be exactly one generic `ProviderKey` component that renders every provider from backend data. If you find yourself writing provider-specific UI code, stop — that defeats the purpose of this task.
+- Reuse and extend the existing `user_api_keys` table/encryption pattern — don't build a parallel system.
+- Zero new generation cost for building this; confirm cost before any real test generation.
+
+## 1. Provider registry (DB) — metadata only, no implementation details
+
+The database should hold display/routing metadata only — never implementation details like API URLs or validation logic, since those belong in code (easy to change without a migration):
+```
+providers
+- id, name, slug, icon (optional)
+- capabilities: string[] (e.g. ["image", "video"], ["audio"], ["text", "image"])
+- supportsBYOK: boolean
+- keyFormatHint: text (e.g. "starts with sk-" — pure UI display help, not functional)
+- status: "active" | "disabled"
+```
+
+Derive the actual list of providers currently in use from the model catalog (distinct providers referenced by models), unioned with providers that support BYOK independent of a specific model (ElevenLabs for audio, etc.). Expose via `GET /providers`.
+
+## 1b. Provider adapter registry (code) — implementation details live here
+
+Separately, in code (e.g. `lib/providers/adapters/`), define an adapter per provider implementing a consistent interface:
+```
+interface ProviderAdapter {
+  slug: string
+  baseUrl: string
+  validateKey(key: string): Promise<boolean>
+  // generation-call logic already exists per the original provider-abstraction layer — this extends that same pattern for validation specifically
+}
+```
+The DB provider registry and the code adapter registry are linked by `slug` — the DB tells the UI what exists and what it can do; the code tells the backend how to actually talk to it. If a provider's API URL or validation method changes, only the adapter code changes — no database migration needed.
+
+**Model → adapter → provider chain**: the existing model catalog resolves to a provider through its adapter mapping (the provider-abstraction-layer pattern from the original architecture) — `model.adapter → provider`, not the frontend guessing or hardcoding which provider a model uses.
+
+## 2. Extend the BYOK table with validation status
+
+```
+user_api_keys (extend existing table)
+- id, userId (FK), provider (references provider registry),
+- encryptedKey, lastFour,
+- status: "valid" | "invalid" | "unknown" (default "unknown" until validated)
+- validatedAt (timestamp, nullable)
+- lastUsedAt (timestamp, nullable)
+- createdAt
+```
+Unique constraint on `(userId, provider)`. Keep the existing encryption approach — don't weaken it.
+
+## 3. Validate keys before saving, not after
+
+`POST /api-keys` should not just encrypt-and-save. Before saving:
+- Call the matching adapter's `validateKey()` method (from the code adapter registry in section 1b) — a lightweight, cheap validation request to the provider's API using the submitted key.
+- If validation fails, return a clear "Invalid API key" error and do not save it.
+- If it succeeds, save with `status: "valid"` and `validatedAt: now()`.
+- If no adapter exists yet for a given provider (e.g. it was added to the DB registry but code support isn't built yet), save with `status: "unknown"` rather than blocking — don't let missing validation code block adding a provider to the registry.
+
+## 4. Routes
+
+- `GET /api-keys` — list current user's saved keys across all providers: provider, last 4 chars, status, validatedAt, lastUsedAt. Never the raw key.
+- `POST /api-keys` — body `{ provider, key }`, validated against the provider registry (reject unknown providers), then validated against the live provider API (section 3) before encrypting and storing.
+- `DELETE /api-keys/:provider` — remove a specific provider's key.
+
+## 5. Frontend — single generic "Add Your Keys" panel, filterable by capability
+
+Rename "Add WaveSpeed key" to "Add Your Keys". Opens a modal (reuse the Url-to-Ad modal pattern) that:
+- Fetches providers from `GET /providers`.
+- Renders each provider through the **one generic `ProviderKey` component** — name/icon, capabilities shown as small tags, an "Add key" input if not yet added, or a status display if already added: **"✓ Connected — verified [date]"** or **"⚠ Invalid — please update"** based on the stored `status`, plus a masked key and remove option.
+- Saving calls `POST /api-keys`; a validation failure shows the error inline without closing the modal.
+- Support an optional capability filter — e.g. when this panel is opened from an audio-specific context, it can filter to `capabilities.includes("audio")`. The generic component itself doesn't change; only the list passed into it does. Not required to wire this into every context immediately, but the component should support being given a filtered provider list.
+
+## 6. Code adapter registry (implementation logic, centralized)
+
+One module holding, per provider slug: the adapter implementing `validateKey()` and the existing generation-call logic. Every other part of the system (routing, validation, generation) resolves a provider's behavior through this registry by slug — don't duplicate provider-specific networking logic in multiple files.
+
+## 7. Routing logic — separate "which key" from "what to charge"
+
+These are two independent decisions, not one:
+- **Routing decision**: does the user have a valid saved key for the provider servicing the selected model? If yes, use it. If no, use the platform's key.
+- **Billing decision**: independently, based on pricing config (not hardcoded into the routing logic), decide what to charge — skip credits entirely, charge a reduced flat fee, or whatever the current pricing rules say for BYOK usage. Keep this as a separate, swappable piece of logic so future pricing changes don't require touching the routing code. For now, preserve whatever the existing WaveSpeed BYOK billing behavior already is (skip platform credits) as the default rule, but structure it as a distinct, named function/step — not inline in the routing logic.
+
+## Definition of Success
+
+- `GET /providers` returns data-driven results derived from the model catalog + provider registry — confirmed by checking that adding a new provider to backend data alone (no frontend changes) makes it appear correctly in the UI, is selectable, accepts a key, validates it, and can be used in generation.
+- There is exactly one generic `ProviderKey` frontend component — no per-provider components exist anywhere in the codebase.
+- Submitting an invalid key is rejected with a clear error and is never saved.
+- Saved keys show real status (valid/invalid) and validation timestamp in the UI.
+- At generation time, routing correctly selects a user's BYOK key when present and valid for the relevant provider; billing correctly applies the current BYOK pricing rule, as a separate step from the routing decision.
+- Existing WaveSpeed BYOK functionality (already confirmed working earlier) continues to work exactly as before under the new generalized system — verified with a real test.
+- Keys remain encrypted at rest, never returned in plaintext via any API response.
+- No existing generation/credit logic broken for non-BYOK (platform-key) generations.
+- TypeScript compiles with no new warnings or errors.
+
+Confirm cost with me before any real test generation. Show me a screenshot of the new "Add Your Keys" panel, confirm which providers appear, and confirm no per-provider components were created.
