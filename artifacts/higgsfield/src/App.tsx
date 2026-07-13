@@ -28,6 +28,7 @@ import Apps from "@/pages/apps";
 import Pricing from "@/pages/pricing";
 import Library from "@/pages/library";
 import Account from "@/pages/account";
+import ApiKeys from "@/pages/api-keys";
 import SignInPage from "@/pages/sign-in";
 import SignUpPage from "@/pages/sign-up";
 import NotFound from "@/pages/not-found";
@@ -153,6 +154,7 @@ function Router() {
       <Route path="/pricing" component={Pricing} />
       <Route path="/library" component={Library} />
       <Route path="/account" component={Account} />
+      <Route path="/api-keys" component={ApiKeys} />
       <Route path="/sign-in/*?" component={SignInPage} />
       <Route path="/sign-up/*?" component={SignUpPage} />
       <Route component={NotFound} />

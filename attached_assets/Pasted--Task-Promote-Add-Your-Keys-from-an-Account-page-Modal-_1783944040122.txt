@@ -1,0 +1,98 @@
+# Task: Promote "Add Your Keys" from an Account-page Modal to a Dedicated Nav-Level Page
+
+## Context
+BYOK key management currently lives inside `/account`, behind a "Manage keys"
+button that opens `AddYourKeysModal` (a centered overlay/modal). The user wants
+it promoted to a **first-class navigation destination**: a new "API Keys" item
+in the profile dropdown menu, sitting alongside "Library" and "Account", that
+navigates to its own full dashboard page — not a modal.
+
+## Critical constraint: the backend is already correct — do not touch it
+The following are already real, working, and NOT hardcoded. This task is
+frontend routing/layout only:
+- `providers` DB table (source of truth for the provider list) — `GET /providers`
+- `user_api_keys` table with AES-256-GCM encryption (`lib/crypto.ts`)
+- `POST /api-keys` — validates against the real provider before saving, never
+  stores/returns plaintext
+- `DELETE /api-keys/:provider`
+- The existing `AddYourKeysList` component (in `add-keys-panel.tsx`), which
+  already fetches providers + keys and renders one card per provider correctly
+
+Do not rewrite any of the above. Do not introduce a new hardcoded provider
+array anywhere in this change — every provider card must continue to come
+from `useListProviders()`.
+
+## What to build
+
+### 1. New route: `/api-keys`
+Add a new page (e.g. `pages/api-keys.tsx`) that uses the site's normal page
+chrome (same header/footer treatment as `/account` and `/library` — not the
+full-bleed layout used by `/marketing-studio`).
+
+This page should render the *same data and same functional list* currently
+shown inside `AddYourKeysModal` — reuse `AddYourKeysList` (the component that
+does the real `useListProviders`/`useListApiKeys`/`useUpsertApiKey`/
+`useDeleteApiKey` wiring) rather than duplicating its logic. Only the
+container changes: instead of a centered modal card with a close button, it's
+a normal page section with a heading, same as how `/account` and `/library`
+are laid out (page title, description, content below).
+
+Keep the existing page copy ("Add your own keys." / "Bring your own provider
+API keys to generate without spending platform credits. We validate and
+encrypt every key before it's stored.") as the page's intro text.
+
+### 2. Add "API Keys" to the profile dropdown
+In `components/layout.tsx`:
+- **Desktop dropdown** (`DropdownMenuContent`, around lines 106–115): add a
+  new `DropdownMenuItem` for `/api-keys` between the existing "Account" item
+  and the separator before "Log out." Use a `Key` icon from `lucide-react`
+  (already used elsewhere in the app for this feature, e.g. in
+  `add-keys-panel.tsx`) for visual consistency with "Library" (`LibraryBig`)
+  and "Account" (`User`).
+- **Mobile menu** (`AuthArea` with `mobile={true}`, around lines 54–64): add
+  the equivalent `Link` to `/api-keys` in the same list as "Library" and
+  "Account."
+
+### 3. Update the Account page
+On `/account`, the existing "Add Your Keys" card currently opens the modal via
+"Manage keys." Change that button to navigate to `/api-keys` instead of
+opening `AddYourKeysModal`. Keep the card itself (icon, heading, description)
+as a preview/entry point — just repoint where "Manage keys" goes.
+
+### 4. Retire the modal usage, don't delete the component blindly
+`AddYourKeysModal` / `AddYourKeysList` may still be used elsewhere (e.g. the
+`/image`, `/video`, `/audio` studios likely open it scoped to a capability
+when a user needs a key mid-generation — check for this before removing
+anything). If other pages still trigger the modal contextually (e.g. "You
+need a Kling key to use your own key here — Add one now" mid-flow), that
+usage is fine to keep as-is; only the Account-page entry point changes to a
+full navigation, not a forced removal of the modal everywhere.
+
+## Explicitly do NOT do
+- Do not create a second, parallel implementation of the provider-list-fetching
+  logic. There must be exactly one component doing `useListProviders` /
+  `useListApiKeys` / `useUpsertApiKey` / `useDeleteApiKey`, reused by both the
+  new page and any remaining contextual modal use — not copy-pasted.
+- Do not add, remove, or hardcode any provider names, logos, or capability
+  lists anywhere in this change. If a new provider is needed for testing, add
+  it as a DB row, not as frontend code.
+- Do not touch `routes/api-keys.ts`, `routes/providers.ts`, `lib/crypto.ts`,
+  or `keyRouting.ts` — these are correct and out of scope.
+
+## Verification before calling this done
+1. Click the profile avatar → confirm "API Keys" appears between "Account"
+   and the "Log out" separator, with a key icon matching the style of
+   "Library"/"Account."
+2. Click "API Keys" → confirm it navigates to `/api-keys` as a real page (has
+   a URL, is a full page with site header/footer) — not a modal overlay.
+3. On `/api-keys`, confirm the provider list is identical to what currently
+   shows in the modal (same providers, same connected/unconnected states,
+   same masked-key display, same save/delete/eye/refresh actions) — since
+   it's reusing the same component, this should be exact.
+4. Save a new key on `/api-keys` → confirm it hits the real `POST /api-keys`
+   endpoint (check network tab) and gets validated, not just added to local
+   state.
+5. Go to `/account` → click "Manage keys" → confirm it now navigates to
+   `/api-keys` instead of opening the modal.
+6. Confirm no new hardcoded provider list was introduced anywhere in the
+   diff — search the diff for any new string arrays of provider names.

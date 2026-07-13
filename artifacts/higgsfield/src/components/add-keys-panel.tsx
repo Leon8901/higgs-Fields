@@ -19,7 +19,7 @@ import { ProviderKey } from "./provider-key";
  * provider. Optionally scoped to providers that support a given capability
  * (e.g. only "image" providers on the /image studio).
  */
-function AddYourKeysList({ capability }: { capability?: string }) {
+export function AddYourKeysList({ capability }: { capability?: string }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data: providers, isLoading: providersLoading } = useListProviders();

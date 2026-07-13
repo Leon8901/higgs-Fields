@@ -9,7 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useState } from "react";
-import { X, Menu, Zap, LibraryBig, User, LogOut } from "lucide-react";
+import { X, Menu, Zap, LibraryBig, User, LogOut, Key } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Show, useUser, useClerk } from "@clerk/react";
@@ -62,6 +62,11 @@ function AuthArea({ mobile = false, onNavigate }: { mobile?: boolean; onNavigate
               Account
             </Button>
           </Link>
+          <Link href="/api-keys" onClick={onNavigate}>
+            <Button variant="ghost" className="justify-start text-muted-foreground hover:text-white w-full">
+              API Keys
+            </Button>
+          </Link>
           <Button
             variant="ghost"
             className="justify-start text-muted-foreground hover:text-white w-full"
@@ -111,6 +116,11 @@ function AuthArea({ mobile = false, onNavigate }: { mobile?: boolean; onNavigate
             <DropdownMenuItem asChild className="text-white/80 focus:text-white focus:bg-white/10 cursor-pointer">
               <Link href="/account" className="flex items-center gap-2 w-full">
                 <User className="w-4 h-4" /> Account
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild className="text-white/80 focus:text-white focus:bg-white/10 cursor-pointer">
+              <Link href="/api-keys" className="flex items-center gap-2 w-full">
+                <Key className="w-4 h-4" /> API Keys
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator className="bg-white/10" />
