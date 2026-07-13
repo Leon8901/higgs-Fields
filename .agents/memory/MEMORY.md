@@ -2,3 +2,4 @@
 - [Higgsfield clone BYOK AI keys](higgsfield-clone-byok-ai-keys.md) — this project uses real OPENROUTER_API_KEY/WAVESPEED_API_KEY, not the Replit AI Integrations proxy; Razorpay must degrade gracefully without keys.
 - [Marketing Studio Architecture](marketing-studio-architecture.md) — creative modes, server-side prompt building, favorites in localStorage, model-per-mode mapping, needsImage rule.
 - [Studio viewport shell](studio-viewport-shell.md) — /image,/video,/audio use a fixed-height Layout shell + h-full instead of hardcoded vh-calc, to avoid a phantom page scrollbar.
+- [BYOK provider/adapter split](byok-provider-adapter-split.md) — DB `providers` table drives the generic key UI; code adapters (optional `validateKey`) are looked up separately by slug, absence degrades gracefully.
