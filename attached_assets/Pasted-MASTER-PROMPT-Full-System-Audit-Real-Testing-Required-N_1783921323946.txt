@@ -1,0 +1,98 @@
+MASTER PROMPT — Full System Audit (Real Testing Required, No Assumptions)
+
+Paste into Replit as its own task. This is not a feature request — it's a comprehensive, evidence-based audit of the entire application. This is a real SaaS, not a demo or landing page. Every claim of "working" must be backed by an actual test result (a real screenshot, a real log line, a real database row) — not a typecheck pass, not "the code looks correct."
+
+Rules for this audit
+
+
+For every item below, actually test it live. Do not report something as working based on reading the code — reading the code tells you what it's supposed to do, not what it actually does.
+If something is broken, say so plainly and explain the root cause you found — don't minimize it.
+If something is a placeholder/decorative/non-functional, say so plainly — don't describe it as "working" because it renders correctly.
+Do not fix anything yet in this pass unless it's a one-line, obviously-safe fix. The goal right now is an accurate map of reality, not more changes layered on an unclear foundation.
+Confirm any cost before running real test generations.
+
+
+1. Generation pipeline — root cause the "stuck on generating forever" bug first
+
+This is the most urgent item. Confirmed: WaveSpeedAI itself successfully generates images (verified directly on their own platform) — so the bug is entirely inside this app's completion-handling logic.
+
+
+Trace one real generation request from submission to (attempted) completion. Log and report: does the WaveSpeed API call succeed? Does the job reach the polling/webhook logic? Does it attempt the permanent-storage upload? Does that upload succeed or fail — and if it fails, what is the exact error?
+Confirm whether this is the same Object Storage sidecar "no allowed resources" authorization error from the previous session, or something new.
+Report the current real status of every "processing" generation currently stuck in the database — how many are stuck, since when.
+
+
+2. Test every generation path for real, report status honestly
+
+For each of the following, actually attempt a real generation and report Working / Broken / Partially Working, with evidence:
+
+
+Image generation via /image
+Video generation via /video
+Audio generation via /audio (if built)
+Generation using a platform-shared key (normal credit deduction)
+Generation using a BYOK key (WaveSpeed specifically, since that's the one previously confirmed working)
+Generation with the "Enhance prompt" toggle on vs off
+Generation with different models selected — confirm the selected model is actually what gets used, not silently defaulting to one model regardless of selection
+
+
+3. Test every control on the generate page for real effect, not just visual state
+
+For model selector, aspect ratio, resolution, batch quantity: change each one and confirm the actual API request payload reflects the change — not just that the UI shows a different selection.
+
+4. Marketing Studio — Url to Ad
+
+
+Submit a real product URL and confirm: does it actually extract product data? Does it show a real review screen? Does saving actually create a database row? Does the resulting product actually appear selectable in the generation bar afterward?
+Report whether this is the fully-specified version (JSON-LD extraction, image extraction, persistent products) or still an earlier/partial version.
+
+
+5. BYOK / Add Your Keys
+
+
+Confirm the multi-provider panel shows real providers from the database (list them).
+Confirm adding a real, valid key for at least one provider succeeds and shows "Connected."
+Confirm a generation actually routes through a BYOK key when one is present and valid, and correctly skips platform credit deduction — verify with a real test and a database check, not assumption.
+
+
+6. Credit system
+
+
+Confirm a successful generation actually deducts the correct amount from creditsBalance and creates a correct credit_ledger row.
+Confirm a failed generation correctly refunds credits (or never deducted in the first place, whichever the intended design is) rather than silently charging for nothing.
+
+
+7. Account / Library / Profile
+
+
+Confirm the Library page shows real generations with working thumbnails/results, not broken links or empty states where data should exist.
+Confirm delete, download, and re-run actions (if built) actually function.
+Confirm usage stats reflect real generation history, not placeholder numbers.
+
+
+8. Pricing / Razorpay
+
+
+Confirm the current real state: is this still intentionally placeholder (per the earlier design decision), and does it fail gracefully as designed, or has anything changed?
+
+
+9. Avatar system
+
+
+Just confirm current state honestly — is it still intentionally paused/incomplete as before? Do not build or fix anything here, just report status.
+
+
+10. Nav and UI
+
+
+Confirm the Image/Video/Audio mega-menu click-vs-hover fix from earlier is actually working as specified, or if it regressed.
+Confirm scrollbars are actually hidden site-wide as intended.
+
+
+Deliverable
+
+A single clear status report, organized as a table or list, covering every item above with one of: Working (verified) / Broken (root cause identified) / Broken (root cause unknown, needs more investigation) / Placeholder/Non-functional / Partially working (specify what works and what doesn't).
+
+Do not soften or round up any status. If something is broken, it's broken. If something only appears to work but wasn't actually verified with a real test, mark it as unverified rather than assuming it works.
+
+Once I have this report, we'll decide what to fix first based on real priority, not assumption.
