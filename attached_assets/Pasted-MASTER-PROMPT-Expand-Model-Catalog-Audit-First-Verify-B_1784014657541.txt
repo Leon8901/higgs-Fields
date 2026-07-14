@@ -1,0 +1,84 @@
+MASTER PROMPT — Expand Model Catalog (Audit First, Verify Before Seeding, No Hallucinated Models)
+
+Paste this into Replit together with the 5 reference screenshots showing Higgsfield.ai's Image / Video / Audio model menus.
+
+This task is models only. Do not add anything from the Features column (Canvas, Face Swap, Lipsync Studio, Edit tools, etc.). Only add actual generation models.
+
+Read this entire prompt before writing any code.
+
+This task has three phases: Audit & Verification → Report Findings → Implementation (only after approval). Do not skip the audit phase. Do not begin implementation until the verification report has been presented and approved.
+
+Ground Rules
+
+Never hallucinate provider model IDs. Do not invent model IDs, API slugs, provider paths, or adapter names. If an exact model identifier cannot be confirmed from documentation, do not seed it.
+
+Verification requirement (mandatory). For every candidate model, verify using real documentation, and include all three of: provider, exact provider model ID, documentation source used. If you cannot provide all three, the model is not verified — it goes to Bucket D.
+
+Acceptable verification sources only. Use official provider documentation, official provider API documentation, or the official WaveSpeed model catalog. Do not treat third-party blogs, GitHub repositories, Reddit threads, AI-tool directories, or benchmark/leaderboard sites as sufficient verification of a provider model ID — those can repeat rumors or outdated names as if confirmed.
+
+Source discipline by bucket — these are different documents, do not conflate them. Bucket A models must be verified specifically against WaveSpeed's own current model catalog, since that's who is actually being called — confirming a model exists on the original provider's own site is not sufficient to place it in Bucket A; WaveSpeed must be confirmed to host that exact model under a usable ID. Bucket B models must be verified against the original provider's own docs directly (OpenAI's, Kling's, ElevenLabs'), since that adapter calls the provider's API directly, not through WaveSpeed.
+
+Never add Higgsfield proprietary models. Do not seed anything branded as a Higgsfield-exclusive model, including but not limited to: Soul 2.0, Soul Cinema, Popcorn, DOP, Higgsfield Image, Higgsfield Video, or any other proprietary Higgsfield foundation model. These are not available through our architecture.
+
+No placeholder entries. Do not create placeholder adapters, stub adapters, fake provider model IDs, TODO model rows, or disabled catalog entries. If a model cannot be used immediately after seeding, do not add it.
+
+Zero generation cost. This task requires documentation verification and database seed changes only — no generation requests. Confirm no real generation cost will be incurred.
+
+Architecture constraints — this must hold regardless of what earlier context this session has. Continue using the existing data-driven architecture: do not create hardcoded provider lists, hardcoded model lists, frontend conditionals for providers, or provider-specific UI. providers, models, paramsSchema, capabilities, adapter selection, and BYOK routing all remain database-driven. Adapters remain code — writing an adapter's HTTP-call logic is not the kind of hardcoding being avoided here, but a second list of provider/model names anywhere outside the database is.
+
+Target Models
+
+Image: GPT Image 2, GPT Image 1.5, Seedream 5.0 Pro, Seedream 5.0 Lite, Nano Banana 2, Nano Banana 2 Lite, Nano Banana Pro, Recraft V4.1, Grok Imagine, FLUX.2, Z-Image, Topaz (Upscaler)
+
+Video: Seedance 2.0 4K, Seedance 1.5 Pro, Gemini Omni Flash, Kling 3.0, Kling 3.0 Turbo, Kling 3.0 Motion Control, Kling 01 Edit, Sora 2, Google Veo 3.1 Lite, Google Veo 3.1, HappyHorse, Grok Imagine 1.5, Wan 2.7, MiniMax Hailuo 2.3
+
+Audio: Seed Audio 1.0, Eleven v3, MiniMax Speech 2.8 HD, VibeVoice, Seed Speech
+
+Before evaluating Eleven v3, find and cite the exact existing seed.ts row for the already-integrated ElevenLabs model and confirm whether it's already this v3 variant. If so, do not create a second, near-duplicate row for it under a different slug — report it as already satisfied, not as a new Bucket A/B entry.
+
+Phase 1 — Audit & Verification
+
+For every model, determine: does it actually exist, who owns it, is the screenshot name exact or has it been renamed/discontinued, is it accessible through an existing provider, and can its exact provider model ID be verified. Do not assume screenshot labels equal API model names.
+
+Sort every model into one of four buckets
+
+Bucket A — Verified on WaveSpeed. Confirmed available in WaveSpeed's current catalog specifically (see source discipline above), exact provider model ID verified, compatible with the existing WaveSpeed adapter. Safest models to add.
+
+If WaveSpeed exposes a provider's model under a different internal slug than the original provider's own model name (e.g. a provider calls it wan-2.7 but WaveSpeed's catalog lists it as wan27-pro), record both in the report: the WaveSpeed identifier (the one the adapter will actually call) and the original provider model name it corresponds to. Seed the WaveSpeed identifier — that's what the adapter needs — and note the mapping so it's traceable later.
+
+Bucket B — Verified on an existing adapter (not WaveSpeed). Current adapters: WaveSpeed, OpenAI, Kling, ElevenLabs. Requires a verified provider model ID confirmed against that provider's own docs, and the adapter already implemented. Only database seed rows needed, no backend work.
+
+Bucket C — Verified real model, new adapter required. Confirmed real (Google, xAI, Recraft, MiniMax, Topaz, Z-Image, etc.) but no existing adapter can serve it. Do not create model rows pointing at adapters that don't exist. Instead report: provider, required adapter, estimated implementation effort, dependencies, API availability.
+
+Bucket D — Unverified. Cannot confirm exact model ID, screenshot wording doesn't match documentation, provider unclear, documentation unavailable, or model appears renamed/discontinued. Do not guess — explain specifically why each one couldn't be verified. Names like Nano Banana Pro, HappyHorse, and Z-Image may well land here unless documentation confirms them — don't assume they're real just because they sound plausible.
+
+Phase 2 — Report Back (Stop Here)
+
+Before writing any code, provide a complete report. For each bucket, list every model with the required fields (display name, provider/adapter, exact model ID, documentation source for A/B/C; reason for D). Also report: total models per bucket, models excluded as Higgsfield-proprietary, models found renamed since the screenshot, models that no longer exist, any documentation conflicts discovered, and the Eleven v3 duplicate-check finding.
+
+Stop after the report. Wait for approval before writing code.
+
+Phase 3 — Implementation (Only After Approval)
+
+Implement only Bucket A and Bucket B — models with both a verified provider model ID and an existing, working adapter. Skip Bucket C and D entirely for this task. No frontend changes, no adapter changes, no placeholder entries, no disabled rows, no TODO models.
+
+Before inserting any new seed row, check whether an equivalent model already exists in the catalog under a different display name or slug (the Eleven v3 check above is one instance of this, not the only one — apply the same check to every model being inserted, not just that one). If an equivalent row already exists, do not insert a duplicate — report it as "already satisfied" instead.
+
+Atomicity requirement. If, during implementation, a model previously placed in Bucket A or B turns out not to be seedable as verified — the model ID no longer exists, the provider changed it since the audit, or it turns out to be a duplicate of an existing row — do not silently substitute the closest-sounding model or a guessed identifier to keep the count intact. Skip that specific model, report why, and continue with the rest. Do not partially invent data to make the target list look complete.
+
+Definition of Success
+
+
+Every seeded model references a real, documented, cited provider model ID — verified against the correct source for its bucket, not just "some documentation somewhere."
+Every seeded model is immediately usable with an existing adapter.
+No Higgsfield proprietary models appear anywhere in the catalog.
+No guessed slugs, placeholder model IDs, or accidental near-duplicate of the existing Eleven v3 row.
+No new adapters created during this task; Bucket C documented but not implemented.
+Bucket D clearly explains every unverified model.
+Existing WaveSpeed, OpenAI, Kling, and ElevenLabs models remain completely unaffected.
+TypeScript compiles with no new warnings or errors.
+No real generation requests made during this task.
+The final implementation report lists every model actually inserted, every model skipped during implementation with its reason, and confirms no verified model ID was substituted, guessed, or silently changed without documentation.
+
+
+Do Phase 1 and Phase 2 only, then stop and wait for my approval before implementing Phase 3.
