@@ -41,6 +41,7 @@ import type {
   PlatformStats,
   PricingPlan,
   Provider,
+  ProviderVoice,
   PurchaseCreditsRequest,
   PurchaseCreditsResult,
   SubscribeRequest,
@@ -1973,6 +1974,85 @@ export function useListProviders<TData = Awaited<ReturnType<typeof listProviders
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListProvidersQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListProviderVoicesUrl = (slug: string,) => {
+
+
+
+
+  return `/api/providers/${slug}/voices`
+}
+
+/**
+ * @summary List the voices actually available on the caller's own connected account for a voice-capable provider (e.g. ElevenLabs). Requires a valid, connected BYOK key for that provider — there is no platform fallback, since voices are account-specific. Never hardcoded: the list reflects exactly what the provider account can use right now.
+
+ */
+export const listProviderVoices = async (slug: string, options?: RequestInit): Promise<ProviderVoice[]> => {
+
+  return customFetch<ProviderVoice[]>(getListProviderVoicesUrl(slug),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListProviderVoicesQueryKey = (slug: string,) => {
+    return [
+    `/api/providers/${slug}/voices`
+    ] as const;
+    }
+
+
+export const getListProviderVoicesQueryOptions = <TData = Awaited<ReturnType<typeof listProviderVoices>>, TError = ErrorType<ErrorResponse>>(slug: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listProviderVoices>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListProviderVoicesQueryKey(slug);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listProviderVoices>>> = ({ signal }) => listProviderVoices(slug, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: slug !== null && slug !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listProviderVoices>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListProviderVoicesQueryResult = NonNullable<Awaited<ReturnType<typeof listProviderVoices>>>
+export type ListProviderVoicesQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary List the voices actually available on the caller's own connected account for a voice-capable provider (e.g. ElevenLabs). Requires a valid, connected BYOK key for that provider — there is no platform fallback, since voices are account-specific. Never hardcoded: the list reflects exactly what the provider account can use right now.
+
+ */
+
+export function useListProviderVoices<TData = Awaited<ReturnType<typeof listProviderVoices>>, TError = ErrorType<ErrorResponse>>(
+ slug: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listProviderVoices>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListProviderVoicesQueryOptions(slug,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

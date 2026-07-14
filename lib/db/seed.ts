@@ -653,8 +653,13 @@ const models: Array<{
         key: "voice_id",
         label: "Voice",
         type: "select",
-        // Human-readable names — elevenlabs.ts maps these to ElevenLabs voice IDs.
+        // Fallback shown only before a valid ElevenLabs key is connected (or
+        // if the live fetch fails) — dynamicOptions makes the frontend fetch
+        // the caller's real, plan/account-specific voices from
+        // GET /providers/elevenlabs/voices instead of relying on this list.
+        // Human-readable names here map to legacy defaults in VOICE_ID_MAP.
         options: ["Rachel", "Domi", "Bella", "Antoni", "Elli", "Josh", "Adam", "Sam"],
+        dynamicOptions: "voices",
         default: "Rachel",
       },
       {
@@ -701,6 +706,7 @@ const models: Array<{
         label: "Voice",
         type: "select",
         options: ["Rachel", "Domi", "Bella", "Antoni", "Elli", "Josh", "Adam", "Sam"],
+        dynamicOptions: "voices",
         default: "Rachel",
       },
       {

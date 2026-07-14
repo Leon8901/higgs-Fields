@@ -12,6 +12,11 @@ export interface ModelParamField {
   label: string;
   type: ModelParamFieldType;
   options?: string[];
+  /**
+     * When set (e.g. "voices"), the frontend should fetch live options from GET /providers/{adapter}/voices using the model's own BYOK key instead of relying solely on the static `options` list. Used for provider-account-specific choices (e.g. ElevenLabs voices) that cannot be hardcoded — the static `options`/`default` remain as a fallback shown before a key is connected or if the live fetch fails.
+     * @nullable
+     */
+  dynamicOptions?: string | null;
   /** Default value; type depends on `type`. */
   default?: unknown;
   required?: boolean;

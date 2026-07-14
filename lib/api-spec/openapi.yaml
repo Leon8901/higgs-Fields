@@ -620,6 +620,50 @@ paths:
                 items:
                   $ref: "#/components/schemas/Provider"
 
+  /providers/{slug}/voices:
+    get:
+      operationId: listProviderVoices
+      tags: [api-keys]
+      summary: >
+        List the voices actually available on the caller's own connected
+        account for a voice-capable provider (e.g. ElevenLabs). Requires a
+        valid, connected BYOK key for that provider — there is no platform
+        fallback, since voices are account-specific. Never hardcoded: the
+        list reflects exactly what the provider account can use right now.
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Voices available on the caller's connected account
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProviderVoice"
+        "400":
+          description: No connected key for this provider, or provider has no voice catalog
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: Provider could not be reached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /api-keys/{provider}:
     delete:
       operationId: deleteApiKey
@@ -1085,6 +1129,16 @@ components:
           type: array
           items:
             type: string
+        dynamicOptions:
+          type: ["string", "null"]
+          description: >
+            When set (e.g. "voices"), the frontend should fetch live options
+            from GET /providers/{adapter}/voices using the model's own BYOK
+            key instead of relying solely on the static `options` list. Used
+            for provider-account-specific choices (e.g. ElevenLabs voices)
+            that cannot be hardcoded — the static `options`/`default` remain
+            as a fallback shown before a key is connected or if the live
+            fetch fails.
         default:
           description: Default value; type depends on `type`.
         required:
@@ -1360,6 +1414,10 @@ components:
           type: boolean
         keyFormatHint:
           type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        docsUrl:
+          type: ["string", "null"]
       required:
         - slug
         - name
@@ -1367,6 +1425,20 @@ components:
         - capabilities
         - supportsByok
         - keyFormatHint
+        - description
+        - docsUrl
+
+    ProviderVoice:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Opaque provider voice ID — pass through as `voice_id` param verbatim.
+        name:
+          type: string
+      required:
+        - id
+        - name
 
     UploadUrlRequest:
       type: object

@@ -245,6 +245,7 @@ export const ListModelsResponseItem = zod.object({
   "label": zod.string(),
   "type": zod.enum(['text', 'textarea', 'select', 'number', 'toggle', 'image']),
   "options": zod.array(zod.string()).optional(),
+  "dynamicOptions": zod.string().nullish().describe('When set (e.g. \"voices\"), the frontend should fetch live options from GET \/providers\/{adapter}\/voices using the model\'s own BYOK key instead of relying solely on the static `options` list. Used for provider-account-specific choices (e.g. ElevenLabs voices) that cannot be hardcoded — the static `options`\/`default` remain as a fallback shown before a key is connected or if the live fetch fails.\n'),
   "default": zod.unknown().optional().describe('Default value; type depends on `type`.'),
   "required": zod.boolean().optional(),
   "min": zod.number().optional(),
@@ -284,6 +285,7 @@ export const GetModelResponse = zod.object({
   "label": zod.string(),
   "type": zod.enum(['text', 'textarea', 'select', 'number', 'toggle', 'image']),
   "options": zod.array(zod.string()).optional(),
+  "dynamicOptions": zod.string().nullish().describe('When set (e.g. \"voices\"), the frontend should fetch live options from GET \/providers\/{adapter}\/voices using the model\'s own BYOK key instead of relying solely on the static `options` list. Used for provider-account-specific choices (e.g. ElevenLabs voices) that cannot be hardcoded — the static `options`\/`default` remain as a fallback shown before a key is connected or if the live fetch fails.\n'),
   "default": zod.unknown().optional().describe('Default value; type depends on `type`.'),
   "required": zod.boolean().optional(),
   "min": zod.number().optional(),
@@ -486,6 +488,21 @@ export const ListProvidersResponseItem = zod.object({
   "docsUrl": zod.string().nullable()
 })
 export const ListProvidersResponse = zod.array(ListProvidersResponseItem)
+
+
+/**
+ * @summary List the voices actually available on the caller's own connected account for a voice-capable provider (e.g. ElevenLabs). Requires a valid, connected BYOK key for that provider — there is no platform fallback, since voices are account-specific. Never hardcoded: the list reflects exactly what the provider account can use right now.
+
+ */
+export const ListProviderVoicesParams = zod.object({
+  "slug": zod.coerce.string()
+})
+
+export const ListProviderVoicesResponseItem = zod.object({
+  "id": zod.string().describe('Opaque provider voice ID — pass through as `voice_id` param verbatim.'),
+  "name": zod.string()
+})
+export const ListProviderVoicesResponse = zod.array(ListProviderVoicesResponseItem)
 
 
 /**

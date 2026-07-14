@@ -6,9 +6,11 @@ import {
   useListApiKeys,
   useCreateGeneration,
   useGetGeneration,
+  useListProviderVoices,
   getGetMeQueryKey,
   getListGenerationsQueryKey,
   getGetGenerationQueryKey,
+  getListProviderVoicesQueryKey,
   type Model,
   type ModelParamField,
   type Generation,
@@ -122,12 +124,69 @@ function ImageField({
   );
 }
 
-function ParamField({
+// A "select" field whose options come from the caller's own connected
+// provider account (e.g. ElevenLabs voices) rather than a static list.
+// Falls back to the model's static `field.options` until a valid key is
+// connected, or if the live fetch fails — so the picker is never empty, but
+// once a key is connected it only ever shows voices that will actually work
+// for that account (see providers.ts / elevenlabs.ts listVoices for why a
+// hardcoded list can't be correct for every plan/account).
+function DynamicSelectField({
   field,
+  adapter,
+  hasOwnKey,
   value,
   onChange,
 }: {
   field: ModelParamField;
+  adapter: string;
+  hasOwnKey: boolean | undefined;
+  value: unknown;
+  onChange: (v: unknown) => void;
+}) {
+  const { data: liveOptions, isLoading, isError } = useListProviderVoices(adapter, {
+    query: { queryKey: getListProviderVoicesQueryKey(adapter), enabled: hasOwnKey === true },
+  });
+
+  const options = liveOptions ?? field.options?.map((opt) => ({ id: opt, name: opt })) ?? [];
+  const helpText = !hasOwnKey
+    ? "Connect your key to see your own voices."
+    : isLoading
+      ? "Loading your voices…"
+      : isError
+        ? "Couldn't load your voices — showing defaults."
+        : field.helpText;
+
+  return (
+    <div>
+      <Label className="text-white/80 mb-2 block">{field.label}</Label>
+      <Select value={String(value ?? field.default ?? "")} onValueChange={onChange}>
+        <SelectTrigger className="bg-white/[0.04] border-white/10 text-white">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((opt) => (
+            <SelectItem key={opt.id} value={opt.id}>
+              {opt.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {helpText && <p className="text-xs text-white/40 mt-1.5">{helpText}</p>}
+    </div>
+  );
+}
+
+function ParamField({
+  field,
+  adapter,
+  hasOwnKey,
+  value,
+  onChange,
+}: {
+  field: ModelParamField;
+  adapter: string;
+  hasOwnKey: boolean | undefined;
   value: unknown;
   onChange: (v: unknown) => void;
 }) {
@@ -145,6 +204,11 @@ function ParamField({
         </div>
       );
     case "select":
+      if (field.dynamicOptions === "voices") {
+        return (
+          <DynamicSelectField field={field} adapter={adapter} hasOwnKey={hasOwnKey} value={value} onChange={onChange} />
+        );
+      }
       return (
         <div>
           <Label className="text-white/80 mb-2 block">{field.label}</Label>
@@ -383,6 +447,8 @@ export function ModelStudio({ model }: { model: Model }) {
           <ParamField
             key={field.key}
             field={field}
+            adapter={model.adapter}
+            hasOwnKey={hasOwnKey}
             value={params[field.key]}
             onChange={(v) => setParams((p) => ({ ...p, [field.key]: v }))}
           />

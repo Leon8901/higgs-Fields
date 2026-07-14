@@ -1,7 +1,11 @@
 import { Router, type IRouter } from "express";
-import { eq, inArray, or } from "drizzle-orm";
-import { db, modelsTable, providersTable } from "@workspace/db";
-import { ListProvidersResponse } from "@workspace/api-zod";
+import { and, eq, inArray, or } from "drizzle-orm";
+import { db, modelsTable, providersTable, userApiKeysTable } from "@workspace/db";
+import { ListProvidersResponse, ListProviderVoicesResponse } from "@workspace/api-zod";
+import { requireAuth } from "../middlewares/requireAuth";
+import { decryptSecret } from "../lib/crypto";
+import { tryGetAdapter } from "../lib/media/registry";
+import { ProviderError } from "../lib/media/types";
 
 const router: IRouter = Router();
 
@@ -42,6 +46,43 @@ router.get("/providers", async (req, res): Promise<void> => {
   }
 
   res.json(ListProvidersResponse.parse(providers));
+});
+
+// Live, account-specific voice catalog for voice-capable providers (today:
+// ElevenLabs). Deliberately requires the caller's own *valid* connected key —
+// there is no platform key to fall back to, and no hardcoded voice list would
+// be correct for every account (premade-voice API access and cloned voices
+// both vary by account/plan). See elevenlabs.ts listVoices() for the "why".
+router.get("/providers/:slug/voices", requireAuth, async (req, res): Promise<void> => {
+  const slug = String(req.params.slug);
+
+  const adapter = tryGetAdapter(slug);
+  if (!adapter?.listVoices) {
+    res.status(400).json({ error: "This provider does not have a voice catalog." });
+    return;
+  }
+
+  const [ownKey] = await db
+    .select()
+    .from(userApiKeysTable)
+    .where(and(eq(userApiKeysTable.userId, req.appUser!.id), eq(userApiKeysTable.provider, slug)));
+
+  if (!ownKey || ownKey.status !== "valid") {
+    res.status(400).json({ error: "Connect a valid API key for this provider first." });
+    return;
+  }
+
+  try {
+    const voices = await adapter.listVoices(decryptSecret(ownKey.encryptedKey));
+    res.json(ListProviderVoicesResponse.parse(voices));
+  } catch (err) {
+    if (err instanceof ProviderError) {
+      req.log.error({ err, provider: slug }, "Provider voice list failed");
+      res.status(502).json({ error: "Could not load voices from the provider right now. Please try again." });
+      return;
+    }
+    throw err;
+  }
 });
 
 export default router;

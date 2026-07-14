@@ -40,6 +40,7 @@ export * from './modelParamsSchema';
 export * from './platformStats';
 export * from './pricingPlan';
 export * from './provider';
+export * from './providerVoice';
 export * from './purchaseCreditsRequest';
 export * from './purchaseCreditsResult';
 export * from './subscribeRequest';

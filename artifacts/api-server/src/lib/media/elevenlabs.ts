@@ -176,4 +176,31 @@ export const elevenlabsAdapter: MediaAdapter = {
   // poll() is intentionally absent — this is a synchronous adapter.
   // The generation service never calls poll() on a generation with no
   // providerTaskId, so omitting it here is safe. See types.ts for the contract.
+
+  // GET /v1/voices — the caller's own premade + cloned voices. This is what
+  // actually resolves the "Free users cannot use library voices via the API"
+  // failure: ElevenLabs restricts most premade voices to paid plans when
+  // called over the API (a free-tier key is genuinely rejected by ElevenLabs
+  // itself, not by a bug here), and cloned voices are entirely account-
+  // specific. There is no static list that is correct for every account, so
+  // the frontend fetches this live instead of using VOICE_ID_MAP as anything
+  // more than a legacy-default fallback.
+  async listVoices(apiKey): Promise<{ id: string; name: string }[]> {
+    const res = await fetch(`${BASE_URL}/v1/voices`, {
+      headers: { "xi-api-key": apiKey },
+    });
+    if (!res.ok) {
+      let message = `ElevenLabs voice list failed with status ${res.status}`;
+      try {
+        const err: any = await res.json();
+        message = err?.detail?.message || String(err?.detail) || message;
+      } catch {
+        // keep default message
+      }
+      throw new ProviderError(classifyError(res.status, message), message);
+    }
+    const body: any = await res.json();
+    const voices: any[] = Array.isArray(body?.voices) ? body.voices : [];
+    return voices.map((v) => ({ id: String(v.voice_id), name: String(v.name ?? v.voice_id) }));
+  },
 };

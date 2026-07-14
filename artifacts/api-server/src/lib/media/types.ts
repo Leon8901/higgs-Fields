@@ -47,6 +47,15 @@ export interface MediaAdapter {
   // route treats a missing validateKey as "can't verify yet" and saves the key
   // with status "unknown" rather than blocking the save.
   validateKey?(apiKey: string): Promise<boolean>;
+
+  // Lists the voices actually available on the caller's own connected
+  // account (e.g. ElevenLabs' premade + cloned voices). Optional — only
+  // adapters whose provider has an account-specific voice catalog implement
+  // this. Deliberately account-specific rather than hardcoded: which
+  // premade voices a key can use over the API depends on the account's
+  // plan, and cloned voices differ per account, so no static list is ever
+  // correct for every user.
+  listVoices?(apiKey: string): Promise<{ id: string; name: string }[]>;
 }
 
 // Classifies a failure raised by an adapter so route handlers can log the real
