@@ -5,3 +5,4 @@
 - [BYOK provider/adapter split](byok-provider-adapter-split.md) — DB `providers` table drives the generic key UI; code adapters (optional `validateKey`) are looked up separately by slug, absence degrades gracefully.
 - [Diagnosing Clerk 401s without a real login](clerk-401-live-session-diagnosis.md) — mint a real session server-side for a DB user to hit routes directly when the browser tools can't drive Clerk sign-in.
 - [WaveSpeed verified live](wavespeed-live-verified.md) — end-to-end test confirmed: submit→poll→complete in ~29 s; route returns generation flat (not nested); provider URL stored when object storage not configured.
+- [Studio UI polish session](studio-ui-polish.md) — dead links, audio waveform, surfaced controls, rate limiting, app search — see file for complete change list.

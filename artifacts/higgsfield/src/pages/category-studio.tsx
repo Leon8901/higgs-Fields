@@ -41,9 +41,9 @@ import {
   Settings2,
   Plus,
   Minus,
-  Pencil,
   AlertCircle,
   Wand2,
+  Mic,
 } from "lucide-react";
 
 type Category = "image" | "video" | "audio";
@@ -79,6 +79,33 @@ const PROMPT_PLACEHOLDER: Record<Category, string> = {
   video: "Describe the scene you imagine...",
   audio: "Describe the sound you imagine...",
 };
+
+/* ─── Audio waveform background (audio empty state) ──────────────────────── */
+function AudioWaveformDecor() {
+  return (
+    <div className="absolute inset-x-0 bottom-20 flex items-end justify-center gap-[3px] h-52 pointer-events-none overflow-hidden">
+      {Array.from({ length: 64 }, (_, i) => {
+        const base = 8 + (i % 6) * 7;
+        const peak = Math.min(base + 18 + (i % 9) * 9, 200);
+        const dur = 0.7 + (i % 7) * 0.15;
+        const delay = (i % 11) * 0.09;
+        return (
+          <div
+            key={i}
+            className="w-1 rounded-full bg-primary shrink-0"
+            style={{
+              height: `${base}px`,
+              opacity: 0.08 + (i % 4) * 0.02,
+              animation: `audioWave ${dur}s ease-in-out ${delay}s infinite alternate`,
+              ["--bar-min" as string]: `${base}px`,
+              ["--bar-peak" as string]: `${peak}px`,
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+}
 
 /* ─── Example image card stack (empty state visual) ──────────────────────── */
 function ExampleCardStack({ model }: { model: Model | null }) {
@@ -118,10 +145,12 @@ function ExampleCardStack({ model }: { model: Model | null }) {
 /* ─── Canvas area ─────────────────────────────────────────────────────────── */
 function CanvasArea({
   model,
+  category,
   batchGenerations,
   isSubmitting,
 }: {
   model: Model | null;
+  category: Category;
   batchGenerations: Generation[];
   isSubmitting: boolean;
 }) {
@@ -138,7 +167,11 @@ function CanvasArea({
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-5">
         <div className="w-12 h-12 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
-        <p className="text-sm text-white/40 font-medium">Generating{batchGenerations.length > 1 ? ` ${batchGenerations.length} images` : ""}…</p>
+        <p className="text-sm text-white/40 font-medium">
+          Generating{batchGenerations.length > 1
+            ? ` ${batchGenerations.length} ${category === "video" ? "videos" : category === "audio" ? "tracks" : "images"}`
+            : ""}…
+        </p>
       </div>
     );
   }
@@ -157,9 +190,27 @@ function CanvasArea({
                 {g.category === "video" ? (
                   <video src={url} controls autoPlay loop className="max-h-[55vh] max-w-full object-contain" />
                 ) : g.category === "audio" ? (
-                  <div className="w-48 h-48 flex flex-col items-center justify-center gap-3 bg-white/[0.03]">
-                    <Music className="w-10 h-10 text-white/20" />
-                    <audio src={url} controls className="w-full" />
+                  <div className="w-80 flex flex-col gap-4 p-6 bg-white/[0.03] items-center justify-center min-h-[180px]">
+                    {/* Animated waveform visualizer */}
+                    <div className="flex items-end justify-center gap-[2px] h-14 w-full overflow-hidden">
+                      {Array.from({ length: 52 }, (_, i) => {
+                        const base = 6 + (i % 8) * 5;
+                        const peak = Math.min(base * 2.5, 56);
+                        return (
+                          <div
+                            key={i}
+                            className="w-0.5 bg-primary rounded-full shrink-0"
+                            style={{
+                              height: `${base}px`,
+                              animation: `audioWave ${0.6 + (i % 7) * 0.1}s ease-in-out ${(i % 11) * 0.08}s infinite alternate`,
+                              ["--bar-min" as string]: `${base}px`,
+                              ["--bar-peak" as string]: `${peak}px`,
+                            }}
+                          />
+                        );
+                      })}
+                    </div>
+                    <audio src={url} controls className="w-full" style={{ colorScheme: "dark" }} />
                   </div>
                 ) : (
                   <img src={url} alt={g.prompt} className="max-h-[55vh] max-w-full object-contain" />
@@ -186,15 +237,21 @@ function CanvasArea({
 
   /* Empty state */
   return (
-    <div className="flex-1 flex flex-col items-center justify-center gap-8 select-none">
-      <ExampleCardStack model={model} />
+    <div className="flex-1 relative flex flex-col items-center justify-center gap-8 select-none overflow-hidden">
+      {category === "audio" ? <AudioWaveformDecor /> : <ExampleCardStack model={model} />}
       {model && (
-        <div className="text-center space-y-2">
-          <p className="text-white/40 text-sm font-medium">Start creating with</p>
-          <p className="text-2xl md:text-3xl font-black">
-            <span className="text-white/60">using </span>
-            <span className="text-primary">{model.name}</span>
-          </p>
+        <div className="text-center space-y-2 relative z-10">
+          {category === "audio" ? (
+            <p className="text-2xl md:text-3xl font-black">
+              <span className="text-white/50">Ready to give your scene </span>
+              <span className="text-primary">a voice?</span>
+            </p>
+          ) : (
+            <>
+              <p className="text-white/40 text-sm font-medium">Start creating with</p>
+              <p className="text-2xl md:text-3xl font-black text-primary">{model.name}</p>
+            </>
+          )}
           {model.description && (
             <p className="text-sm text-white/30 max-w-sm mx-auto leading-relaxed">{model.description}</p>
           )}
@@ -538,12 +595,17 @@ export default function CategoryStudio({ category }: { category: Category }) {
   const allFields: ParamField[] = selectedModel?.paramsSchema.fields ?? [];
   const aspectField = allFields.find((f) => f.key === "aspect_ratio");
   const resField = allFields.find((f) => f.key === "resolution");
-  const surfacedKeys = new Set(["aspect_ratio", "resolution"]);
+  const durationField = allFields.find((f) => f.key === "duration");
+  // characters = Seed Audio voice; voice_id = ElevenLabs voice
+  const charsField = allFields.find((f) => f.key === "characters" || f.key === "voice_id");
+  const surfacedKeys = new Set(["aspect_ratio", "resolution", "duration", "characters", "voice_id"]);
   const extraFields = allFields.filter((f) => !surfacedKeys.has(f.key) && f.type !== "image");
   const imageFields = allFields.filter((f) => f.type === "image");
 
   const aspectValue = String(params["aspect_ratio"] ?? aspectField?.default ?? "16:9");
   const resValue = String(params["resolution"] ?? resField?.default ?? "");
+  const durationValue = String(params["duration"] ?? durationField?.default ?? "");
+  const charsValue = String(params[charsField?.key ?? ""] ?? charsField?.default ?? "");
 
   /* Credits */
   const hasOwnKey = useMemo(
@@ -614,6 +676,7 @@ export default function CategoryStudio({ category }: { category: Category }) {
       ) : (
         <CanvasArea
           model={selectedModel}
+          category={category}
           batchGenerations={batchGenerations}
           isSubmitting={isSubmitting || anyStillProcessing}
         />
@@ -684,6 +747,40 @@ export default function CategoryStudio({ category }: { category: Category }) {
                 </Select>
               )}
 
+              {/* Duration — video (e.g. 5s, 10s) and audio (e.g. 10s, 30s, 60s) */}
+              {durationField && (
+                <Select value={durationValue} onValueChange={(v) => setParams((p) => ({ ...p, duration: v }))}>
+                  <SelectTrigger className="h-7 px-3 w-auto gap-1.5 rounded-full bg-white/[0.06] border border-white/[0.09] hover:bg-white/10 text-white/70 hover:text-white text-xs font-medium focus:ring-0 focus:ring-offset-0 shrink-0">
+                    <SelectValue placeholder="Duration" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#181818] border-white/10">
+                    {(durationField.options ?? []).map((o) => (
+                      <SelectItem key={String(o)} value={String(o)} className="text-white/80 focus:bg-white/10 text-xs">
+                        {String(o).match(/^\d+$/) ? `${o}s` : String(o)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+
+              {/* Voice / character — audio models */}
+              {charsField && (
+                <Select
+                  value={charsValue}
+                  onValueChange={(v) => setParams((p) => ({ ...p, [charsField.key]: v }))}
+                >
+                  <SelectTrigger className="h-7 px-3 w-auto gap-1.5 rounded-full bg-white/[0.06] border border-white/[0.09] hover:bg-white/10 text-white/70 hover:text-white text-xs font-medium focus:ring-0 focus:ring-offset-0 shrink-0">
+                    <Mic className="w-3 h-3 shrink-0" />
+                    <SelectValue placeholder="Voice" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#181818] border-white/10">
+                    {(charsField.options ?? []).map((o) => (
+                      <SelectItem key={o} value={o} className="text-white/80 focus:bg-white/10 text-xs">{o}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+
               {/* Batch quantity */}
               <BatchStepper value={batchQty} onChange={setBatchQty} />
 
@@ -698,12 +795,6 @@ export default function CategoryStudio({ category }: { category: Category }) {
               >
                 <Wand2 className="w-3 h-3" />
                 <span className="hidden sm:inline">Enhance</span>
-              </button>
-
-              {/* Draw placeholder */}
-              <button className={chipClass}>
-                <Pencil className="w-3 h-3" />
-                <span className="hidden sm:inline">Draw</span>
               </button>
 
               {/* Extra params */}

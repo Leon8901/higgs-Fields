@@ -28,12 +28,12 @@ function InfoCard() {
           </li>
         ))}
       </ul>
-      <a
-        href="#"
+      <Link
+        href="/tools"
         className="inline-flex items-center gap-1 mt-auto text-xs text-white/35 hover:text-white/60 font-semibold transition-colors"
       >
-        Learn more <ExternalLink className="w-3 h-3" />
-      </a>
+        Explore models <ExternalLink className="w-3 h-3" />
+      </Link>
     </div>
   );
 }

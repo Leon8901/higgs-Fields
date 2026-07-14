@@ -10,6 +10,7 @@ import {
   DeleteGenerationParams,
 } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
+import { generationsRateLimit } from "../middlewares/rateLimit";
 import { getAdapter } from "../lib/media/registry";
 import { ProviderError } from "../lib/media/types";
 import { enhancePrompt, autoSelectModel } from "../lib/llm/planner";
@@ -59,7 +60,7 @@ router.get("/generations", requireAuth, async (req, res): Promise<void> => {
   res.json(ListGenerationsResponse.parse(results));
 });
 
-router.post("/generations", requireAuth, async (req, res): Promise<void> => {
+router.post("/generations", requireAuth, generationsRateLimit(), async (req, res): Promise<void> => {
   const body = CreateGenerationBody.safeParse(req.body);
   if (!body.success) {
     res.status(400).json({ error: body.error.message });

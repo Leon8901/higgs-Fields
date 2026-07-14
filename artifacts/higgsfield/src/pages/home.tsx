@@ -52,6 +52,7 @@ export default function Home() {
   });
 
   const [email, setEmail] = useState("");
+  const [appSearch, setAppSearch] = useState("");
   const joinWaitlist = useJoinWaitlist();
   const { toast } = useToast();
 
@@ -74,6 +75,12 @@ export default function Home() {
   };
 
   const quickModels = (allModels ?? []).filter((m) => m.isFeatured).slice(0, 5);
+  const filteredApps = (apps ?? []).filter(
+    (a) =>
+      !appSearch ||
+      a.name.toLowerCase().includes(appSearch.toLowerCase()) ||
+      a.description.toLowerCase().includes(appSearch.toLowerCase()),
+  ).slice(0, 4);
 
   return (
     <div className="flex flex-col w-full pb-20">
@@ -179,12 +186,17 @@ export default function Home() {
             </div>
             <div className="relative w-full md:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input placeholder="Search apps..." className="pl-9 bg-white/5 border-white/10 w-full" disabled />
+              <Input
+                placeholder="Search apps..."
+                className="pl-9 bg-white/5 border-white/10 w-full"
+                value={appSearch}
+                onChange={(e) => setAppSearch(e.target.value)}
+              />
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {apps?.slice(0, 4).map((app, i) => (
+            {filteredApps.map((app, i) => (
               <motion.div
                 initial={{ opacity: 0, scale: 0.96 }}
                 whileInView={{ opacity: 1, scale: 1 }}

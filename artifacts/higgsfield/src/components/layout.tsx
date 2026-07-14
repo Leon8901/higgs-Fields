@@ -317,20 +317,20 @@ export function Footer() {
           <div>
             <h4 className="font-semibold text-white mb-4">Resources</h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
-              <li><a href="#" className="hover:text-primary transition-colors">Documentation</a></li>
-              <li><a href="#" className="hover:text-primary transition-colors">API Reference</a></li>
-              <li><a href="#" className="hover:text-primary transition-colors">Community</a></li>
-              <li><a href="#" className="hover:text-primary transition-colors">Blog</a></li>
+              <li><Link href="/tools" className="hover:text-primary transition-colors">Explore Tools</Link></li>
+              <li><Link href="/api-keys" className="hover:text-primary transition-colors">API Keys</Link></li>
+              <li><Link href="/apps" className="hover:text-primary transition-colors">Community Apps</Link></li>
+              <li><Link href="/presets" className="hover:text-primary transition-colors">Presets</Link></li>
             </ul>
           </div>
           
           <div>
             <h4 className="font-semibold text-white mb-4">Company</h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
-              <li><a href="#" className="hover:text-primary transition-colors">About</a></li>
-              <li><a href="#" className="hover:text-primary transition-colors">Careers</a></li>
-              <li><a href="#" className="hover:text-primary transition-colors">Legal</a></li>
-              <li><a href="#" className="hover:text-primary transition-colors">Contact</a></li>
+              <li><Link href="/pricing" className="hover:text-primary transition-colors">About</Link></li>
+              <li><Link href="/pricing" className="hover:text-primary transition-colors">Pricing</Link></li>
+              <li><a href="mailto:support@higgsfield.ai" className="hover:text-primary transition-colors">Contact</a></li>
+              <li><Link href="/sign-up" className="hover:text-primary transition-colors">Get Started</Link></li>
             </ul>
           </div>
         </div>
@@ -340,14 +340,11 @@ export function Footer() {
             © {new Date().getFullYear()} Higgsfield AI. All rights reserved.
           </p>
           <div className="flex items-center gap-4">
-            <a href="#" className="text-muted-foreground hover:text-white transition-colors">
-              Twitter
+            <a href="https://x.com/" target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-white transition-colors">
+              Twitter / X
             </a>
-            <a href="#" className="text-muted-foreground hover:text-white transition-colors">
+            <a href="https://discord.com/" target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-white transition-colors">
               Discord
-            </a>
-            <a href="#" className="text-muted-foreground hover:text-white transition-colors">
-              GitHub
             </a>
           </div>
         </div>

@@ -316,8 +316,8 @@ export default function Pricing() {
         <p className="text-muted-foreground mb-8">
           Custom SLA, dedicated account manager, private instances, and unlimited generations.
         </p>
-        <Button variant="outline" className="border-white/10 text-white hover:bg-white/5">
-          Contact Sales
+        <Button variant="outline" className="border-white/10 text-white hover:bg-white/5" asChild>
+          <a href="mailto:support@higgsfield.ai">Contact Sales</a>
         </Button>
       </div>
     </div>
