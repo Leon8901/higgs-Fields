@@ -2,7 +2,11 @@ import { useRef, useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useListModels } from "@workspace/api-client-react";
 import { cn } from "@/lib/utils";
-import { Sparkles } from "lucide-react";
+import {
+  Sparkles, User, Palette, ShoppingBag, Zap,
+  Film, Clapperboard, Rabbit, GraduationCap,
+  Mic, Volume2, Music2,
+} from "lucide-react";
 
 type Category = "image" | "video" | "audio";
 
@@ -107,44 +111,106 @@ function ModelsColumn({ category, onSelect }: { category: Category; onSelect: ()
   );
 }
 
-function FeaturesColumn({ category }: { category: Category }) {
-  const featuresByCategory: Record<Category, { icon: React.ReactNode; label: string; description: string }[]> = {
-    image: [],
-    video: [],
-    audio: [],
+function FeaturesColumn({ category, onSelect }: { category: Category; onSelect: () => void }) {
+  const [, navigate] = useLocation();
+
+  const featuresByCategory: Record<
+    Category,
+    { icon: React.ReactNode; label: string; description: string; path: string }[]
+  > = {
+    image: [
+      {
+        icon: <User className="w-4 h-4" />,
+        label: "Portrait Edit",
+        description: "Relight and retouch faces",
+        path: "/image?model=nano-banana-pro-edit",
+      },
+      {
+        icon: <Palette className="w-4 h-4" />,
+        label: "Concept Art",
+        description: "High-fidelity creative renders",
+        path: "/image?model=seedream-v5-pro",
+      },
+      {
+        icon: <ShoppingBag className="w-4 h-4" />,
+        label: "Product Shots",
+        description: "Studio-quality product photos",
+        path: "/image?model=nano-banana-pro-ultra",
+      },
+      {
+        icon: <Zap className="w-4 h-4" />,
+        label: "Quick Draft",
+        description: "Fast, low-cost concept images",
+        path: "/image?model=nano-banana-2",
+      },
+    ],
+    video: [
+      {
+        icon: <Film className="w-4 h-4" />,
+        label: "Cinematic Video",
+        description: "Hollywood-grade motion generation",
+        path: "/video?model=seedance-2-0",
+      },
+      {
+        icon: <Clapperboard className="w-4 h-4" />,
+        label: "AI Film",
+        description: "Long-form narrative clips",
+        path: "/video?model=sora-2",
+      },
+      {
+        icon: <Rabbit className="w-4 h-4" />,
+        label: "Fast Clip",
+        description: "Quick social-ready cuts",
+        path: "/video?model=seedance-2-0-fast",
+      },
+      {
+        icon: <GraduationCap className="w-4 h-4" />,
+        label: "Explainer Shorts",
+        description: "Captioned educational videos",
+        path: "/shorts",
+      },
+    ],
+    audio: [
+      {
+        icon: <Mic className="w-4 h-4" />,
+        label: "Voice Synthesis",
+        description: "Realistic narration & dialogue",
+        path: "/audio?model=seed-audio-1-0",
+      },
+      {
+        icon: <Volume2 className="w-4 h-4" />,
+        label: "Text to Speech",
+        description: "Multi-voice TTS with emotion",
+        path: "/audio?model=elevenlabs-tts",
+      },
+      {
+        icon: <Music2 className="w-4 h-4" />,
+        label: "Sound Design",
+        description: "Ambient & foley audio tracks",
+        path: "/audio",
+      },
+    ],
   };
 
   const features = featuresByCategory[category];
 
   return (
     <div className="flex flex-col py-2">
-      {features.length === 0 ? (
-        <div className="flex flex-col gap-1 px-3 py-2">
-          <p className="text-xs text-white/25 font-medium uppercase tracking-wider mb-1">Features</p>
-          <div className="flex flex-col items-start gap-1 py-4 text-white/30">
-            <Sparkles className="w-5 h-5 mb-1 opacity-40" />
-            <p className="text-xs">Coming soon</p>
+      {features.map((f, i) => (
+        <button
+          key={i}
+          onClick={() => { navigate(f.path); onSelect(); }}
+          className="flex items-center gap-3 px-3 py-2.5 hover:bg-white/[0.06] rounded-lg mx-1 transition-colors text-left group"
+        >
+          <div className="w-9 h-9 rounded-lg bg-white/[0.06] border border-white/10 flex items-center justify-center text-white/50 group-hover:text-white/80 group-hover:bg-white/10 shrink-0 transition-colors">
+            {f.icon}
           </div>
-        </div>
-      ) : (
-        <>
-          <p className="text-xs text-white/40 font-medium uppercase tracking-wider px-3 py-1.5 mb-1">Features</p>
-          {features.map((f, i) => (
-            <button
-              key={i}
-              className="flex items-center gap-3 px-3 py-2.5 hover:bg-white/[0.06] rounded-lg mx-1 transition-colors text-left"
-            >
-              <div className="w-9 h-9 rounded-lg bg-white/8 border border-white/10 flex items-center justify-center text-white/60 shrink-0">
-                {f.icon}
-              </div>
-              <div className="flex flex-col gap-0.5">
-                <span className="text-sm font-semibold text-white/90">{f.label}</span>
-                <span className="text-xs text-white/45">{f.description}</span>
-              </div>
-            </button>
-          ))}
-        </>
-      )}
+          <div className="flex flex-col gap-0.5">
+            <span className="text-sm font-semibold text-white/90 group-hover:text-white transition-colors">{f.label}</span>
+            <span className="text-xs text-white/40 leading-snug">{f.description}</span>
+          </div>
+        </button>
+      ))}
     </div>
   );
 }
@@ -248,7 +314,7 @@ export function MegaMenuTrigger({ category, label, active }: MegaMenuProps) {
                     Features
                   </span>
                 </div>
-                <FeaturesColumn category={category} />
+                <FeaturesColumn category={category} onSelect={closeMenu} />
               </div>
               {/* Right — Models */}
               <div className="flex-1 min-w-0">

@@ -1,5 +1,6 @@
 import { useListApps, useGetAppStats, getListAppsQueryKey, getGetAppStatsQueryKey } from "@workspace/api-client-react";
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,6 +18,7 @@ const FILTERS: { value: 'all' | 'featured' | 'trending' | 'new'; label: string }
 export default function Apps() {
   const [filter, setFilter] = useState<'all' | 'featured' | 'trending' | 'new'>('all');
   const [search, setSearch] = useState("");
+  const [, navigate] = useLocation();
 
   const { data: apps, isLoading } = useListApps(
     { filter, search: search || undefined },
@@ -126,12 +128,22 @@ export default function Apps() {
               transition={{ delay: i * 0.05 }}
               key={app.id}
             >
-              <Card className="bg-black border-white/10 hover:border-white/30 transition-all overflow-hidden group h-full flex flex-col cursor-pointer">
+              <Card
+                className="bg-black border-white/10 hover:border-white/30 transition-all overflow-hidden group h-full flex flex-col cursor-pointer"
+                onClick={() => navigate("/marketing-studio")}
+              >
                 <div className="h-40 w-full relative overflow-hidden bg-white/5 shrink-0">
-                  {app.thumbnailUrl || app.gradient ? (
-                    <div className="w-full h-full transition-transform duration-700 group-hover:scale-105" style={{ background: app.gradient || undefined }}>
-                      {app.thumbnailUrl && <img src={`/thumbnails/app-${(i%4)+1}.jpg`} className="w-full h-full object-cover opacity-70 mix-blend-overlay" alt="" />}
-                    </div>
+                  {app.thumbnailUrl ? (
+                    <img
+                      src={app.thumbnailUrl}
+                      alt={app.name}
+                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                    />
+                  ) : app.gradient ? (
+                    <div
+                      className="w-full h-full transition-transform duration-700 group-hover:scale-105"
+                      style={{ background: app.gradient }}
+                    />
                   ) : (
                     <div className="w-full h-full bg-gradient-to-br from-neutral-800 to-black transition-transform duration-700 group-hover:scale-105" />
                   )}
@@ -152,7 +164,10 @@ export default function Apps() {
                     {app.description}
                   </p>
 
-                  <Button className="w-full bg-white text-black hover:bg-white/90 font-bold rounded-full mb-4">
+                  <Button
+                    className="w-full bg-white text-black hover:bg-white/90 font-bold rounded-full mb-4"
+                    onClick={(e) => { e.stopPropagation(); navigate("/marketing-studio"); }}
+                  >
                     <Play className="w-3.5 h-3.5 mr-2 fill-black" /> Try now
                   </Button>
 
