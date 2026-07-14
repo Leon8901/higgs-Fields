@@ -82,6 +82,7 @@ Key files:
 - Re-verified and re-provisioned on 2026-07-13 after a fresh re-import: Clerk keys, DB schema+seed, and OPENROUTER_API_KEY/WAVESPEED_API_KEY were all re-added from scratch. Razorpay remains unconfigured (degrades gracefully).
 - Re-provisioned again later on 2026-07-13 after another fresh re-import wiped `node_modules`, Clerk keys, `OPENROUTER_API_KEY`/`WAVESPEED_API_KEY`, and DB tables: ran `pnpm install`, `setupClerkWhitelabelAuth()`, `drizzle-kit push`, and `pnpm --filter @workspace/db run seed`. All three workflows (higgsfield web, API Server, mockup-sandbox) verified running; homepage confirmed rendering with seeded data via screenshot.
 - Re-provisioned on 2026-07-13 (another fresh import): `pnpm install`, `setupClerkWhitelabelAuth()`, `drizzle-kit push`, `pnpm --filter @workspace/db run seed`. DATABASE_URL was already present; `OPENROUTER_API_KEY`/`WAVESPEED_API_KEY` still need to be re-added by the user for AI generation. All three workflows running, homepage confirmed via screenshot.
+- Re-provisioned again on 2026-07-14 after another fresh re-import: `pnpm install`, `setupClerkWhitelabelAuth()`, `drizzle-kit push`, `pnpm --filter @workspace/db run seed`, and the user supplied `OPENROUTER_API_KEY`/`WAVESPEED_API_KEY` via `requestSecrets`. All three workflows running, homepage confirmed via screenshot. Object storage still not configured (generated assets use temporary provider URLs); Razorpay still unconfigured.
 
 ## Gotchas
 
