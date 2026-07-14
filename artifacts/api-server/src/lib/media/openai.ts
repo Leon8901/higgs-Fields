@@ -26,13 +26,28 @@ function normalizeParams(params: Record<string, unknown>): {
 
 export const openaiAdapter: MediaAdapter = {
   // Cheap authenticated read-only call — lists available models.
-  // 401/403 = invalid key; any other response means the key is accepted.
+  //
+  // Known gap this guards against: OpenAI project-restricted API keys can be
+  // scoped to specific capabilities (e.g. only "Images"), and such a key
+  // legitimately 401s on GET /v1/models with "Missing scopes: model.request"
+  // even though it works fine for /v1/images/generations — the exact
+  // capability this adapter actually uses. See e.g.
+  // https://community.openai.com/t/missing-scopes-model-request-on-restricted-api-key/1371602
+  // Hard-rejecting on any 401 would incorrectly bounce a real, working key.
+  // OpenAI's own "wrong key" error text is "Incorrect API key provided" — we
+  // only treat *that* as definitively invalid; any other 401/403 (including
+  // a missing-scope message) is treated as "can't fully verify, let it
+  // through" so the user isn't blocked from saving a key that will actually
+  // work for image generation.
   async validateKey(apiKey): Promise<boolean> {
     const res = await fetch(`${BASE_URL}/models`, {
       headers: { Authorization: `Bearer ${apiKey}` },
     });
-    if (res.status === 401 || res.status === 403) return false;
-    return res.ok;
+    if (res.ok) return true;
+    if (res.status !== 401 && res.status !== 403) return true;
+    const body: any = await res.json().catch(() => null);
+    const message: string = body?.error?.message ?? "";
+    return !/incorrect api key/i.test(message);
   },
 
   // OpenAI image generation is synchronous: one POST returns the final image

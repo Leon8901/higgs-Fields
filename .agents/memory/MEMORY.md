@@ -7,3 +7,4 @@
 - [WaveSpeed verified live](wavespeed-live-verified.md) — end-to-end test confirmed: submit→poll→complete in ~29 s; route returns generation flat (not nested); provider URL stored when object storage not configured.
 - [Studio UI polish session](studio-ui-polish.md) — dead links, audio waveform, surfaced controls, rate limiting, app search — see file for complete change list.
 - [Model catalog expansion](model-catalog-expansion.md) — adding models is DB-only (seed.ts); no video-upload field type exists yet, so motion-control/video-edit models can't be wired up without a frontend change.
+- [BYOK key validation scope pitfall](byok-key-validation-scope-pitfall.md) — validateKey() probing the wrong endpoint false-rejects restricted/scoped keys (OpenAI, ElevenLabs); only hard-reject on the provider's documented "definitely wrong key" signal.

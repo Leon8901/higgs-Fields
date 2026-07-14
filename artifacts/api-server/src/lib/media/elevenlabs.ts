@@ -81,13 +81,29 @@ function normalizeParams(
 }
 
 export const elevenlabsAdapter: MediaAdapter = {
-  // GET /v1/user — cheapest authenticated read; 401/403 = invalid key.
+  // GET /v1/user — cheapest authenticated read.
+  //
+  // Known gap this guards against: ElevenLabs API keys support "Scope
+  // restriction" (https://elevenlabs.io/docs/overview/administration/workspaces/api-keys)
+  // — a key can be limited to specific endpoint categories, e.g. Text to
+  // Speech only. Such a key correctly 401s on GET /v1/user even though it
+  // works fine for POST /v1/text-to-speech/{voice_id}, the endpoint this
+  // adapter actually calls. Hard-rejecting on any 401 here would bounce a
+  // real, working BYOK key at save time. ElevenLabs' own documented error
+  // taxonomy for a genuinely wrong/malformed key is `detail.status ===
+  // "invalid_api_key"` (https://help.elevenlabs.io/hc/en-us/articles/19572237925521);
+  // any other 401/403 reason (including a scope restriction) is treated as
+  // "can't fully verify from this endpoint, let it through" rather than a
+  // definitive rejection.
   async validateKey(apiKey): Promise<boolean> {
     const res = await fetch(`${BASE_URL}/v1/user`, {
       headers: { "xi-api-key": apiKey },
     });
-    if (res.status === 401 || res.status === 403) return false;
-    return res.ok;
+    if (res.ok) return true;
+    if (res.status !== 401 && res.status !== 403) return true;
+    const body: any = await res.json().catch(() => null);
+    const status: string | undefined = body?.detail?.status;
+    return status !== "invalid_api_key";
   },
 
   // ElevenLabs TTS is synchronous: the response body IS the audio binary (mp3).
