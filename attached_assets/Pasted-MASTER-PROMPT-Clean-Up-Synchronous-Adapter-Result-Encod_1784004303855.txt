@@ -1,0 +1,53 @@
+MASTER PROMPT — Clean Up Synchronous Adapter Result Encoding
+
+Paste into Replit as a small follow-up. This addresses one real but minor architectural smell flagged in review: providerTaskId is currently being used to carry encoded result data for synchronous adapters (OpenAI, ElevenLabs), when it should only ever represent an opaque provider task identifier.
+
+Implementation Rules
+
+
+This is a small, contained refactor — don't touch WaveSpeed or Kling's (async, real polling) adapters, only the synchronous ones.
+Reuse the existing output_urls and status columns already on the generations table — don't introduce a new cache table or subsystem for this.
+Confirm no cost — this is pure refactor, no new generation calls needed to build it (a cheap re-test of the existing WaveSpeed baseline afterward is enough to confirm nothing regressed).
+
+
+The fix
+
+1. Explicit, unambiguous adapter contract. Change the adapter interface so submit() returns one of two clearly distinct shapes — not an ad-hoc optional field that could accidentally end up with both or neither set:
+
+typescripttype SubmitResult =
+  | { kind: "async"; providerTaskId: string }
+  | { kind: "completed"; outputUrls: string[] };
+
+2. The generation service owns completion — adapters never write to the database. The existing orchestration layer that currently handles submit()/poll() results is responsible for persisting state. Adapters return data; they never touch the database directly, for either the async or the completed case.
+
+2b. One shared completion function, called from both paths — not two parallel implementations. Implement a single helper (e.g. finalizeGeneration({ generation, outputUrls, provider, ... })) that performs every step in point 3 below. Async adapters call it after the poller detects completion; synchronous adapters call it immediately after submit() returns a { kind: "completed" } result. Both paths must call the same function — do not write two separate blocks of completion logic that happen to do the same thing today, since that's exactly the kind of duplication that silently drifts apart the first time either path gets modified later.
+
+3. Synchronous completions must still flow through the full existing pipeline — nothing skipped except polling. When the generation service receives a { kind: "completed" } result, it must still perform every step that a normally-polled generation goes through, just without the poll loop:
+
+
+Persist assets through the existing asset-persistence path (the same helper used for async completions) — do not bypass this and write provider URLs directly, since that would silently reintroduce temporary-URL-as-permanent risk.
+Update generation status.
+Write output URLs (the permanent, persisted ones — not the raw provider URLs).
+Set completedAt.
+Update the credit ledger, same as any other completion.
+Emit any events already used elsewhere in the normal completion path.
+
+
+Only the polling step disappears for synchronous adapters — every other piece of completion bookkeeping stays identical to the async path.
+
+4. Update every adapter that completes synchronously, not just the two known today (currently OpenAI and ElevenLabs) — phrase the fix generically so any future synchronous adapter follows the same { kind: "completed" } contract from the start, rather than reintroducing the old encoding pattern.
+
+providerTaskId should now only ever appear on the { kind: "async" } branch — for synchronous adapters it doesn't exist at all, rather than being null/encoded/repurposed.
+
+Definition of Success
+
+
+providerTaskId for OpenAI/ElevenLabs generations no longer exists as encoded payload data — synchronous adapters use the { kind: "completed" } branch instead.
+A generation using a synchronous adapter still ends up with correct status: "completed", correct permanent output_urls (via the real asset-persistence path, not raw provider URLs), correct completedAt, and a correct credit ledger entry — verify this doesn't break the existing asset-persistence graceful-degradation logic.
+Both synchronous and asynchronous adapters now converge on the same downstream completion pipeline, differing only in whether polling is required — verified by confirming both paths call the same finalizeGeneration() (or equivalently named) function, not two separate implementations.
+WaveSpeed's existing async flow (submit → poll → complete) is completely unaffected — confirm with one quick re-test.
+Kling's adapter is unaffected (it's genuinely async, not part of this cleanup).
+TypeScript compiles with no new warnings or errors.
+
+
+This is a small, low-risk cleanup — not urgent, but worth doing before any more synchronous adapters get added, since the pattern would otherwise get copied and compound.

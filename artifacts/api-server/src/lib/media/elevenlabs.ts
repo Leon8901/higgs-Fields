@@ -1,14 +1,9 @@
 import { randomUUID } from "crypto";
-import type { MediaAdapter, PollResult, SubmitResult, ProviderErrorKind } from "./types";
+import type { MediaAdapter, SubmitResult, ProviderErrorKind } from "./types";
 import { ProviderError } from "./types";
 import { ObjectStorageService } from "../objectStorage";
 
 const BASE_URL = "https://api.elevenlabs.io";
-
-// Prefix embedded in providerTaskId to signal that the audio has already been
-// uploaded to our object storage. poll() decodes the path and returns
-// "completed" immediately — no real async job exists on ElevenLabs' side.
-const STORED_PREFIX = "elevenlabs-stored:";
 
 // Module-level instance (same pattern as assetPersistence.ts).
 const objectStorage = new ObjectStorageService();
@@ -95,15 +90,16 @@ export const elevenlabsAdapter: MediaAdapter = {
     return res.ok;
   },
 
+  // ElevenLabs TTS is synchronous: the response body IS the audio binary (mp3).
+  // We upload it to our own object storage here and return { kind: "completed" }
+  // with the permanent /api/storage URL. The generation service finalises the
+  // generation immediately — no polling loop is needed.
+  //
+  // We upload binary in submit() (rather than letting the standard
+  // persistGeneratedAssets() download-then-reupload path handle it) because
+  // ElevenLabs returns raw bytes with no publicly reachable download URL to
+  // pass through that path.
   async submit(providerModelPath, params, apiKey): Promise<SubmitResult> {
-    // ElevenLabs TTS is synchronous: the response body IS the audio binary
-    // (mp3). We upload it directly to object storage here and embed the
-    // stored path in providerTaskId so poll() can return "completed" with the
-    // permanent /api/storage URL without any real async polling.
-    //
-    // assetPersistence.ts skips re-persisting URLs that already start with
-    // "/api/storage/" — so statusSync won't wastefully re-download and
-    // re-upload the file we just stored.
     const { voiceId, modelId, stability, similarityBoost } = normalizeParams(
       providerModelPath,
       params,
@@ -153,22 +149,15 @@ export const elevenlabsAdapter: MediaAdapter = {
       );
     }
 
-    return { providerTaskId: STORED_PREFIX + objectPath };
+    // The /api/storage prefix matches what persistGeneratedAssets() returns for
+    // all other providers, so the output_url format is consistent across the
+    // entire system. persistGeneratedAssets() is idempotent: it skips re-
+    // downloading paths that already start with "/api/storage/", so passing
+    // this URL through the standard asset-persistence step is always safe.
+    return { kind: "completed", outputUrls: [`/api/storage${objectPath}`] };
   },
 
-  async poll(providerTaskId, _apiKey): Promise<PollResult> {
-    if (!providerTaskId.startsWith(STORED_PREFIX)) {
-      throw new ProviderError(
-        "unknown",
-        `elevenlabsAdapter.poll: unexpected providerTaskId format "${providerTaskId}" — expected "${STORED_PREFIX}..." prefix.`,
-      );
-    }
-    const objectPath = providerTaskId.slice(STORED_PREFIX.length);
-    // Root-relative path served by GET /api/storage — matches the format
-    // persistGeneratedAssets() returns for all other providers.
-    return {
-      status: "completed",
-      outputUrls: [`/api/storage${objectPath}`],
-    };
-  },
+  // poll() is intentionally absent — this is a synchronous adapter.
+  // The generation service never calls poll() on a generation with no
+  // providerTaskId, so omitting it here is safe. See types.ts for the contract.
 };

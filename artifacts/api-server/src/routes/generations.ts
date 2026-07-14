@@ -15,7 +15,7 @@ import { ProviderError } from "../lib/media/types";
 import { enhancePrompt, autoSelectModel } from "../lib/llm/planner";
 import { resolveGenerationKey } from "../lib/generation/keyRouting";
 import { computeCreditsCharged } from "../lib/generation/pricing";
-import { syncGenerationStatus } from "../lib/generation/statusSync";
+import { syncGenerationStatus, finalizeGeneration } from "../lib/generation/statusSync";
 
 // User-safe copy for a provider-side failure. Never includes `providerMessage`
 // (WaveSpeed account/billing details, raw validation text) — that's for logs
@@ -112,10 +112,9 @@ router.post("/generations", requireAuth, async (req, res): Promise<void> => {
   const providerParams = { prompt: finalPrompt, ...(params ?? {}) };
 
   const adapter = getAdapter(model.adapter);
-  let providerTaskId: string;
+  let submitted: Awaited<ReturnType<typeof adapter.submit>>;
   try {
-    const submitted = await adapter.submit(model.providerModelPath, providerParams, apiKey);
-    providerTaskId = submitted.providerTaskId;
+    submitted = await adapter.submit(model.providerModelPath, providerParams, apiKey);
   } catch (err) {
     if (err instanceof ProviderError) {
       // Full detail (which provider, which model, capacity vs validation,
@@ -136,6 +135,11 @@ router.post("/generations", requireAuth, async (req, res): Promise<void> => {
 
   const creditsCharged = computeCreditsCharged(usedOwnKey, model);
 
+  // Insert the generation row. For async adapters (WaveSpeed, Kling) we store
+  // the opaque provider job ID so the poller can call poll() later. For sync
+  // adapters (OpenAI, ElevenLabs) submit() already returned the completed
+  // result — no job ID exists, so providerTaskId stays null and the poller
+  // will skip this row entirely (guard: !generation.providerTaskId).
   const [generation] = await db
     .insert(generationsTable)
     .values({
@@ -148,7 +152,7 @@ router.post("/generations", requireAuth, async (req, res): Promise<void> => {
       outputUrls: [],
       creditsCharged,
       usedOwnKey,
-      providerTaskId,
+      providerTaskId: submitted.kind === "async" ? submitted.providerTaskId : null,
     })
     .returning();
 
@@ -164,7 +168,20 @@ router.post("/generations", requireAuth, async (req, res): Promise<void> => {
     });
   }
 
-  res.status(201).json(CreateGenerationResponse.parse(toGenerationResponse(generation, model)));
+  // Sync adapters: finalise immediately using the same finalizeGeneration()
+  // function the background poller uses for async adapters. Both paths share
+  // identical completion bookkeeping — asset persistence, DB write, completedAt,
+  // credit refund on failure — differing only in whether polling was required.
+  const finalGeneration =
+    submitted.kind === "completed"
+      ? await finalizeGeneration(
+          generation,
+          { status: "completed", outputUrls: submitted.outputUrls },
+          req.log,
+        )
+      : generation;
+
+  res.status(201).json(CreateGenerationResponse.parse(toGenerationResponse(finalGeneration, model)));
 });
 
 router.get("/generations/:id", requireAuth, async (req, res): Promise<void> => {

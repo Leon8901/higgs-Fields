@@ -125,7 +125,7 @@ export const klingAdapter: MediaAdapter = {
       throw new ProviderError("unknown", "Kling submit response missing data.task_id.");
     }
 
-    return { providerTaskId: taskId };
+    return { kind: "async", providerTaskId: taskId };
   },
 
   async poll(providerTaskId, apiKey): Promise<PollResult> {

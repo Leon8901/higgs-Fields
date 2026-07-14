@@ -18,19 +18,122 @@ interface SyncLogger {
   error: (obj: Record<string, unknown>, msg?: string) => void;
 }
 
-// Single source of truth for "is this generation actually done, and is its
-// result saved permanently?" — shared by the on-demand poll in
-// GET /api/generations/:id (for a snappy UI while the tab is open) and the
-// server-side background poller (backgroundPoller.ts), which is what makes
-// completion independent of the browser staying open. Both call sites must
-// stay behaviorally identical, so this is the only place that talks to the
-// provider adapter and writes a completed/failed status.
+type FinalizeInput =
+  | { status: "completed"; outputUrls: string[] }
+  | { status: "failed"; errorMessage: string };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// finalizeGeneration — the single completion function for all adapter types.
+//
+// Called from two places, which must converge here so completion bookkeeping
+// is identical regardless of how the result arrived:
+//
+//   1. POST /api/generations (routes/generations.ts)
+//      When submit() returns { kind: "completed" } (sync adapters — OpenAI,
+//      ElevenLabs). Called immediately, before returning the 201 response.
+//
+//   2. syncGenerationStatus (below)
+//      When poll() reports "completed" or "failed" (async adapters — WaveSpeed,
+//      Kling). Called from the background poller and the on-demand GET handler.
+//
+// Steps performed for every terminal result (completed or failed):
+//   • Persist output assets through the standard asset-persistence path.
+//   • Write final status, output URLs, errorMessage, and completedAt to the DB.
+//   • Refund credits on any failure so a generation that never delivers a
+//     permanent result never costs the user.
+// ─────────────────────────────────────────────────────────────────────────────
+export async function finalizeGeneration(
+  generation: Generation,
+  input: FinalizeInput,
+  log: SyncLogger,
+): Promise<Generation> {
+  let finalStatus: "completed" | "failed";
+  let outputUrls: string[];
+  let errorMessage: string | null;
+
+  if (input.status === "completed") {
+    try {
+      // Re-host provider-returned URLs on our own storage so they don't expire
+      // when the provider's retention window ends. This helper is idempotent:
+      // paths that already start with "/api/storage/" (e.g. audio that the
+      // ElevenLabs adapter uploaded in submit()) pass through unchanged.
+      outputUrls = await persistGeneratedAssets(input.outputUrls);
+      finalStatus = "completed";
+      errorMessage = null;
+    } catch (err) {
+      log.error(
+        { err, generationId: generation.id },
+        "Failed to persist generated asset to permanent storage",
+      );
+      // Persistence failure is treated as a generation failure so credits are
+      // refunded — a generation with a broken output URL is worse than no
+      // generation at all.
+      finalStatus = "failed";
+      outputUrls = [];
+      errorMessage = "Your generation finished but we couldn't save the result. Please try again.";
+    }
+  } else {
+    // Provider reported failure — no assets to persist.
+    finalStatus = "failed";
+    outputUrls = [];
+    errorMessage = input.errorMessage;
+  }
+
+  const [updated] = await db
+    .update(generationsTable)
+    .set({
+      status: finalStatus,
+      outputUrls,
+      errorMessage,
+      completedAt: new Date(),
+    })
+    .where(eq(generationsTable.id, generation.id))
+    .returning();
+
+  // Refund credits on any failure (provider-side failure or our own storage
+  // failure) so a generation that never delivers a permanent result is free.
+  if (finalStatus === "failed" && updated.creditsCharged > 0) {
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, generation.userId));
+    if (user) {
+      const newBalance = user.creditsBalance + updated.creditsCharged;
+      await db.update(usersTable).set({ creditsBalance: newBalance }).where(eq(usersTable.id, user.id));
+      await db.insert(creditLedgerTable).values({
+        userId: user.id,
+        delta: updated.creditsCharged,
+        reason: "refund",
+        balanceAfter: newBalance,
+        generationId: updated.id,
+      });
+    }
+  }
+
+  return updated;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// syncGenerationStatus — drives async adapter polling.
+//
+// Single source of truth for "is this async generation done, and is its
+// result saved permanently?" — shared by:
+//   • GET /api/generations/:id (on-demand sync for a snappy UI while the tab
+//     is open)
+//   • backgroundPoller.ts (server-side, fires even if every browser tab closes)
+//
+// Sync adapters (OpenAI, ElevenLabs) never reach this function: their
+// generations have no providerTaskId, so the early-return guard fires
+// immediately. All completion work for sync adapters happens in
+// finalizeGeneration(), called directly from the POST /api/generations handler.
+// ─────────────────────────────────────────────────────────────────────────────
 export async function syncGenerationStatus(
   generation: Generation,
   model: Model,
   log: SyncLogger,
 ): Promise<Generation> {
-  if (!(generation.status === "pending" || generation.status === "processing") || !generation.providerTaskId) {
+  // Only async, in-flight generations with a real provider task ID need polling.
+  if (
+    !(generation.status === "pending" || generation.status === "processing") ||
+    !generation.providerTaskId
+  ) {
     return generation;
   }
 
@@ -48,65 +151,43 @@ export async function syncGenerationStatus(
     if (!apiKey) return generation;
 
     const adapter = getAdapter(model.adapter);
-    const polled = await adapter.poll(generation.providerTaskId, apiKey);
 
-    if (polled.status === generation.status) {
+    // Safety guard: a sync adapter (no poll()) should never reach this code
+    // because its generations have providerTaskId = null. If this fires, the
+    // generation insert logic has a bug — log it and bail rather than crashing
+    // the background poller.
+    if (!adapter.poll) {
+      log.error(
+        { adapter: model.adapter, generationId: generation.id },
+        "syncGenerationStatus reached a sync adapter (poll() not defined) — providerTaskId should be null for sync adapters; this is a bug in the generation insert path",
+      );
       return generation;
     }
 
-    let finalStatus = polled.status;
-    let outputUrls = polled.outputUrls;
-    let errorMessage = polled.errorMessage ?? null;
+    const polled = await adapter.poll(generation.providerTaskId, apiKey);
 
-    // Only ever mark "completed" once the asset is safely re-hosted on our
-    // own storage — WaveSpeed's URLs are temporary, so saving them as-is
-    // would silently rot once the provider's retention window passes. If
-    // re-hosting fails, the generation is treated as failed (and refunded
-    // below) rather than "completed" with a link that will later break.
-    if (polled.status === "completed") {
-      try {
-        outputUrls = await persistGeneratedAssets(polled.outputUrls);
-      } catch (err) {
-        log.error(
-          { err, generationId: generation.id, modelId: model.modelId },
-          "Failed to persist generated asset to permanent storage",
-        );
-        finalStatus = "failed";
-        outputUrls = [];
-        errorMessage = "Your generation finished but we couldn't save the result. Please try again.";
-      }
+    // Still in-flight — update status if it changed (e.g. pending → processing),
+    // but do not call finalizeGeneration yet.
+    if (polled.status === "pending" || polled.status === "processing") {
+      if (polled.status === generation.status) return generation;
+      const [updated] = await db
+        .update(generationsTable)
+        .set({ status: polled.status })
+        .where(eq(generationsTable.id, generation.id))
+        .returning();
+      return updated;
     }
 
-    const [updated] = await db
-      .update(generationsTable)
-      .set({
-        status: finalStatus,
-        outputUrls,
-        errorMessage,
-        completedAt: finalStatus === "completed" || finalStatus === "failed" ? new Date() : null,
-      })
-      .where(eq(generationsTable.id, generation.id))
-      .returning();
-
-    // Refund credits on any failure path (provider-side failure, or our own
-    // storage re-hosting failure) so a generation that never delivers a
-    // permanent result never costs the user.
-    if (finalStatus === "failed" && updated.creditsCharged > 0) {
-      const [user] = await db.select().from(usersTable).where(eq(usersTable.id, generation.userId));
-      if (user) {
-        const newBalance = user.creditsBalance + updated.creditsCharged;
-        await db.update(usersTable).set({ creditsBalance: newBalance }).where(eq(usersTable.id, user.id));
-        await db.insert(creditLedgerTable).values({
-          userId: user.id,
-          delta: updated.creditsCharged,
-          reason: "refund",
-          balanceAfter: newBalance,
-          generationId: updated.id,
-        });
-      }
-    }
-
-    return updated;
+    // Terminal state — hand off to finalizeGeneration. This is the same function
+    // the POST handler calls for sync adapters, so both paths share identical
+    // completion bookkeeping: asset persistence, DB write, credit refund.
+    return finalizeGeneration(
+      generation,
+      polled.status === "completed"
+        ? { status: "completed", outputUrls: polled.outputUrls }
+        : { status: "failed", errorMessage: polled.errorMessage ?? "Generation failed" },
+      log,
+    );
   } catch (err) {
     if (err instanceof ProviderError) {
       log.error(
@@ -116,9 +197,9 @@ export async function syncGenerationStatus(
     } else {
       log.error({ err, generationId: generation.id }, "Provider poll failed (unexpected error shape)");
     }
-    // Swallowed intentionally: this is a background status check. The
-    // generation just stays in its current status and we retry on the next
-    // poll rather than surfacing a transient poll error.
+    // Swallowed intentionally: this is a background status check. The generation
+    // stays in its current status and we retry on the next poller tick rather
+    // than surfacing a transient poll error to the user.
     return generation;
   }
 }

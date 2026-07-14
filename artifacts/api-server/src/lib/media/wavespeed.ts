@@ -85,7 +85,7 @@ export const wavespeedAdapter: MediaAdapter = {
       throw new ProviderError("unknown", "WaveSpeed submit response missing task id.");
     }
 
-    return { providerTaskId: taskId };
+    return { kind: "async", providerTaskId: taskId };
   },
 
   async poll(providerTaskId, apiKey): Promise<PollResult> {
