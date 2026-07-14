@@ -77,10 +77,28 @@ export const openaiAdapter: MediaAdapter = {
       throw new ProviderError("unknown", "OpenAI response missing image URL in data[0].url.");
     }
 
-    // Embed the image URL as the task ID — poll() decodes it and returns
-    // "completed" immediately. statusSync then calls persistGeneratedAssets()
-    // to download from OpenAI and re-host on our own storage before the
-    // temporary OpenAI URL expires (1-hour window).
+    // ── providerTaskId encoding scheme ────────────────────────────────────
+    // Unlike async providers (WaveSpeed, Kling) where providerTaskId is an
+    // opaque job ID, OpenAI image generation is synchronous: the completed
+    // image URL arrives in the submit() response body. We encode it as:
+    //   "openai-sync:<https://…>"
+    // so that poll() returns "completed" immediately on the first background-
+    // poller tick without making any further HTTP request to OpenAI.
+    //
+    // Assumptions baked in:
+    //   • URL is always a valid HTTPS string. The SYNC_PREFIX strip uses a
+    //     fixed character-count slice (not split on ":"), so colons inside
+    //     the URL path/query are handled correctly.
+    //   • OpenAI temporary image URLs are typically < 500 chars — well within
+    //     the PostgreSQL text column limit for providerTaskId.
+    //   • Expiry: temporary URLs are valid for ~1 hour. The background poller
+    //     runs every 15 s, so persistGeneratedAssets() re-hosts the image to
+    //     our own storage long before the URL expires.
+    //   • response_format is fixed to "url" in submit(). If it were changed to
+    //     "b64_json", the response would contain raw base64 (potentially 4 MB+)
+    //     which must never be stored in providerTaskId — the adapter would need
+    //     to upload the image to object storage in submit() instead (same
+    //     pattern as elevenlabs.ts).
     return { providerTaskId: SYNC_PREFIX + url };
   },
 

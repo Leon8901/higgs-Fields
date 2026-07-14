@@ -1,0 +1,42 @@
+MASTER PROMPT — Phase 3: Live Verification + Small Fixes
+
+Paste into Replit as a follow-up to the OpenAI/Kling/ElevenLabs adapter task. The adapter code itself looks solid on review — this closes the actual gap: nothing has been verified with a real request yet, only by reading code.
+
+Implementation Rules
+
+
+Do not rewrite the adapters unless live testing reveals an actual bug — this is a verification pass first, fixes only for what verification actually finds broken.
+Confirm cost with me before each real API call — these are small but real charges across multiple providers this time, not just WaveSpeed.
+
+
+Part A — Live verification (scoped to what's actually testable right now)
+
+I don't have real API keys for OpenAI, Kling, or ElevenLabs — don't wait on these or ask me for them. Verify what's actually possible today:
+
+
+WaveSpeed — run one real generation end-to-end as the known-good baseline. Report: submit request/response, poll progression, final stored asset URL (permanent storage vs. provider URL per the graceful-degradation logic), database status, credit ledger entry, and confirm it renders in the Library UI.
+OpenAI, Kling, ElevenLabs — mark all three explicitly as "Not Live Verified — no key available." Do not simulate, do not describe what should happen, do not treat code-read confidence as equivalent to a real test. This is an honest, acceptable status for now — these adapters get real verification whenever real keys are available later, not in this pass.
+
+
+Part B — Small fixes worth doing now, independent of live-key availability
+
+
+Fix creditCost = 0 on the three new seed rows. Since these models are currently BYOK-only (no platform key path exists per keyRouting.ts), add an explicit isBYOKOnly: true flag to these model rows if the schema supports it easily, or otherwise set a clearly-intentional non-zero placeholder cost with a code comment explaining it must be revisited before platform-key support is ever added for these adapters. The goal: make it impossible for a future change to accidentally make these free generations.
+Add a code comment in openai.ts explaining the providerTaskId encoding scheme (embedding the completed result URL directly rather than an opaque provider task ID) — including any size/format assumptions — so a future maintainer doesn't assume providerTaskId is always a simple opaque identifier.
+Clarify the ElevenLabs voice mapping — confirm whether the hardcoded voice names (e.g. Rachel, Bella, Antoni) are a temporary seed limitation or a hard constraint. If a user's ElevenLabs account has custom voices, can they be used at all today? If not, note this as a known limitation for now rather than a silent gap — doesn't need to be fixed in this pass, just documented clearly.
+Confirm there's exactly one adapter registry — show me the actual registry.ts contents (the { wavespeed, openai, kling, elevenlabs } map) to confirm there isn't a second parallel registry anywhere else in the codebase.
+Real adapter isolation test, not simulated — actually trigger a failure in one adapter (e.g. submit with a deliberately invalid key for one provider) and confirm the other adapters/providers are entirely unaffected — a real test run, not a description of why it should be isolated.
+
+
+Definition of Success
+
+
+WaveSpeed generation confirmed with an actual end-to-end trace, not code-read confidence.
+OpenAI, Kling, and ElevenLabs explicitly marked "Not Live Verified — no key available," not glossed over or simulated.
+creditCost on the new models can no longer silently become free money if platform-key support is added later.
+The providerTaskId encoding and ElevenLabs voice limitation are both documented for future maintainers.
+Confirmed single adapter registry, no duplicates.
+Adapter failure isolation demonstrated with a real triggered failure, not just architectural reasoning.
+
+
+This doesn't require any provider keys beyond WaveSpeed, which you already have — proceed without waiting for anything further from me.

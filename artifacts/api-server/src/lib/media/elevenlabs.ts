@@ -25,6 +25,28 @@ function classifyError(status: number, message: string): ProviderErrorKind {
 // of "hardcoding" this project avoids (provider names in DB vs code). Which
 // voices exist for a given provider is provider-implementation knowledge that
 // belongs in the adapter, not in the DB.
+//
+// ── Known limitation: only pre-mapped voices are supported ───────────────────
+// Custom voices from a user's own ElevenLabs account (created via ElevenLabs
+// Voice Lab or cloned from audio samples) are NOT supported by this adapter
+// today. The paramsSchema voice_id select only exposes the voices listed here.
+//
+// To use a custom voice, the user would need to know their voice's raw ID from
+// the ElevenLabs console and pass it directly — but the UI's select field
+// constrains choices to this list, so there is no UI path to custom voices.
+//
+// This is an intentional temporary limitation, not a silent gap:
+//   • Adding custom-voice support would require either:
+//     a) a new "voice_id (raw)" text-input field in the paramsSchema, OR
+//     b) a server-side call to GET /v1/voices with the user's key to enumerate
+//        their library and populate a dynamic select.
+//   • Neither is implemented. If users report wanting custom voices, option (b)
+//     is the right UX — it does not require any DB schema changes, only a new
+//     API endpoint that calls ElevenLabs and returns voice options.
+//
+// The raw voice ID is still accepted if it doesn't match any map key (see
+// resolveVoiceId below), so power users who manually POST to /api/generations
+// with a known ID can use custom voices today — only the UI enforces the limit.
 const VOICE_ID_MAP: Record<string, string> = {
   Rachel:  "21m00Tcm4TlvDq8ikWAM",
   Domi:    "AZnzlk1XvdvUeBnXmlld",

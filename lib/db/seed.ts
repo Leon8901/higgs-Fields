@@ -284,7 +284,13 @@ const models: Array<{
     adapter: "openai",
     providerModelPath: "dall-e-3", // passed as `model` in OpenAI images/generations body
     basePriceUsd: 0.04, // ~$0.04/image at standard quality (1024×1024) — confirmed openai.com/api/pricing
-    creditCost: 0, // BYOK — billed by OpenAI on the user's account
+    // ⚠️  BYOK-ONLY GUARD: creditCost reflects what the platform WOULD charge if a
+    // platform key were ever added to getPlatformApiKey() in keyRouting.ts.
+    // Do NOT set this to 0. If a platform key is added without updating creditCost,
+    // all generations would be free — a silent revenue leak. The BYOK flag lives
+    // only in keyRouting.ts (no isBYOKOnly column in the schema); this non-zero
+    // value is the safeguard on the billing side.
+    creditCost: 1, // BYOK — charged on user's own OpenAI account; 1 credit = $0.05 platform reserve
     fields: [
       {
         key: "size",
@@ -322,7 +328,8 @@ const models: Array<{
     adapter: "kling",
     providerModelPath: "kling-v1-5", // passed as `model_name` in Kling text2video request
     basePriceUsd: 0.28, // ~$0.28 / 5 s standard — approximate; verify at klingai.com/pricing
-    creditCost: 0, // BYOK — billed by Kling on the user's account
+    // ⚠️  BYOK-ONLY GUARD — see dall-e-3 comment above for rationale.
+    creditCost: 6, // BYOK — charged on user's own Kling account; 6 credits = $0.30 platform reserve
     fields: [
       ASPECT_RATIO,
       DURATION(["5", "10"], "5"),
@@ -351,7 +358,8 @@ const models: Array<{
     // extract defaults; the paramsSchema voice_id select overrides the voice.
     providerModelPath: "eleven_multilingual_v2/Rachel",
     basePriceUsd: 0.09, // ~$0.09 / 30 s of speech (≈ 300 chars × $0.30/1 K chars)
-    creditCost: 0, // BYOK — billed by ElevenLabs on the user's account
+    // ⚠️  BYOK-ONLY GUARD — see dall-e-3 comment above for rationale.
+    creditCost: 2, // BYOK — charged on user's own ElevenLabs account; 2 credits = $0.10 platform reserve
     fields: [
       {
         key: "voice_id",
