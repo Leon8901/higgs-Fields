@@ -144,17 +144,46 @@ function DynamicSelectField({
   value: unknown;
   onChange: (v: unknown) => void;
 }) {
-  const { data: liveOptions, isLoading, isError } = useListProviderVoices(adapter, {
+  const { data: liveOptions, isLoading, isError, error: voicesError } = useListProviderVoices(adapter, {
     query: { queryKey: getListProviderVoicesQueryKey(adapter), enabled: hasOwnKey === true },
   });
 
   const options = liveOptions ?? field.options?.map((opt) => ({ id: opt, name: opt })) ?? [];
+
+  // The static fallback list (shown before a key is connected) is made of
+  // ElevenLabs premade voice *names*, not real per-account voice IDs — most
+  // of them require a paid ElevenLabs plan to use over the API at all, so
+  // submitting one on a free key is genuinely rejected by ElevenLabs itself.
+  // Once the live list loads, the selected value must move onto one of the
+  // account's *actual* usable voices — otherwise a value picked from the
+  // fallback list (or the field's static `default`) silently survives the
+  // switch to live data and gets submitted anyway.
+  const liveOptionIds = useMemo(() => new Set((liveOptions ?? []).map((o) => o.id)), [liveOptions]);
+  useEffect(() => {
+    if (!liveOptions || liveOptions.length === 0) return;
+    const current = value !== undefined && value !== null ? String(value) : undefined;
+    if (current && liveOptionIds.has(current)) return;
+    onChange(liveOptions[0].id);
+    // Only re-run when the live list itself changes — `value`/`onChange` are
+    // intentionally excluded so this doesn't fight the user's own selection.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveOptions]);
+
+  // `error.data.error` is the provider's own message forwarded verbatim by
+  // the voices route (safe here — this endpoint is BYOK-only, no platform
+  // key to protect), e.g. "missing the permission voices_read" for a
+  // restricted key. Falling back to `error.message` covers non-ApiError
+  // shapes (network failure, etc.) rather than showing nothing.
+  const voicesErrorDetail =
+    (voicesError as { data?: { error?: string } } | undefined)?.data?.error ??
+    (voicesError as Error | undefined)?.message;
+
   const helpText = !hasOwnKey
     ? "Connect your key to see your own voices."
     : isLoading
       ? "Loading your voices…"
       : isError
-        ? "Couldn't load your voices — showing defaults."
+        ? `Couldn't load your voices${voicesErrorDetail ? ` — ${voicesErrorDetail}` : ""}. Showing defaults, which may not work on your plan.`
         : field.helpText;
 
   return (

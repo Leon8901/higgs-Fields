@@ -18,14 +18,29 @@ import { resolveGenerationKey } from "../lib/generation/keyRouting";
 import { computeCreditsCharged } from "../lib/generation/pricing";
 import { syncGenerationStatus, finalizeGeneration } from "../lib/generation/statusSync";
 
-// User-safe copy for a provider-side failure. Never includes `providerMessage`
-// (WaveSpeed account/billing details, raw validation text) — that's for logs
-// only. Distinguishing "capacity" vs "validation" doesn't change what the end
-// user sees (there's nothing they can do about either), but it's what makes
-// the log line actionable for us: "capacity" means top up/rotate the provider
-// key, "validation" means a model's paramsSchema doesn't match what the
-// provider actually expects and needs a code fix.
+// User-safe copy for a provider-side failure when we're using the *platform*
+// key. Never includes `providerMessage` (WaveSpeed account/billing details,
+// raw validation text) — that's for logs only, since the end user has no
+// account/key of their own to fix here.
 const GENERATION_UNAVAILABLE_MESSAGE = "Generation temporarily unavailable — please try again later.";
+
+// When the caller used their own BYOK key, *any* provider failure is about
+// that user's own account/key/plan (there's no shared platform secret to
+// protect) — e.g. ElevenLabs: "The API key you used is missing the
+// permission voices_read" (a restricted-key scope issue) or "Free users
+// cannot use library voices via the API" (a plan restriction). Both of these
+// come back with ElevenLabs' generic 401 status, which classifyError() buckets
+// as "unknown" — so gating on `kind === "validation"` alone hid exactly the
+// messages BYOK users most need to see. Surface the provider's own message
+// for every kind when it's a BYOK generation; only platform-key failures
+// (WaveSpeed account/billing internals) stay on the generic message, since
+// the user has no account of their own to fix there.
+function userFacingErrorMessage(err: unknown, usedOwnKey: boolean): string {
+  if (err instanceof ProviderError && usedOwnKey) {
+    return err.providerMessage;
+  }
+  return GENERATION_UNAVAILABLE_MESSAGE;
+}
 
 const router: IRouter = Router();
 
@@ -130,7 +145,7 @@ router.post("/generations", requireAuth, generationsRateLimit(), async (req, res
     } else {
       req.log.error({ err }, "Provider submit failed (unexpected error shape)");
     }
-    res.status(502).json({ error: GENERATION_UNAVAILABLE_MESSAGE });
+    res.status(502).json({ error: userFacingErrorMessage(err, usedOwnKey) });
     return;
   }
 

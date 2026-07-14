@@ -78,7 +78,13 @@ router.get("/providers/:slug/voices", requireAuth, async (req, res): Promise<voi
   } catch (err) {
     if (err instanceof ProviderError) {
       req.log.error({ err, provider: slug }, "Provider voice list failed");
-      res.status(502).json({ error: "Could not load voices from the provider right now. Please try again." });
+      // This route only ever uses the caller's own BYOK key — there is no
+      // platform key to protect — so the provider's own message is always
+      // safe and actionable here (e.g. a restricted ElevenLabs key missing
+      // the `voices_read` scope). Surfacing it lets the user actually fix
+      // their key/account instead of just retrying a call that will fail
+      // the same way every time.
+      res.status(502).json({ error: err.providerMessage });
       return;
     }
     throw err;
