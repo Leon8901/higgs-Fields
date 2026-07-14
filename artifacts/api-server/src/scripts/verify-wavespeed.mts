@@ -72,7 +72,8 @@ async function main() {
     console.log(`[submit] HTTP ${submit.status}`);
     console.log(JSON.stringify(submit.data, null, 2));
 
-    const genId: number | undefined = submit.data?.generation?.id;
+    // The route returns the generation object directly (not nested under "generation").
+    const genId: number | undefined = submit.data?.id ?? submit.data?.generation?.id;
     if (!genId) {
       console.error("[submit] FAILED — no generation ID returned. Aborting.");
       return;
@@ -86,7 +87,8 @@ async function main() {
     for (let i = 1; i <= MAX_POLLS; i++) {
       await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
       const { data } = await apiGet(`/api/generations/${genId}`, jwt);
-      const gen = data?.generation;
+      // API returns the generation object directly (not nested under "generation").
+      const gen = data?.id ? data : data?.generation;
       const status = gen?.status ?? "unknown";
 
       if (status !== lastStatus) {
