@@ -176,6 +176,7 @@ export function AnnouncementBanner() {
 export function Navbar() {
   const [location] = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const settings = useSiteSettings();
 
   const navLinks = [
     { href: "/tools", label: "Explore" },
@@ -202,7 +203,7 @@ export function Navbar() {
             <div className="w-8 h-8 bg-primary rounded shadow-[0_0_15px_rgba(206,255,0,0.4)] flex items-center justify-center group-hover:scale-105 transition-transform">
               <div className="w-3 h-3 bg-black rounded-sm" />
             </div>
-            <span className="font-bold text-xl tracking-tight text-white">HIGGSFIELD</span>
+            <span className="font-bold text-xl tracking-tight text-white">{settings.site_name}</span>
           </Link>
           
           <nav className="hidden md:flex items-center gap-1">
@@ -295,6 +296,7 @@ export function Navbar() {
 }
 
 export function Footer() {
+  const settings = useSiteSettings();
   return (
     <footer className="border-t border-white/5 bg-background pt-16 pb-8">
       <div className="container mx-auto px-4">
@@ -304,11 +306,10 @@ export function Footer() {
               <div className="w-6 h-6 bg-primary rounded shadow-[0_0_10px_rgba(206,255,0,0.3)] flex items-center justify-center">
                 <div className="w-2 h-2 bg-black rounded-sm" />
               </div>
-              <span className="font-bold text-lg tracking-tight text-white">HIGGSFIELD</span>
+              <span className="font-bold text-lg tracking-tight text-white">{settings.site_name}</span>
             </Link>
-            <p className="text-muted-foreground text-sm max-w-sm mb-6">
-              The premium AI platform for filmmakers, creators, and developers. Build the impossible.
-            </p>
+            <p className="text-muted-foreground text-sm max-w-sm mb-6">{settings.site_tagline}</p>
+
           </div>
           
           <div>

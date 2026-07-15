@@ -1,0 +1,117 @@
+MASTER PROMPT — Site Settings (Database-Driven, No File Edits Ever Again)
+
+Paste into Replit as its own isolated task. This replaces anything currently hardcoded in code/files for site-level configuration with a single admin-editable settings system.
+
+## Implementation Rules
+
+- Do not touch the avatar system.
+- This must be gated by the same owner-only check already established for the admin panel — verify server-side on every settings-write endpoint, not just hidden in the UI.
+- Zero generation cost for this feature.
+- Do not rewrite unrelated code — this touches: one new table, a settings API, an admin UI section, and the handful of places that currently hardcode the values this replaces.
+
+## 1. Schema
+
+**Before the table: a Configuration Registry, not scattered metadata.** Define every setting once, in one place in code (e.g. `lib/settingsRegistry.ts`) — key, type, default value, validator function, category, isPublic, description. This registry is what the seed script reads to populate `site_settings`, what the PATCH validation logic reads to know how to validate each key (replacing hand-written per-key validation scattered in the route handler), and what the admin UI reads for labels and descriptions. One definition per setting, three consumers — not three hand-maintained lists that can quietly drift out of sync when a new setting is added and one of the three places gets forgotten (this project has hit that exact failure mode before — a platform-key switch statement with a case for one provider and a silent gap for others — this registry exists specifically to prevent the same pattern here).
+
+**The registry is metadata only — it is never a source of runtime values.** It holds keys, types, default values (used only at first-seed time, see below), validators, categories, `isPublic` flags, and descriptions. It never stores or serves a setting's *current* value. `SettingsService` is the only runtime access layer: it reads actual current values from the `site_settings` table (through its version-aware cache), using the registry purely to know each key's type/validator/label. If `SettingsService.getSiteName()` is called, it must return what's in the database right now — never a registry default, even if the database read is served from cache. The registry answering "what shape is this setting" and the database answering "what is this setting's value" must never be blurred into one lookup path.
+
+A single `site_settings` table, key-value shaped so new settings can be added later without a migration for each one:
+
+```
+site_settings
+- key (text, primary key)
+- value (text — store as text/JSON string per the type below)
+- type (text — "string" | "boolean" | "number" | "json")
+- description (text — brief human-readable note on what this controls, shown in the admin UI)
+- isPublic (boolean — see note below)
+- updatedAt (timestamp)
+```
+
+Add one metadata row (or a tiny separate `site_settings_meta` table) tracking a single `settingsVersion` integer, incremented on every successful PATCH. The SettingsService cache (section 3) checks this version rather than relying on a time-based TTL alone — this makes updates reflect instantly instead of waiting out a cache window.
+
+**`settingsVersion` is an internal implementation detail and must never be exposed through either `GET /settings` or `PATCH /admin/settings` response bodies.** It exists solely for cache invalidation inside `SettingsService` — nothing outside that module should serialize it, read it, or depend on it. `SettingsService` must ensure cache freshness by comparing against the current `settingsVersion` whenever the cache is consulted, rather than trusting a locally-mutated counter alone — the specific implementation of that comparison (e.g. how often it's checked, whether it's batched) is free to be optimized, provided a change becomes visible immediately after a successful write and the logic stays correct without changes if this ever runs across multiple server instances later.
+
+**Updating a setting's value and incrementing `settingsVersion` must happen within a single database transaction**, so a reader can never observe a partially-updated state — either both the new value and the new version are visible, or neither is, never a mix. Any database error during that transaction must roll back both the value update and the version increment — no partial state may ever be committed, even under a failure mid-write.
+
+**Scope boundary** — keep this table focused. `site_settings` holds only global site configuration (branding, access toggles, defaults, messaging). Provider configuration, analytics data, feature flags unrelated to site-wide config, and user preferences each belong in their own tables — don't let this become a catch-all as the app grows.
+
+Seed it with these keys, matching current hardcoded values so nothing changes visually the moment this ships:
+
+**Seeding must be idempotent and non-destructive on every future run, not just the first one.** The seed step only inserts a setting row if that key does not already exist in `site_settings` — it must never overwrite an existing row's value, on this initial run or any future one. This matters concretely: this project already runs its seed script routinely as part of reconnecting the database after an environment reset. If seeding ever became an upsert instead of insert-if-missing, every routine reseed would silently reset a customized site name, logo, banner, or any other admin-edited setting straight back to its hardcoded default the moment the seed script runs — a real, scheduled collision with something this project already does regularly, not a hypothetical risk.
+
+- `site_name` (string, public)
+- `site_tagline` (string, public)
+- `logo_url` (string, public)
+- `favicon_url` (string, public)
+- `theme_color` (string, public — store only; do not wire this to actually re-theme the UI in this task, no inline CSS generation or runtime stylesheet rewriting — that's separate future work tied to the eventual rebrand)
+- `maintenance_mode` (boolean, public)
+- `maintenance_message` (string, public — e.g. "Upgrading to a new model, back in 20 minutes.")
+- `registration_enabled` (boolean, public — distinct from maintenance mode: existing users keep working normally, new signups are blocked when false)
+- `platform_generation_enabled` (boolean, public — a kill switch: when false, platform-funded generation is disabled entirely and only BYOK generations are accepted, without touching code or environment variables; useful if a platform provider key needs to be pulled quickly)
+- `default_credits` (number, private — the signup bonus amount)
+- `default_image_model_slug`, `default_video_model_slug`, `default_audio_model_slug` (string, public — store the model's slug, never its display name, since display names can change and slugs shouldn't)
+- `homepage_banner` (json, public — `{ enabled, text, link, buttonText }` as one object, not separate flat keys)
+- `announcement` (json, public — `{ enabled, text }`)
+
+## 2. Backend — validate values, not just key names
+
+`PATCH /admin/settings` must validate against an allow-list of known keys (reject unknown keys), and validate the value itself per key using the validator function defined for that key in the Configuration Registry (Section 1) — not a second, separately-maintained set of validation rules. The registry entries must cover at minimum:
+
+- `default_credits` — integer, >= 0.
+- `default_image_model_slug` — must match an existing model's slug in the `models` table, that model's category must be `"image"` (same category-scoped check for `default_video_model_slug` → `"video"` and `default_audio_model_slug` → `"audio"` — a slug existing isn't enough if it belongs to the wrong category), **and that model must currently be active/enabled — not disabled or archived.** Reject the write with a clear error if an admin attempts to set a default to a model that isn't currently usable; otherwise a default could silently point at a model no one can actually generate with.
+- `logo_url` / `favicon_url` — must be a URL already on your own storage (i.e., the result of the upload/download-and-reupload flow, not an arbitrary pasted string).
+- Banner/announcement link fields — must be a valid URL if present.
+
+**A `PATCH /admin/settings` request may update multiple keys at once — validate every field in the request first, and only if all fields pass does any write occur.** If any single field fails validation, abort the entire request: no settings are changed and `settingsVersion` is not incremented, even for the fields that were individually valid. Partial application of a multi-field update is not acceptable.
+
+On every successful PATCH, increment `settingsVersion` and invalidate the SettingsService cache immediately, within the same transaction as the value write (see Section 1).
+
+`GET /settings` (public) returns only keys where `isPublic = true` — this is a query filter, not a manually maintained list of "which keys to expose," so a future private setting is private by default unless explicitly marked public. This response must never include `settingsVersion`.
+
+## 3. Centralized SettingsService — no scattered raw reads
+
+Do not call `getSetting("...")` or query `site_settings` directly from anywhere outside this module. Build one module (e.g. `lib/settings.ts`) exposing typed accessor functions: `Settings.getSiteName()`, `Settings.getLogoUrl()`, `Settings.getDefaultCredits()`, `Settings.getBanner()`, `Settings.getDefaultImageModel()`, `Settings.isMaintenanceModeEnabled()`, `Settings.isPlatformGenerationEnabled()`, etc. No code outside `SettingsService` should know about the table schema, JSON parsing, cache mechanics, default values, or validation rules — all of that is encapsulated here, checked against `settingsVersion` for cache freshness. Every other part of the app calls these functions only.
+
+**This is a standing rule, not just an initial-build preference**: when a future setting is added, extend `SettingsService` with a new accessor — a consumer must never reach for a raw `site_settings` query "just this once" or "temporarily" as a shortcut. That kind of one-off bypass is exactly how the "single source of truth" guarantee this whole feature exists to provide quietly erodes over time.
+
+## 4. Wire each setting to where it's actually used, replacing the current hardcoded value — via `Settings.*`, never a raw query
+
+- **Site Name / Tagline** — replace the hardcoded site name/tagline text in the nav/header/page titles/meta tags with `Settings.getSiteName()` / `Settings.getSiteTagline()`.
+- **Logo / Favicon** — replace the hardcoded logo asset with `Settings.getLogoUrl()`, and wire the favicon `<link>` tag to `Settings.getFaviconUrl()`. Support both upload (to existing storage infrastructure) and paste-URL-that-gets-downloaded-and-reuploaded (same pattern as the model thumbnail feature — never store a raw third-party URL for either).
+- **Maintenance Mode** — when `Settings.isMaintenanceModeEnabled()` is true, all non-owner requests should see a maintenance page showing `Settings.getMaintenanceMessage()`; owner access continues working normally. Real middleware-level enforcement on the backend, not just a UI flag. **Owner-only admin routes, the admin panel itself, and authentication endpoints (sign-in/sign-up) must remain fully accessible during maintenance mode, regardless of the maintenance check.** This is required, not optional: owner status is normally established *through* authentication, so if the auth endpoints themselves are gated by the same maintenance check, there is no path for the owner to prove who they are and get the exemption — especially on a fresh session or new device. The maintenance gate must sit after identity is resolved, never before it.
+- **Registration Enabled** — when `Settings.isRegistrationEnabled()` is false, block new signups with a clear message while existing logged-in users continue working normally — distinct check from maintenance mode, enforced at the signup endpoint.
+- **Platform Generation Enabled** — when `Settings.isPlatformGenerationEnabled()` is false, the generation-routing logic must reject platform-key generations with a clear message (e.g. "Platform generation is temporarily unavailable, please use your own API key") while BYOK generations continue working normally.
+- **Default Credits** — replace the hardcoded signup bonus amount (currently 50) with `Settings.getDefaultCredits()` at the point where new users are granted their initial credits.
+- **Default Models** — replace whatever currently determines the pre-selected model on `/image`, `/video`, `/audio` with `Settings.getDefaultImageModel()` / `getDefaultVideoModel()` / `getDefaultAudioModel()`, each resolving the stored slug against the real `models` table and its active/enabled status.
+- **Homepage Banner** — the promotional banner strip at the top of the site (the one currently still showing leftover placeholder/reference text) — reads the `homepage_banner` JSON object via `Settings.getBanner()`; renders nothing when `enabled` is false.
+- **Announcements** — reads the `announcement` JSON object via `Settings.getAnnouncement()`, its own independent enabled/disabled toggle.
+
+## 5. Admin UI section
+
+A form in the admin panel, with its section groupings **derived from the `category` column at render time** (query `site_settings` ordered by `category, key` and render one section per distinct category value) — do not hardcode "Branding / Access / Defaults / Messaging" as fixed groups in the React component. The current seed data happens to populate exactly those four categories, but the UI itself must not know that in advance: adding a future setting under a new category later should make a new section appear automatically, with zero frontend changes.
+
+**Section grouping is dynamic; field widgets are not — do not build a single generic "render any field from its `type` column" engine.** A generic renderer produces a raw JSON textarea for the homepage banner and a plain text box for picking a default model, which is unusable in practice. Instead, use a specialized component per known setting: `logo_url`/`favicon_url` get the real upload widget (Section 4's pattern), boolean settings (`maintenance_mode`, `registration_enabled`, `platform_generation_enabled`) get a toggle, `default_image_model_slug`/`default_video_model_slug`/`default_audio_model_slug` each get a dropdown populated from the real `models` table filtered to that category and active status (not a free-text field), and `homepage_banner`/`announcement` each get a structured sub-form with real inputs for `enabled`/`text`/`link`/`buttonText` (not a raw JSON editor). Plain string settings (`site_name`, `site_tagline`) and the numeric `default_credits` can safely use generic text/number inputs. The `type` column and Configuration Registry drive validation and section placement; they do not drive which widget renders.
+
+Each field is labeled using the `description` stored alongside it (sourced from the Configuration Registry). Save button that calls `PATCH /admin/settings`. Show current live values on load, not blank fields. Confirm successful save with a clear UI indication.
+
+## Definition of Success
+
+- Changing the site name/tagline in the admin panel immediately updates it everywhere it's displayed, with zero code changes.
+- Changing the logo or favicon (via upload or paste-URL) updates it everywhere, and confirms the URL is stored on your own infrastructure, never a raw third-party one.
+- Enabling maintenance mode actually blocks non-owner access and shows the configured maintenance message — verified by testing as a non-owner account — **and the owner can still sign in and reach the admin panel to turn it back off, verified with a real test from a fresh/unauthenticated session while maintenance mode is on.**
+- Disabling registration blocks new signups while existing users continue working — verified as a distinct behavior from maintenance mode.
+- Disabling platform generation rejects platform-key generations with a clear message while BYOK generations continue working — verified with a real test of both paths.
+- Changing default credits changes what a genuinely new signup receives.
+- Changing default models (by slug) changes what's pre-selected on a fresh visit to `/image`/`/video`/`/audio`, and attempting to set a default to a disabled/archived model is rejected with a clear error.
+- Homepage banner and announcement (each a single JSON object) are live-editable and correctly show/hide based on their own toggle.
+- Every value is validated on write per the rules in Section 2, not just checked against a key allow-list.
+- Submitting a PATCH with one valid field and one invalid field results in zero changes being applied — verified with a real test, not just code inspection.
+- After changing a setting via the admin UI (e.g. site name), re-running the seed script does not revert it back to the hardcoded default — verified with a real test: change a value, run seed again, confirm the changed value survives.
+- No file in the codebase reads `site_settings` directly outside of `lib/settings.ts` — every consumer goes through `Settings.*`.
+- The seed script, the PATCH validation logic, and the admin UI's field labels/descriptions all derive from the single Configuration Registry — confirm there's no second, independently-typed-out copy of a setting's type/description/validation rule anywhere else in the diff.
+- `settingsVersion` never appears in any API response body, public or admin.
+- Setting-value writes and `settingsVersion` increments always occur together in one transaction — confirm there's no code path that does one without the other.
+- No hardcoded site name, logo, favicon, credit amount, default model, or banner text remains anywhere this feature was meant to replace. **This means actual removal, not an unused leftover** — after each value is wired to `Settings.*`, delete the superseded hardcoded constant, config entry, or literal string it replaced. Do not leave the old value sitting in the codebase "as a fallback just in case" — the database is the single runtime source of truth once this ships, and a dead constant nobody reads is exactly the kind of half-migrated state this whole project has been working to eliminate. Search the diff to confirm no old constant was left behind unused.
+- TypeScript compiles with no new warnings or errors.
+
+Show me a screenshot of the admin settings form, and confirm the maintenance-mode-with-owner-login-still-working test and the platform-generation-disabled test (as a non-owner / with a forced-off toggle) once done.

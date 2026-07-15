@@ -6,8 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Settings, ShieldAlert, Save, Loader2 } from "lucide-react";
-import { useGetMe, useGetAdminSettings, useUpdateAdminSettings } from "@workspace/api-client-react";
+import { Settings, ShieldAlert, Save, Loader2, ChevronDown } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useGetMe, useGetAdminSettings, useUpdateAdminSettings, useListModels } from "@workspace/api-client-react";
 import type { AdminSetting } from "@workspace/api-client-react";
 import { toast } from "@/hooks/use-toast";
 
@@ -30,6 +31,55 @@ function isBannerValue(value: unknown): value is BannerValue {
   return typeof value === "object" && value !== null && "enabled" in value && "text" in value;
 }
 
+const MODEL_SLUG_KEYS: Record<string, "image" | "video" | "audio"> = {
+  default_image_model_slug: "image",
+  default_video_model_slug: "video",
+  default_audio_model_slug: "audio",
+};
+
+function ModelSlugField({
+  setting,
+  category,
+  value,
+  onChange,
+}: {
+  setting: AdminSetting;
+  category: "image" | "video" | "audio";
+  value: unknown;
+  onChange: (value: unknown) => void;
+}) {
+  const { data: models, isLoading } = useListModels({ category });
+  const activeModels = (models ?? []).filter((m) => m.isActive);
+
+  return (
+    <div className="py-3">
+      <Label className="text-white text-sm font-semibold">{setting.label}</Label>
+      <p className="text-xs text-white/40 mt-0.5 mb-2">{setting.description}</p>
+      {isLoading ? (
+        <div className="flex items-center gap-2 text-white/40 text-sm">
+          <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading models…
+        </div>
+      ) : (
+        <Select value={typeof value === "string" ? value : ""} onValueChange={(v) => onChange(v === "__none__" ? "" : v)}>
+          <SelectTrigger className="bg-white/[0.04] border-white/10 text-white max-w-xs">
+            <SelectValue placeholder="No default (first model shown)" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__none__">
+              <span className="text-white/50">No default</span>
+            </SelectItem>
+            {activeModels.map((m) => (
+              <SelectItem key={m.modelId} value={m.modelId}>
+                {m.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+    </div>
+  );
+}
+
 function SettingField({
   setting,
   value,
@@ -39,6 +89,11 @@ function SettingField({
   value: unknown;
   onChange: (value: unknown) => void;
 }) {
+  const modelCategory = MODEL_SLUG_KEYS[setting.key];
+  if (modelCategory) {
+    return <ModelSlugField setting={setting} category={modelCategory} value={value} onChange={onChange} />;
+  }
+
   if (setting.type === "boolean") {
     return (
       <div className="flex items-center justify-between gap-4 py-3">
