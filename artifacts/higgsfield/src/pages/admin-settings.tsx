@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import { Show } from "@clerk/react";
 import { Button } from "@/components/ui/button";
@@ -6,11 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Settings, ShieldAlert, Save, Loader2, ChevronDown } from "lucide-react";
+import { Settings, ShieldAlert, Save, Loader2, Upload } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useGetMe, useGetAdminSettings, useUpdateAdminSettings, useListModels } from "@workspace/api-client-react";
+import { useGetMe, useGetAdminSettings, useUpdateAdminSettings, useListModels, useRequestUploadUrl } from "@workspace/api-client-react";
 import type { AdminSetting } from "@workspace/api-client-react";
 import { toast } from "@/hooks/use-toast";
+
+// Prepend the artifact base path to an owned asset path (e.g. /logo.svg or /api/storage/objects/…)
+const PAGE_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 const CATEGORY_LABELS: Record<string, string> = {
   branding: "Branding",
@@ -29,6 +32,102 @@ interface BannerValue {
 
 function isBannerValue(value: unknown): value is BannerValue {
   return typeof value === "object" && value !== null && "enabled" in value && "text" in value;
+}
+
+const ASSET_UPLOAD_KEYS = new Set(["logo_url", "favicon_url"]);
+
+function ImageUploadField({
+  setting,
+  value,
+  onChange,
+}: {
+  setting: AdminSetting;
+  value: unknown;
+  onChange: (value: unknown) => void;
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const requestUploadUrl = useRequestUploadUrl();
+
+  const currentPath = typeof value === "string" ? value : "";
+  // Resolve the stored path against the artifact base for previewing
+  const previewSrc = currentPath ? `${PAGE_BASE}${currentPath}` : "";
+
+  async function handleFile(file: File) {
+    setUploading(true);
+    try {
+      // Step 1: ask the server for a presigned PUT URL
+      const res = await requestUploadUrl.mutateAsync({
+        data: { name: file.name, size: file.size, contentType: file.type },
+      });
+      // Step 2: upload the file bytes directly to GCS
+      const put = await fetch(res.uploadURL, {
+        method: "PUT",
+        body: file,
+        headers: { "Content-Type": file.type },
+      });
+      if (!put.ok) throw new Error(`GCS upload failed: ${put.status}`);
+      // Step 3: store "/api/storage<objectPath>" — satisfies the "/" validator
+      onChange(`/api/storage${res.objectPath}`);
+      toast({ title: "File uploaded", description: "Click Save changes to apply." });
+    } catch (err) {
+      toast({ title: "Upload failed", description: String(err), variant: "destructive" });
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div className="py-3">
+      <Label className="text-white text-sm font-semibold">{setting.label}</Label>
+      <p className="text-xs text-white/40 mt-0.5 mb-3">{setting.description}</p>
+      <div className="flex items-center gap-4 flex-wrap">
+        {/* Live preview */}
+        {previewSrc && (
+          <div className="w-12 h-12 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden shrink-0">
+            <img
+              src={previewSrc}
+              alt={setting.label}
+              className="max-w-full max-h-full object-contain p-1"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+            />
+          </div>
+        )}
+        {/* Upload button */}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={uploading}
+          onClick={() => fileInputRef.current?.click()}
+          className="border-white/20 text-white hover:bg-white/10"
+        >
+          {uploading ? (
+            <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Uploading…</>
+          ) : (
+            <><Upload className="w-3.5 h-3.5 mr-1.5" />Upload from device</>
+          )}
+        </Button>
+        {/* Current stored path */}
+        {currentPath && (
+          <span className="text-xs text-white/30 font-mono truncate max-w-[240px]" title={currentPath}>
+            {currentPath}
+          </span>
+        )}
+      </div>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*,.svg"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handleFile(file);
+          e.target.value = "";
+        }}
+      />
+    </div>
+  );
 }
 
 const MODEL_SLUG_KEYS: Record<string, "image" | "video" | "audio"> = {
@@ -89,6 +188,10 @@ function SettingField({
   value: unknown;
   onChange: (value: unknown) => void;
 }) {
+  if (ASSET_UPLOAD_KEYS.has(setting.key)) {
+    return <ImageUploadField setting={setting} value={value} onChange={onChange} />;
+  }
+
   const modelCategory = MODEL_SLUG_KEYS[setting.key];
   if (modelCategory) {
     return <ModelSlugField setting={setting} category={modelCategory} value={value} onChange={onChange} />;
