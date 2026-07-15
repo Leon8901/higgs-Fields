@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { Show, useUser, useClerk } from "@clerk/react";
 import { useGetMe } from "@workspace/api-client-react";
 import { MegaMenuTrigger } from "@/components/mega-menu";
+import { useSiteSettings } from "@/lib/settings";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -137,22 +138,33 @@ function AuthArea({ mobile = false, onNavigate }: { mobile?: boolean; onNavigate
   );
 }
 
+// The dismissible bar shown at the top of every page — content is fully
+// admin-editable via Settings > homepage_banner (see admin-settings.tsx),
+// never hardcoded here. Renders nothing while the setting is disabled.
 export function AnnouncementBanner() {
-  const [isVisible, setIsVisible] = useState(true);
+  const [dismissed, setDismissed] = useState(false);
+  const { homepage_banner: banner } = useSiteSettings();
 
-  if (!isVisible) return null;
+  if (!banner.enabled || !banner.text || dismissed) return null;
 
   return (
     <div className="bg-primary text-primary-foreground py-2 px-4 relative flex items-center justify-center font-medium text-sm z-50">
       <div className="flex items-center gap-2">
         <span className="animate-pulse">✦</span>
-        <span>Introducing Higgsfield Cinema Studio - The next generation of AI film tools.</span>
-        <Link href="/tools" className="underline font-bold ml-2 hover:text-black/70">
-          Try it now
-        </Link>
+        <span>{banner.text}</span>
+        {banner.linkUrl && banner.linkLabel ? (
+          <a
+            href={banner.linkUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="underline font-bold ml-2 hover:text-black/70"
+          >
+            {banner.linkLabel}
+          </a>
+        ) : null}
       </div>
-      <button 
-        onClick={() => setIsVisible(false)}
+      <button
+        onClick={() => setDismissed(true)}
         className="absolute right-4 top-1/2 -translate-y-1/2 p-1 hover:bg-black/10 rounded-full transition-colors"
       >
         <X className="w-4 h-4" />

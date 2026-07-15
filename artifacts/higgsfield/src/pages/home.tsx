@@ -19,6 +19,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { useSiteSettings } from "@/lib/settings";
 
 const categoryIcon: Record<string, React.ReactNode> = {
   image: <ImageIcon className="w-5 h-5" />,
@@ -55,6 +56,7 @@ export default function Home() {
   const [appSearch, setAppSearch] = useState("");
   const joinWaitlist = useJoinWaitlist();
   const { toast } = useToast();
+  const { announcement } = useSiteSettings();
 
   const handleWaitlist = (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,6 +87,29 @@ export default function Home() {
   return (
     <div className="flex flex-col w-full pb-20">
       <div className="container mx-auto px-4 pt-8">
+        {/* Announcement — independent from the top-of-site homepage_banner;
+            admin-editable via Settings > announcement, renders nothing when disabled. */}
+        {announcement.enabled && announcement.text && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-4 rounded-xl border border-primary/30 bg-primary/10 px-5 py-3 flex flex-wrap items-center gap-2 text-sm"
+          >
+            <Sparkles className="w-4 h-4 text-primary shrink-0" />
+            <span className="text-white/90">{announcement.text}</span>
+            {announcement.linkUrl && announcement.linkLabel && (
+              <a
+                href={announcement.linkUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-primary font-semibold underline underline-offset-2 hover:text-primary/80"
+              >
+                {announcement.linkLabel}
+              </a>
+            )}
+          </motion.div>
+        )}
+
         {/* Featured tools bento row */}
         <section className="mb-4">
           {toolsLoading ? (

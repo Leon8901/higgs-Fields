@@ -15,6 +15,7 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { useSiteSettings } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 import {
   Select,
@@ -509,6 +510,13 @@ export default function CategoryStudio({ category }: { category: Category }) {
     { query: { queryKey: getListModelsQueryKey({ category }) } },
   );
   const [selectedModelId, setSelectedModelId] = useState<string>("");
+  const siteSettings = useSiteSettings();
+  const defaultModelSlug =
+    category === "image"
+      ? siteSettings.default_image_model_slug
+      : category === "video"
+        ? siteSettings.default_video_model_slug
+        : siteSettings.default_audio_model_slug;
 
   useEffect(() => {
     if (!models || models.length === 0) return;
@@ -520,9 +528,13 @@ export default function CategoryStudio({ category }: { category: Category }) {
     }
     setSelectedModelId((cur) => {
       if (cur && models.some((m) => m.modelId === cur)) return cur;
-      return (models.find((m) => m.isFeatured) ?? models[0]).modelId;
+      // Admin-configured default (Settings.getDefaultImageModel() etc.) wins
+      // when it points at a real, active model in this category; otherwise
+      // fall back to the featured model, then the first available one.
+      const configuredDefault = defaultModelSlug ? models.find((m) => m.modelId === defaultModelSlug) : undefined;
+      return (configuredDefault ?? models.find((m) => m.isFeatured) ?? models[0]).modelId;
     });
-  }, [models, search]);
+  }, [models, search, defaultModelSlug]);
 
   const selectedModel = models?.find((m) => m.modelId === selectedModelId) ?? null;
 
