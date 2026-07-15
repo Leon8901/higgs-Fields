@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ClerkProvider, useClerk } from "@clerk/react";
 import { publishableKeyFromHost } from "@clerk/react/internal";
 import { shadcn } from "@clerk/themes";
+import { SettingsProvider, useSiteSettings } from "@/lib/settings";
 import Home from "@/pages/home";
 import Tools from "@/pages/tools";
 import ToolDetail from "@/pages/tool-detail";
@@ -32,6 +33,7 @@ import ApiKeys from "@/pages/api-keys";
 import SignInPage from "@/pages/sign-in";
 import SignUpPage from "@/pages/sign-up";
 import NotFound from "@/pages/not-found";
+import AdminSettings from "@/pages/admin-settings";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -69,13 +71,14 @@ if (!clerkPubKey) {
   throw new Error("Missing VITE_CLERK_PUBLISHABLE_KEY in .env file");
 }
 
-const clerkAppearance = {
+function buildClerkAppearance(logoUrl: string) {
+  return {
   theme: shadcn,
   cssLayerName: "clerk",
   options: {
     logoPlacement: "inside" as const,
     logoLinkUrl: basePath || "/",
-    logoImageUrl: `${window.location.origin}${basePath}/logo.svg`,
+    logoImageUrl: `${window.location.origin}${basePath}${logoUrl}`,
   },
   variables: {
     colorPrimary: "#CEFF00",
@@ -116,7 +119,8 @@ const clerkAppearance = {
     formFieldRow: "gap-3",
     main: "gap-5",
   },
-};
+  };
+}
 
 // Helps user's webview stay up-to-date when the signed-in user changes by invalidating the QueryClient cache.
 function ClerkQueryClientCacheInvalidator() {
@@ -155,6 +159,7 @@ function Router() {
       <Route path="/library" component={Library} />
       <Route path="/account" component={Account} />
       <Route path="/api-keys" component={ApiKeys} />
+      <Route path="/admin/settings" component={AdminSettings} />
       <Route path="/sign-in/*?" component={SignInPage} />
       <Route path="/sign-up/*?" component={SignUpPage} />
       <Route component={NotFound} />
@@ -162,27 +167,34 @@ function Router() {
   );
 }
 
+// Clerk's localization strings are static at ClerkProvider construction —
+// they can't read from a React context. This tiny wrapper re-renders the
+// provider (and therefore Clerk's UI) whenever the database-driven site
+// name / default credits change, giving the sign-in/up copy the same
+// "instant propagation" as everything else, at the cost of one extra
+// component in the tree.
 function ClerkProviderWithRoutes() {
   const [, setLocation] = useLocation();
+  const settings = useSiteSettings();
 
   return (
     <ClerkProvider
       publishableKey={clerkPubKey}
       proxyUrl={clerkProxyUrl}
-      appearance={clerkAppearance}
+      appearance={buildClerkAppearance(settings.logo_url)}
       signInUrl={`${basePath}/sign-in`}
       signUpUrl={`${basePath}/sign-up`}
       localization={{
         signIn: {
           start: {
             title: "Welcome back",
-            subtitle: "Sign in to keep creating with Higgsfield",
+            subtitle: `Sign in to keep creating with ${settings.site_name}`,
           },
         },
         signUp: {
           start: {
             title: "Create your account",
-            subtitle: "Get 50 free credits to start generating",
+            subtitle: `Get ${settings.default_credits} free credits to start generating`,
           },
         },
       }}
@@ -205,7 +217,9 @@ function ClerkProviderWithRoutes() {
 function App() {
   return (
     <WouterRouter base={basePath}>
-      <ClerkProviderWithRoutes />
+      <SettingsProvider>
+        <ClerkProviderWithRoutes />
+      </SettingsProvider>
     </WouterRouter>
   );
 }

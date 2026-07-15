@@ -36,6 +36,10 @@ tags:
     description: Razorpay-backed subscriptions and one-time credit purchases
   - name: avatars
     description: Saved spokesperson avatars for Marketing Studio
+  - name: settings
+    description: Public, database-driven site configuration
+  - name: admin
+    description: Owner-only site administration
 
 paths:
   /healthz:
@@ -320,6 +324,83 @@ paths:
                 $ref: "#/components/schemas/WaitlistEntry"
         "409":
           description: Already on waitlist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /settings:
+    get:
+      operationId: getPublicSettings
+      tags: [settings]
+      summary: Get all publicly-readable site settings (never includes the internal settings version)
+      responses:
+        "200":
+          description: Public settings map
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicSettings"
+
+  /admin/settings:
+    get:
+      operationId: getAdminSettings
+      tags: [admin]
+      summary: Get every site setting plus its registry metadata (owner-only)
+      responses:
+        "200":
+          description: All settings with registry metadata
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminSetting"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden — not the owner
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateAdminSettings
+      tags: [admin]
+      summary: Update one or more site settings (owner-only, all-or-nothing)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SettingsPatch"
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminSetting"
+        "400":
+          description: Validation failed — no fields were written
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden — not the owner
           content:
             application/json:
               schema:
@@ -1156,6 +1237,105 @@ components:
         - label
         - type
 
+    BannerContent:
+      type: object
+      description: Shape shared by homepage_banner and announcement.
+      properties:
+        enabled:
+          type: boolean
+        text:
+          type: string
+        linkUrl:
+          type: string
+        linkLabel:
+          type: string
+      required:
+        - enabled
+        - text
+
+    PublicSettings:
+      type: object
+      description: Every isPublic=true site setting, keyed by setting key. Never includes the internal settings version.
+      properties:
+        site_name:
+          type: string
+        site_tagline:
+          type: string
+        logo_url:
+          type: string
+        favicon_url:
+          type: string
+        theme_color:
+          type: string
+        maintenance_mode:
+          type: boolean
+        maintenance_message:
+          type: string
+        registration_enabled:
+          type: boolean
+        platform_generation_enabled:
+          type: boolean
+        default_credits:
+          type: integer
+        default_image_model_slug:
+          type: string
+        default_video_model_slug:
+          type: string
+        default_audio_model_slug:
+          type: string
+        homepage_banner:
+          $ref: "#/components/schemas/BannerContent"
+        announcement:
+          $ref: "#/components/schemas/BannerContent"
+      required:
+        - site_name
+        - site_tagline
+        - logo_url
+        - favicon_url
+        - theme_color
+        - maintenance_mode
+        - maintenance_message
+        - registration_enabled
+        - platform_generation_enabled
+        - default_credits
+        - default_image_model_slug
+        - default_video_model_slug
+        - default_audio_model_slug
+        - homepage_banner
+        - announcement
+
+    AdminSetting:
+      type: object
+      description: One site setting row, joined with its Configuration Registry metadata.
+      properties:
+        key:
+          type: string
+        type:
+          type: string
+          enum: [string, boolean, number, json]
+        category:
+          type: string
+        label:
+          type: string
+        description:
+          type: string
+        isPublic:
+          type: boolean
+        value: {}
+      required:
+        - key
+        - type
+        - category
+        - label
+        - description
+        - isPublic
+        - value
+
+    SettingsPatch:
+      type: object
+      description: Partial map of setting key -> new value. Every key must be a known registry key; every value is validated server-side before anything is written. The whole request fails atomically if any field is invalid.
+      additionalProperties: true
+
     ModelParamsSchema:
       type: object
       properties:
@@ -1187,6 +1367,8 @@ components:
           type: ["string", "null"]
         isFeatured:
           type: boolean
+        isActive:
+          type: boolean
         sortOrder:
           type: integer
         adapter:
@@ -1207,6 +1389,7 @@ components:
         - category
         - description
         - isFeatured
+        - isActive
         - sortOrder
         - adapter
         - basePriceUsd
@@ -1307,6 +1490,9 @@ components:
           type: integer
         hasOwnKey:
           type: boolean
+        isOwner:
+          type: boolean
+          description: Grants access to the owner-only Site Settings admin panel.
         subscriptionStatus:
           type: ["string", "null"]
           description: "active | pending | halted | cancelled | completed | null (no Razorpay subscription)"
@@ -1322,6 +1508,7 @@ components:
         - planKey
         - creditsBalance
         - hasOwnKey
+        - isOwner
         - createdAt
 
     SwitchPlanRequest:

@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, boolean, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -11,6 +11,10 @@ export const usersTable = pgTable("users", {
   displayName: text("display_name"),
   planKey: text("plan_key").notNull().default("free"), // free | starter | plus | ultra
   creditsBalance: integer("credits_balance").notNull().default(0),
+  // Single owner/non-owner distinction — gates the admin settings panel and
+  // survives maintenance mode. Flipped directly in the DB for the platform
+  // owner's row; no self-service way to grant it.
+  isOwner: boolean("is_owner").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   // Razorpay billing state. All null until the user's first real checkout —
   // never populated by the old direct-grant /me/plan flow.

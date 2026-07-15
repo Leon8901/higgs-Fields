@@ -15,6 +15,7 @@ import storageRouter from "./storage";
 import billingRouter from "./billing";
 import marketingRouter from "./marketing";
 import avatarsRouter from "./avatars";
+import settingsRouter from "./settings";
 
 const router: IRouter = Router();
 
@@ -34,5 +35,6 @@ router.use(storageRouter);
 router.use(billingRouter);
 router.use(marketingRouter);
 router.use(avatarsRouter);
+router.use(settingsRouter);
 
 export default router;

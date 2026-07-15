@@ -20,6 +20,7 @@ export interface Model {
   /** @nullable */
   thumbnailUrl?: string | null;
   isFeatured: boolean;
+  isActive: boolean;
   sortOrder: number;
   adapter: string;
   basePriceUsd: number;

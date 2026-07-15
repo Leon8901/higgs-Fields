@@ -13,15 +13,15 @@ router.get("/models", async (req, res): Promise<void> => {
   }
 
   const { category } = query.data;
-  const conditions = [];
+  // Public catalog only ever shows active models — a disabled model stays
+  // in the table (e.g. for historical generations) but disappears from
+  // /image, /video, /audio and can't be re-picked as a Site Settings default.
+  const conditions = [eq(modelsTable.isActive, true)];
   if (category && category !== "all") {
     conditions.push(eq(modelsTable.category, category));
   }
 
-  const models =
-    conditions.length > 0
-      ? await db.select().from(modelsTable).where(and(...conditions)).orderBy(modelsTable.sortOrder)
-      : await db.select().from(modelsTable).orderBy(modelsTable.sortOrder);
+  const models = await db.select().from(modelsTable).where(and(...conditions)).orderBy(modelsTable.sortOrder);
 
   res.json(ListModelsResponse.parse(models));
 });

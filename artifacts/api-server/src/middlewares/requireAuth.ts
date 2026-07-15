@@ -2,10 +2,7 @@ import type { Request, Response, NextFunction } from "express";
 import { getAuth, clerkClient } from "@clerk/express";
 import { eq } from "drizzle-orm";
 import { db, usersTable, creditLedgerTable } from "@workspace/db";
-
-// New signed-up users get a small starter grant so they can try generation
-// immediately without picking a paid plan first.
-const SIGNUP_BONUS_CREDITS = 50;
+import { getDefaultCredits, isRegistrationEnabled } from "../lib/settings";
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -34,22 +31,31 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       return;
     }
 
+    // Registration-disabled only blocks brand-new users from being
+    // provisioned here — it never affects an `existing` row above, so
+    // already-registered users keep working normally.
+    if (!(await isRegistrationEnabled())) {
+      res.status(403).json({ error: "Registration is currently disabled" });
+      return;
+    }
+
     const clerkUser = await clerkClient.users.getUser(clerkId);
     const email = clerkUser.emailAddresses.find((e) => e.id === clerkUser.primaryEmailAddressId)?.emailAddress
       ?? clerkUser.emailAddresses[0]?.emailAddress
       ?? "";
     const displayName = [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") || null;
+    const signupBonusCredits = await getDefaultCredits();
 
     const [created] = await db
       .insert(usersTable)
-      .values({ clerkId, email, displayName, planKey: "free", creditsBalance: SIGNUP_BONUS_CREDITS })
+      .values({ clerkId, email, displayName, planKey: "free", creditsBalance: signupBonusCredits })
       .returning();
 
     await db.insert(creditLedgerTable).values({
       userId: created.id,
-      delta: SIGNUP_BONUS_CREDITS,
+      delta: signupBonusCredits,
       reason: "signup_bonus",
-      balanceAfter: SIGNUP_BONUS_CREDITS,
+      balanceAfter: signupBonusCredits,
     });
 
     req.appUser = created;

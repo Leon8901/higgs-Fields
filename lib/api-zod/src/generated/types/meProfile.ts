@@ -14,6 +14,8 @@ export interface MeProfile {
   planKey: string;
   creditsBalance: number;
   hasOwnKey: boolean;
+  /** Grants access to the owner-only Site Settings admin panel. */
+  isOwner: boolean;
   /**
      * active | pending | halted | cancelled | completed | null (no Razorpay subscription)
      * @nullable

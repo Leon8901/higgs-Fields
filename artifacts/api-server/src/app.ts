@@ -1,11 +1,14 @@
 import express, { type Express } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
-import { clerkMiddleware } from "@clerk/express";
+import { clerkMiddleware, getAuth } from "@clerk/express";
 import { publishableKeyFromHost } from "@clerk/shared/keys";
+import { eq } from "drizzle-orm";
+import { db, usersTable } from "@workspace/db";
 import router from "./routes";
 import billingWebhookRouter from "./routes/billing-webhook";
 import { logger } from "./lib/logger";
+import { isMaintenanceModeEnabled, getMaintenanceMessage } from "./lib/settings";
 import {
   CLERK_PROXY_PATH,
   clerkProxyMiddleware,
@@ -56,6 +59,35 @@ app.use(
     ),
   })),
 );
+
+// Maintenance mode: gates every /api route *except* the ones that must stay
+// reachable so the owner can always get back in and turn it off again —
+// the settings read/write routes themselves, and the current-user lookup
+// the frontend uses to decide whether to render the "you're the owner"
+// bypass banner. Runs after clerkMiddleware (identity is already resolvable
+// via getAuth) so the owner check below works without re-authenticating.
+const MAINTENANCE_EXEMPT_PREFIXES = ["/api/admin", "/api/settings", "/api/me", "/api/healthz"];
+app.use(async (req, res, next) => {
+  if (MAINTENANCE_EXEMPT_PREFIXES.some((p) => req.path.startsWith(p))) {
+    next();
+    return;
+  }
+  if (!(await isMaintenanceModeEnabled())) {
+    next();
+    return;
+  }
+
+  const clerkId = getAuth(req)?.userId;
+  if (clerkId) {
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.clerkId, clerkId));
+    if (user?.isOwner) {
+      next();
+      return;
+    }
+  }
+
+  res.status(503).json({ error: await getMaintenanceMessage() });
+});
 
 app.use("/api", router);
 

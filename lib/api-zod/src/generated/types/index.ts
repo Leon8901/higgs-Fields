@@ -6,12 +6,15 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './adminSetting';
+export * from './adminSettingType';
 export * from './apiKeyInput';
 export * from './apiKeySummary';
 export * from './apiKeySummaryStatus';
 export * from './app';
 export * from './appStats';
 export * from './avatar';
+export * from './bannerContent';
 export * from './billingStatus';
 export * from './createAvatarInput';
 export * from './creditLedgerEntry';
@@ -41,8 +44,10 @@ export * from './platformStats';
 export * from './pricingPlan';
 export * from './provider';
 export * from './providerVoice';
+export * from './publicSettings';
 export * from './purchaseCreditsRequest';
 export * from './purchaseCreditsResult';
+export * from './settingsPatch';
 export * from './subscribeRequest';
 export * from './subscribeRequestInterval';
 export * from './subscribeResult';

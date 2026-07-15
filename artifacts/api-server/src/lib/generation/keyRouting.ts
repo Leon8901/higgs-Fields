@@ -1,10 +1,15 @@
 import { and, eq } from "drizzle-orm";
 import { db, userApiKeysTable, type Model } from "@workspace/db";
 import { decryptSecret } from "../crypto";
+import { isPlatformGenerationEnabled } from "../settings";
 
 export interface KeyResolution {
   apiKey: string | undefined;
   usedOwnKey: boolean;
+  // Set when the request must be rejected outright (platform generation is
+  // disabled and no valid BYOK key was available) rather than silently
+  // falling back to an undefined platform key.
+  rejected?: { reason: string };
 }
 
 // Routing decision: "which API key services this generation?" — kept
@@ -27,6 +32,16 @@ export async function resolveGenerationKey(
       await db.update(userApiKeysTable).set({ lastUsedAt: new Date() }).where(eq(userApiKeysTable.id, ownKey.id));
       return { apiKey: decryptSecret(ownKey.encryptedKey), usedOwnKey: true };
     }
+  }
+
+  // Falling through to the platform key — the owner's kill switch applies
+  // only here, never to a genuine BYOK request above.
+  if (!(await isPlatformGenerationEnabled())) {
+    return {
+      apiKey: undefined,
+      usedOwnKey: false,
+      rejected: { reason: "Platform-provided generation is temporarily disabled. Add your own API key to keep generating." },
+    };
   }
 
   return { apiKey: getPlatformApiKey(model.adapter), usedOwnKey: false };

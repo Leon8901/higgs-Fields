@@ -16,6 +16,9 @@ export const modelsTable = pgTable("models", {
   thumbnailUrl: text("thumbnail_url"),
   isFeatured: boolean("is_featured").notNull().default(false),
   sortOrder: integer("sort_order").notNull().default(0),
+  // Disabled models are hidden from public listing, can't be selected as a
+  // default in Site Settings, and are rejected if pinned there already.
+  isActive: boolean("is_active").notNull().default(true),
 
   // Provider routing
   adapter: text("adapter").notNull().default("wavespeed"), // which adapter implements generateMedia for this row

@@ -112,7 +112,12 @@ router.post("/generations", requireAuth, generationsRateLimit(), async (req, res
 
   // Routing ("which key?") and billing ("what does it cost?") are resolved
   // by separate, independently swappable helpers — see lib/generation/.
-  const { apiKey, usedOwnKey } = await resolveGenerationKey(user.id, model, useOwnKey);
+  const { apiKey, usedOwnKey, rejected } = await resolveGenerationKey(user.id, model, useOwnKey);
+
+  if (rejected) {
+    res.status(403).json({ error: rejected.reason });
+    return;
+  }
 
   if (!usedOwnKey && user.creditsBalance < model.creditCost) {
     res.status(402).json({ error: "Insufficient credits. Upgrade your plan or add your own API key." });

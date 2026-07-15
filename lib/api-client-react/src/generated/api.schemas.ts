@@ -168,6 +168,65 @@ export interface ModelParamField {
   helpText?: string | null;
 }
 
+/**
+ * Shape shared by homepage_banner and announcement.
+ */
+export interface BannerContent {
+  enabled: boolean;
+  text: string;
+  linkUrl?: string;
+  linkLabel?: string;
+}
+
+/**
+ * Every isPublic=true site setting, keyed by setting key. Never includes the internal settings version.
+ */
+export interface PublicSettings {
+  site_name: string;
+  site_tagline: string;
+  logo_url: string;
+  favicon_url: string;
+  theme_color: string;
+  maintenance_mode: boolean;
+  maintenance_message: string;
+  registration_enabled: boolean;
+  platform_generation_enabled: boolean;
+  default_credits: number;
+  default_image_model_slug: string;
+  default_video_model_slug: string;
+  default_audio_model_slug: string;
+  homepage_banner: BannerContent;
+  announcement: BannerContent;
+}
+
+export type AdminSettingType = typeof AdminSettingType[keyof typeof AdminSettingType];
+
+
+export const AdminSettingType = {
+  string: 'string',
+  boolean: 'boolean',
+  number: 'number',
+  json: 'json',
+} as const;
+
+/**
+ * One site setting row, joined with its Configuration Registry metadata.
+ */
+export interface AdminSetting {
+  key: string;
+  type: AdminSettingType;
+  category: string;
+  label: string;
+  description: string;
+  isPublic: boolean;
+  value: unknown;
+}
+
+/**
+ * Partial map of setting key -> new value. Every key must be a known registry key; every value is validated server-side before anything is written. The whole request fails atomically if any field is invalid.
+ */
+export interface SettingsPatch { [key: string]: unknown }
+
 export interface ModelParamsSchema {
   fields: ModelParamField[];
 }
@@ -193,6 +252,7 @@ export interface Model {
   /** @nullable */
   thumbnailUrl?: string | null;
   isFeatured: boolean;
+  isActive: boolean;
   sortOrder: number;
   adapter: string;
   basePriceUsd: number;
@@ -281,6 +341,8 @@ export interface MeProfile {
   planKey: string;
   creditsBalance: number;
   hasOwnKey: boolean;
+  /** Grants access to the owner-only Site Settings admin panel. */
+  isOwner: boolean;
   /**
      * active | pending | halted | cancelled | completed | null (no Razorpay subscription)
      * @nullable

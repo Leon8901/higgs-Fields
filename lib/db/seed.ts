@@ -2,8 +2,18 @@
 //   pnpm --filter @workspace/db run seed
 // Safe to re-run: each section upserts on its natural unique key.
 import { db } from "./src/index";
-import { toolsTable, modelsTable, pricingPlansTable, appsTable, creditPacksTable, providersTable } from "./src/schema";
+import {
+  toolsTable,
+  modelsTable,
+  pricingPlansTable,
+  appsTable,
+  creditPacksTable,
+  providersTable,
+  siteSettingsTable,
+  settingsMetaTable,
+} from "./src/schema";
 import { sql } from "drizzle-orm";
+import { SETTINGS_REGISTRY } from "./src/settingsRegistry";
 
 type ParamField = {
   key: string;
@@ -1055,6 +1065,32 @@ async function main() {
       await db.insert(appsTable).values(a);
     }
   }
+
+  // Site settings — insert-if-missing only (never upsert), so an admin's
+  // edited value is never reverted by re-running this script. Driven
+  // entirely by the Configuration Registry; add a setting there, not here.
+  console.log("Seeding site settings...");
+  for (const def of SETTINGS_REGISTRY) {
+    await db
+      .insert(siteSettingsTable)
+      .values({
+        key: def.key,
+        value: JSON.stringify(def.default),
+        type: def.type,
+        category: def.category,
+        isPublic: def.isPublic,
+        description: def.description,
+      })
+      // `value` is intentionally excluded from the conflict update — an
+      // admin's edit must never be reverted by re-running this script.
+      // Everything else is just the registry's own metadata mirrored for
+      // convenience, so it's safe (and correct) to always resync it.
+      .onConflictDoUpdate({
+        target: siteSettingsTable.key,
+        set: { type: def.type, category: def.category, isPublic: def.isPublic, description: def.description },
+      });
+  }
+  await db.insert(settingsMetaTable).values({ id: 1, version: 1 }).onConflictDoNothing({ target: settingsMetaTable.id });
 
   console.log("Seed complete.");
   process.exit(0);

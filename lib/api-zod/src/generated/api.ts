@@ -220,6 +220,70 @@ export const JoinWaitlistResponse = zod.object({
 
 
 /**
+ * @summary Get all publicly-readable site settings (never includes the internal settings version)
+ */
+export const GetPublicSettingsResponse = zod.object({
+  "site_name": zod.string(),
+  "site_tagline": zod.string(),
+  "logo_url": zod.string(),
+  "favicon_url": zod.string(),
+  "theme_color": zod.string(),
+  "maintenance_mode": zod.boolean(),
+  "maintenance_message": zod.string(),
+  "registration_enabled": zod.boolean(),
+  "platform_generation_enabled": zod.boolean(),
+  "default_credits": zod.number(),
+  "default_image_model_slug": zod.string(),
+  "default_video_model_slug": zod.string(),
+  "default_audio_model_slug": zod.string(),
+  "homepage_banner": zod.object({
+  "enabled": zod.boolean(),
+  "text": zod.string(),
+  "linkUrl": zod.string().optional(),
+  "linkLabel": zod.string().optional()
+}).describe('Shape shared by homepage_banner and announcement.'),
+  "announcement": zod.object({
+  "enabled": zod.boolean(),
+  "text": zod.string(),
+  "linkUrl": zod.string().optional(),
+  "linkLabel": zod.string().optional()
+}).describe('Shape shared by homepage_banner and announcement.')
+}).describe('Every isPublic=true site setting, keyed by setting key. Never includes the internal settings version.')
+
+
+/**
+ * @summary Get every site setting plus its registry metadata (owner-only)
+ */
+export const GetAdminSettingsResponseItem = zod.object({
+  "key": zod.string(),
+  "type": zod.enum(['string', 'boolean', 'number', 'json']),
+  "category": zod.string(),
+  "label": zod.string(),
+  "description": zod.string(),
+  "isPublic": zod.boolean(),
+  "value": zod.unknown()
+}).describe('One site setting row, joined with its Configuration Registry metadata.')
+export const GetAdminSettingsResponse = zod.array(GetAdminSettingsResponseItem)
+
+
+/**
+ * @summary Update one or more site settings (owner-only, all-or-nothing)
+ */
+export const UpdateAdminSettingsBody = zod.record(zod.string(), zod.unknown()).describe('Partial map of setting key -> new value. Every key must be a known registry key; every value is validated server-side before anything is written. The whole request fails atomically if any field is invalid.')
+
+export const UpdateAdminSettingsResponseItem = zod.object({
+  "key": zod.string(),
+  "type": zod.enum(['string', 'boolean', 'number', 'json']),
+  "category": zod.string(),
+  "label": zod.string(),
+  "description": zod.string(),
+  "isPublic": zod.boolean(),
+  "value": zod.unknown()
+}).describe('One site setting row, joined with its Configuration Registry metadata.')
+export const UpdateAdminSettingsResponse = zod.array(UpdateAdminSettingsResponseItem)
+
+
+/**
  * @summary List all generation models
  */
 export const ListModelsQueryParams = zod.object({
@@ -235,6 +299,7 @@ export const ListModelsResponseItem = zod.object({
   "badge": zod.string().nullish(),
   "thumbnailUrl": zod.string().nullish(),
   "isFeatured": zod.boolean(),
+  "isActive": zod.boolean(),
   "sortOrder": zod.number(),
   "adapter": zod.string(),
   "basePriceUsd": zod.number(),
@@ -275,6 +340,7 @@ export const GetModelResponse = zod.object({
   "badge": zod.string().nullish(),
   "thumbnailUrl": zod.string().nullish(),
   "isFeatured": zod.boolean(),
+  "isActive": zod.boolean(),
   "sortOrder": zod.number(),
   "adapter": zod.string(),
   "basePriceUsd": zod.number(),
@@ -308,6 +374,7 @@ export const GetMeResponse = zod.object({
   "planKey": zod.string(),
   "creditsBalance": zod.number(),
   "hasOwnKey": zod.boolean(),
+  "isOwner": zod.boolean().describe('Grants access to the owner-only Site Settings admin panel.'),
   "subscriptionStatus": zod.string().nullish().describe('active | pending | halted | cancelled | completed | null (no Razorpay subscription)'),
   "billingInterval": zod.string().nullish().describe('monthly | yearly | null'),
   "createdAt": zod.coerce.date()
@@ -328,6 +395,7 @@ export const SwitchPlanResponse = zod.object({
   "planKey": zod.string(),
   "creditsBalance": zod.number(),
   "hasOwnKey": zod.boolean(),
+  "isOwner": zod.boolean().describe('Grants access to the owner-only Site Settings admin panel.'),
   "subscriptionStatus": zod.string().nullish().describe('active | pending | halted | cancelled | completed | null (no Razorpay subscription)'),
   "billingInterval": zod.string().nullish().describe('monthly | yearly | null'),
   "createdAt": zod.coerce.date()
