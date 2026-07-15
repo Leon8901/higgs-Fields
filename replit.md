@@ -2,6 +2,27 @@
 
 A full-stack AI creative platform website inspired by higgsfield.ai — featuring a dark cinematic aesthetic, AI tools catalog, community app gallery, pricing plans, and waitlist signup.
 
+## Replit Environment Setup (current state)
+
+All three workflows are configured and running:
+- **artifacts/higgsfield: web** — Vite dev server for the frontend
+- **artifacts/api-server: API Server** — Express API on port 8080
+- **artifacts/mockup-sandbox: Component Preview Server** — canvas/mockup sandbox
+
+Secrets configured (all set as Replit Secrets):
+- `CLERK_SECRET_KEY` + `CLERK_PUBLISHABLE_KEY` + `VITE_CLERK_PUBLISHABLE_KEY` — provisioned via Replit-managed Clerk
+- `SESSION_SECRET` — session signing key
+- `OPENROUTER_API_KEY` — for LLM/planning calls (user-supplied)
+- `WAVESPEED_API_KEY` — for image/video generation (user-supplied)
+- `DATABASE_URL` / `PGHOST` / `PGPORT` / `PGUSER` / `PGPASSWORD` / `PGDATABASE` — Replit-managed PostgreSQL (auto-set)
+
+DB initialized: schema pushed via `drizzle-kit push`, seeded via `pnpm --filter @workspace/db run seed` (models, tools, pricing plans, credit packs, BYOK providers, community apps, site settings).
+
+**Pending (not yet configured):**
+- Object storage — generated assets use temporary provider URLs; run `setupObjectStorage()` in the Replit sandbox and set `DEFAULT_OBJECT_STORAGE_BUCKET_ID` + `PRIVATE_OBJECT_DIR` to fix
+- Razorpay (`RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`) — billing degrades gracefully without these
+- Admin panel: after signing in, flip your user's `is_owner` flag: `UPDATE users SET is_owner = true WHERE email = '<your email>'`
+
 ## Run & Operate
 
 - `pnpm --filter @workspace/higgsfield run dev` — run the frontend (assigned port via workflow)
@@ -10,7 +31,7 @@ A full-stack AI creative platform website inspired by higgsfield.ai — featurin
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- `pnpm --filter @workspace/db run seed` — seed/re-seed reference data (idempotent — never overwrites existing rows)
 
 ## Stack
 
