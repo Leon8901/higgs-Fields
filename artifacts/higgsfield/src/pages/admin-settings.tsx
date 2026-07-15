@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Settings, ShieldAlert, Save, Loader2 } from "lucide-react";
 import { useGetMe, useGetAdminSettings, useUpdateAdminSettings } from "@workspace/api-client-react";
-import type { AdminSetting } from "@workspace/api-zod";
+import type { AdminSetting } from "@workspace/api-client-react";
 import { toast } from "@/hooks/use-toast";
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -170,7 +170,7 @@ function AdminSettingsPanel() {
           toast({ title: "Settings saved" });
           setDirty(new Set());
         },
-        onError: (err) => {
+        onError: (err: unknown) => {
           toast({ title: "Failed to save settings", description: String(err), variant: "destructive" });
         },
       },

@@ -8,3 +8,4 @@
 - [Studio UI polish session](studio-ui-polish.md) — dead links, audio waveform, surfaced controls, rate limiting, app search — see file for complete change list.
 - [Model catalog expansion](model-catalog-expansion.md) — adding models is DB-only (seed.ts); no video-upload field type exists yet, so motion-control/video-edit models can't be wired up without a frontend change.
 - [BYOK key validation scope pitfall](byok-key-validation-scope-pitfall.md) — validateKey() probing the wrong endpoint false-rejects restricted/scoped keys (OpenAI, ElevenLabs); only hard-reject on the provider's documented "definitely wrong key" signal.
+- [App.tsx provider ordering bug](higgsfield-provider-ordering-bug.md) — SettingsProvider called a react-query hook while mounted outside QueryClientProvider; fixed by moving QueryClientProvider to wrap the whole App tree, not just ClerkProviderWithRoutes.

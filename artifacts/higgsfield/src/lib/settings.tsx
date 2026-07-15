@@ -17,6 +17,7 @@ const FALLBACK_SETTINGS: PublicSettings = {
   maintenance_message: "We're performing scheduled maintenance. Please check back shortly.",
   registration_enabled: true,
   platform_generation_enabled: true,
+  default_credits: 50,
   default_image_model_slug: "",
   default_video_model_slug: "",
   default_audio_model_slug: "",
