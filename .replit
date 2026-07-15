@@ -24,3 +24,11 @@ channel = "stable-25_05"
 
 [objectStorage]
 defaultBucketID = "replit-objstore-d446f8aa-48c2-473e-839c-152e50235866"
+
+[userenv]
+
+[userenv.shared]
+DEFAULT_OBJECT_STORAGE_BUCKET_ID = "replit-objstore-d446f8aa-48c2-473e-839c-152e50235866"
+LOG_LEVEL = "info"
+PRIVATE_OBJECT_DIR = "private"
+PUBLIC_OBJECT_SEARCH_PATHS = "public"
