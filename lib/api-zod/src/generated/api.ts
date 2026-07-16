@@ -284,6 +284,58 @@ export const UpdateAdminSettingsResponse = zod.array(UpdateAdminSettingsResponse
 
 
 /**
+ * @summary Export all settings as a flat key→value JSON file (owner-only)
+ */
+export const GetAdminSettingsExportResponse = zod.record(zod.string(), zod.unknown()).describe('Flat key→value map of all settings — the shape produced by export and consumed by import.')
+
+
+/**
+ * @summary Import settings from a flat JSON export (owner-only, all-or-nothing)
+ */
+export const ImportAdminSettingsBody = zod.record(zod.string(), zod.unknown()).describe('Flat key→value map of all settings — the shape produced by export and consumed by import.')
+
+export const ImportAdminSettingsResponseItem = zod.object({
+  "key": zod.string(),
+  "type": zod.enum(['string', 'boolean', 'number', 'json']),
+  "category": zod.string(),
+  "label": zod.string(),
+  "description": zod.string(),
+  "isPublic": zod.boolean(),
+  "value": zod.unknown()
+}).describe('One site setting row, joined with its Configuration Registry metadata.')
+export const ImportAdminSettingsResponse = zod.array(ImportAdminSettingsResponseItem)
+
+
+/**
+ * @summary Reset every setting to its registry default (owner-only, destructive)
+ */
+export const ResetAdminSettingsToDefaultsResponseItem = zod.object({
+  "key": zod.string(),
+  "type": zod.enum(['string', 'boolean', 'number', 'json']),
+  "category": zod.string(),
+  "label": zod.string(),
+  "description": zod.string(),
+  "isPublic": zod.boolean(),
+  "value": zod.unknown()
+}).describe('One site setting row, joined with its Configuration Registry metadata.')
+export const ResetAdminSettingsToDefaultsResponse = zod.array(ResetAdminSettingsToDefaultsResponseItem)
+
+
+/**
+ * @summary Real infrastructure health checks + last-saved time for the admin panel (owner-only)
+ */
+export const GetAdminSettingsHealthResponse = zod.object({
+  "database": zod.object({
+  "connected": zod.boolean()
+}),
+  "objectStorage": zod.object({
+  "connected": zod.boolean()
+}),
+  "lastSavedAt": zod.coerce.date().nullish()
+})
+
+
+/**
  * @summary List all generation models
  */
 export const ListModelsQueryParams = zod.object({

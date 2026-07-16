@@ -227,6 +227,22 @@ export interface AdminSetting {
  */
 export interface SettingsPatch { [key: string]: unknown }
 
+/**
+ * Flat key→value map of all settings — the shape produced by export and consumed by import.
+ */
+export interface AdminSettingsExport { [key: string]: unknown }
+
+export interface AdminHealthCheckItem {
+  connected: boolean;
+}
+
+export interface AdminHealthStatus {
+  database: AdminHealthCheckItem;
+  objectStorage: AdminHealthCheckItem;
+  /** @nullable */
+  lastSavedAt?: string | null;
+}
+
 export interface ModelParamsSchema {
   fields: ModelParamField[];
 }

@@ -20,7 +20,9 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AdminHealthStatus,
   AdminSetting,
+  AdminSettingsExport,
   ApiKeyInput,
   ApiKeySummary,
   App,
@@ -1306,6 +1308,302 @@ export const useUpdateAdminSettings = <TError = ErrorType<ErrorResponse>,
       > => {
       return useMutation(getUpdateAdminSettingsMutationOptions(options));
     }
+
+export const getGetAdminSettingsExportUrl = () => {
+
+
+
+
+  return `/api/admin/settings/export`
+}
+
+/**
+ * @summary Export all settings as a flat key→value JSON file (owner-only)
+ */
+export const getAdminSettingsExport = async ( options?: RequestInit): Promise<AdminSettingsExport> => {
+
+  return customFetch<AdminSettingsExport>(getGetAdminSettingsExportUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAdminSettingsExportQueryKey = () => {
+    return [
+    `/api/admin/settings/export`
+    ] as const;
+    }
+
+
+export const getGetAdminSettingsExportQueryOptions = <TData = Awaited<ReturnType<typeof getAdminSettingsExport>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminSettingsExport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAdminSettingsExportQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminSettingsExport>>> = ({ signal }) => getAdminSettingsExport({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminSettingsExport>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAdminSettingsExportQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminSettingsExport>>>
+export type GetAdminSettingsExportQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Export all settings as a flat key→value JSON file (owner-only)
+ */
+
+export function useGetAdminSettingsExport<TData = Awaited<ReturnType<typeof getAdminSettingsExport>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminSettingsExport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAdminSettingsExportQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getImportAdminSettingsUrl = () => {
+
+
+
+
+  return `/api/admin/settings/import`
+}
+
+/**
+ * @summary Import settings from a flat JSON export (owner-only, all-or-nothing)
+ */
+export const importAdminSettings = async (adminSettingsExport: AdminSettingsExport, options?: RequestInit): Promise<AdminSetting[]> => {
+
+  return customFetch<AdminSetting[]>(getImportAdminSettingsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(adminSettingsExport)
+  }
+);}
+
+
+
+
+
+export const getImportAdminSettingsMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importAdminSettings>>, TError,{data: BodyType<AdminSettingsExport>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof importAdminSettings>>, TError,{data: BodyType<AdminSettingsExport>}, TContext> => {
+
+const mutationKey = ['importAdminSettings'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof importAdminSettings>>, {data: BodyType<AdminSettingsExport>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  importAdminSettings(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ImportAdminSettingsMutationResult = NonNullable<Awaited<ReturnType<typeof importAdminSettings>>>
+    export type ImportAdminSettingsMutationBody = BodyType<AdminSettingsExport>
+    export type ImportAdminSettingsMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Import settings from a flat JSON export (owner-only, all-or-nothing)
+ */
+export const useImportAdminSettings = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importAdminSettings>>, TError,{data: BodyType<AdminSettingsExport>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof importAdminSettings>>,
+        TError,
+        {data: BodyType<AdminSettingsExport>},
+        TContext
+      > => {
+      return useMutation(getImportAdminSettingsMutationOptions(options));
+    }
+
+export const getResetAdminSettingsToDefaultsUrl = () => {
+
+
+
+
+  return `/api/admin/settings/reset-defaults`
+}
+
+/**
+ * @summary Reset every setting to its registry default (owner-only, destructive)
+ */
+export const resetAdminSettingsToDefaults = async ( options?: RequestInit): Promise<AdminSetting[]> => {
+
+  return customFetch<AdminSetting[]>(getResetAdminSettingsToDefaultsUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getResetAdminSettingsToDefaultsMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetAdminSettingsToDefaults>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof resetAdminSettingsToDefaults>>, TError,void, TContext> => {
+
+const mutationKey = ['resetAdminSettingsToDefaults'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resetAdminSettingsToDefaults>>, void> = () => {
+
+
+          return  resetAdminSettingsToDefaults(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResetAdminSettingsToDefaultsMutationResult = NonNullable<Awaited<ReturnType<typeof resetAdminSettingsToDefaults>>>
+
+    export type ResetAdminSettingsToDefaultsMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Reset every setting to its registry default (owner-only, destructive)
+ */
+export const useResetAdminSettingsToDefaults = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetAdminSettingsToDefaults>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof resetAdminSettingsToDefaults>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getResetAdminSettingsToDefaultsMutationOptions(options));
+    }
+
+export const getGetAdminSettingsHealthUrl = () => {
+
+
+
+
+  return `/api/admin/settings/health`
+}
+
+/**
+ * @summary Real infrastructure health checks + last-saved time for the admin panel (owner-only)
+ */
+export const getAdminSettingsHealth = async ( options?: RequestInit): Promise<AdminHealthStatus> => {
+
+  return customFetch<AdminHealthStatus>(getGetAdminSettingsHealthUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAdminSettingsHealthQueryKey = () => {
+    return [
+    `/api/admin/settings/health`
+    ] as const;
+    }
+
+
+export const getGetAdminSettingsHealthQueryOptions = <TData = Awaited<ReturnType<typeof getAdminSettingsHealth>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminSettingsHealth>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAdminSettingsHealthQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminSettingsHealth>>> = ({ signal }) => getAdminSettingsHealth({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminSettingsHealth>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAdminSettingsHealthQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminSettingsHealth>>>
+export type GetAdminSettingsHealthQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Real infrastructure health checks + last-saved time for the admin panel (owner-only)
+ */
+
+export function useGetAdminSettingsHealth<TData = Awaited<ReturnType<typeof getAdminSettingsHealth>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminSettingsHealth>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAdminSettingsHealthQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getListModelsUrl = (params?: ListModelsParams,) => {
   const normalizedParams = new URLSearchParams();

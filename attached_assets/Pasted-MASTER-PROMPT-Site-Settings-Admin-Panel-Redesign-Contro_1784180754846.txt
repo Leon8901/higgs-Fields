@@ -1,0 +1,125 @@
+MASTER PROMPT — Site Settings Admin Panel Redesign (Control-Center Shell, Real Data Only)
+
+Paste into Replit as its own isolated task. This restructures the existing Site Settings page from a long scrolling form into the control-center layout referenced below, without adding a single new fake or placeholder surface. Every element that ships must be wired to real data through the existing `SettingsService` / `SETTINGS_REGISTRY` / `PATCH /admin/settings` contract already in the codebase — nothing in this task invents new settings, new tables, or new categories.
+
+## Scope boundary — read this before starting
+
+This task touches ONLY the admin Site Settings page (`artifacts/higgsfield/src/pages/admin-settings.tsx`) and small additive backend endpoints listed in Section 3. It does NOT add: a Providers page, a Models page, a Billing/Plans/Usage page, Analytics, Logs, Database, or Storage pages, or any sidebar item without a real backing data source. If you are tempted to stub out a nav item for one of those so the sidebar "looks complete," don't — an unclickable or fake nav item is worse than not having it, because it misrepresents what's actually built. The sidebar for this task has exactly five items, matching the five real categories already in `SETTINGS_REGISTRY`: Branding, Access, Credits, Defaults, Content.
+
+Do not touch the avatar system, the generation pipeline, or any route outside what's listed in Section 3.
+
+## 1. Layout restructure
+
+Replace the current single-column scrolling form with:
+
+- **Top toolbar**, directly under the page title ("Site Settings — Configure how your platform behaves."): the Settings Search input (see below), plus three buttons — **Export**, **Import**, **Refresh**. Export and Import call the endpoints in Section 3. **Refresh** refetches `GET /admin/settings` and clears any stale local state — but if `dirtyFields` is non-empty when clicked, show a confirmation dialog first ("Discard unsaved changes and reload?" / Cancel / Reload) rather than silently wiping unsaved edits; only proceed with the refetch on confirmation. Reset-to-defaults is NOT in this toolbar — it lives only in the Danger Zone (see below) since it's destructive and shouldn't sit next to routine actions.
+- **Left sidebar** (sticky, ~240px, collapsible to an icon-only ~56px rail via a toggle at the top — pure frontend state, no persistence needed), five items, relabeled for clarity but still mapping 1:1 to the existing `SETTINGS_REGISTRY` categories — Branding→`branding`, Access & Security→`access`, Credits→`credits`, Model Defaults→`defaults`, Content→`content`. Note: label this one "Access & Security," not "Platform" — a separate "Platform Providers" sidebar item is planned for a later task, and reusing "Platform" here would create two confusingly-similar entries in the same sidebar. This is a display-label change only (update `CATEGORY_LABELS` in the frontend); the underlying category strings in the registry/DB do not change. Clicking a sidebar item scrolls to / shows that section. Highlight the active section based on scroll position or route, whichever is simpler given the existing router (Wouter) — don't add a routing library for this. Next to each sidebar item, show a small real status glyph: a filled dot if that category currently has any entries in `dirtyFields` (Section 2), a checkmark if not — derived purely from existing local state, no new data.
+- **Sticky section header**: as the admin scrolls within a category's fields, keep that category's name (and the floating save bar, once it's visible per Section 2) pinned rather than scrolling out of view — improves orientation on longer sections like Access & Security or Content.
+- **Settings search**: lives in the top toolbar, client-side only, no API call. Filters the currently-rendered fields across all five categories by matching against each field's `label` (already present in `SETTINGS_REGISTRY`/`GET /admin/settings`) — matching fields stay visible and highlighted, non-matching fields collapse (animate/transition out) rather than abruptly disappearing, and if a match is outside the currently-active sidebar section, switch to that section so the match is actually visible. Record the scroll position when a search begins; when the search is cleared, restore that scroll position instead of leaving the page wherever the filtered layout happened to land. Bind `/` to focus this input and `Esc` to clear it when focused (see Section 2c). This operates purely on data already loaded on page mount.
+- **Main content area**: the fields for the active category, grouped exactly as the registry already groups them (no new subgrouping/tabs/accordions — see "explicitly cut" below), each field rendered as its own bordered card (label, description, input) rather than a continuous unbroken form — purely a visual/CSS change, same data.
+- **Right rail**, three cards:
+  - **Live Preview** — renders the site's *actual* Header and Hero components using the current in-memory form state (including unsaved edits) for `site_name`, `site_tagline`, `logo_url`, `theme_color`. Priority order, in this exact order: (1) render the real `Header` component, (2) render the real `Hero` component, (3) only if reusing either directly would require awkward prop-drilling or create a circular dependency between the admin page and the marketing layout, fall back to a lightweight visual approximation for that one component specifically — never build a second, independently-maintained branding preview UI as the default path. Add a small Desktop/Mobile toggle above the preview that swaps the container width (e.g. full width vs. a ~375px frame) — one preview, two widths, not two simultaneous previews. This reads local component state only, must NOT call any API, and must update on every keystroke/toggle, not just after Save. This is what makes it "live."
+  - **Platform Status** — a single card (do not create a second, separately-named "System Health" card alongside this one — that would show the same three toggles twice). Five rows: Maintenance Mode, Registration, Platform Generation — On/Off from the currently-saved (not draft) values of `maintenance_mode`, `registration_enabled`, `platform_generation_enabled`, same as before. Plus two new rows, Database and Object Storage, sourced from the real health check added in Section 3a — not hardcoded "Connected" text. If that check reports a failure, this card must actually show the failure state, not a permanently-green label. Read-only display here — the actual toggles still live in the Access & Security section; this is a glance-only summary.
+  - **Settings card**: "Last saved" — the most recent `updatedAt` across all rows in `site_settings` (a `MAX(updated_at)` read, no new column), rendered as a relative time ("2 minutes ago") that updates automatically after every successful save (tie this to the same save-toast trigger in Section 2). Below it, "Last updated by: Owner" as a static, hardcoded label — there is no `updatedBy` tracking column and this task does not add one; the label is only correct because there is currently exactly one owner account, and the code/comments should make clear this is not a real audit trail. Do NOT add a "Version" field to this card — `settings_meta.version` is explicitly documented as an internal cache-invalidation detail that must never be exposed through any API response or UI; surfacing it here would break that existing boundary for a cosmetic label with no functional payoff.
+- **Danger Zone**: a single red-bordered card at the very bottom of the page, below all five categories, containing exactly one action — **Reset to defaults** — wired to the endpoint in Section 3, with the confirmation dialog described there. Do not duplicate Export/Import here; they already live in the top toolbar. One action, one place — not the same three buttons repeated in three different corners of the page.
+
+## 2. Global save bar and change tracking
+
+This directly replaces the 15 separate "Save changes" buttons.
+
+- Track a single `dirtyFields: Record<string, unknown>` map in the admin page's state — every field's `onChange` writes to this map instead of firing its own save.
+- A field with an entry in `dirtyFields` gets a visible modified indicator: a small dot plus an "Unsaved" badge next to its label, not just a border — make it unambiguous which fields changed.
+- A floating bottom bar appears only when `Object.keys(dirtyFields).length > 0`, showing "`N` unsaved changes", a list of the changed fields' `label`s (pulled from `SETTINGS_REGISTRY`, e.g. "Edited: Site Name, Theme Color, Registration enabled"), a **Discard changes** button (clears `dirtyFields`, resets all fields to their last-saved values), and a **Save changes** button.
+- **Save changes** sends exactly one `PATCH /admin/settings` call with all of `dirtyFields` as the body — this endpoint already accepts a partial multi-key patch and validates all-or-nothing in one transaction, so no backend change is needed here. On success: clear `dirtyFields`, merge the response (the PATCH already returns the updated settings — check `UpdateAdminSettingsResponse`, it does), show a brief toast ("Settings saved"), and refresh the "Last saved" relative-time display in the right rail.
+- On failure, show two things together, not just one: an inline error message beneath each field named in the `fields` array of the existing `{ error: "Validation failed", fields: [...] }` response, AND a sticky error summary banner at the top of the page listing every failed field's label, each one clickable to scroll to (and highlight) that field. Do not discard `dirtyFields` on failure, so the admin doesn't lose their edits.
+- Warn on navigation away with unsaved changes (`beforeunload` for hard navigation is enough; an in-app route guard is a nice-to-have, not required).
+
+### 2b. Saving state
+
+While a `PATCH /admin/settings` request is in flight:
+
+- Disable every editable field on the page, and disable the toolbar's Export/Import/Refresh buttons — a save shouldn't be interruptible by a concurrent export or refetch.
+- Replace the Save button's label with a spinner + "Saving...".
+- Guard the save handler itself with an `isSaving` flag, not just the disabled button state — if `isSaving` is already true, ignore any additional trigger (including `Ctrl+S`) rather than relying solely on the disabled UI to prevent it. This is the actual fix for double-submits; the disabled button is the visible half of it.
+- On success: show a brief "✓ Settings saved" toast, then restore the normal Save button (which will now be hidden anyway, since `dirtyFields` is cleared).
+- On failure: restore the normal Save button (re-enabled, since `dirtyFields` is deliberately kept) so the admin can retry or adjust.
+
+### 2c. Keyboard shortcuts
+
+- `Ctrl+S` / `Cmd+S` (prevent the browser's native save dialog) — triggers Save changes if `dirtyFields` is non-empty, no-ops otherwise.
+- `/` — focuses the Settings Search input, unless focus is already inside a text field/textarea (don't hijack typing "/" into a banner text field).
+- `Esc` — if the search input is focused and has a value, clears it; otherwise no-op (don't wire this to Discard — an accidental Esc shouldn't blow away unsaved edits).
+
+## 3. New backend: export, import, reset-to-defaults
+
+Three small additions to `artifacts/api-server/src/routes/settings.ts`, all owner-gated (`requireAuth, requireOwner`, same as the existing admin routes), all reusing the existing registry/validation — no parallel logic.
+
+**`GET /admin/settings/export`**
+Returns a JSON object of `{ [key]: value }` for every key in `SETTINGS_REGISTRY`, using the same `getAdminSettings()` you already have — just reshape from the array to a flat object before responding. Set `Content-Disposition: attachment; filename="site-settings-<date>.json"` so it downloads as a file rather than rendering in-browser. This is exactly the export/import use case already discussed for your repeated Replit re-provisioning pain — a working export here means you always have a real backup of your current settings, not just a wish.
+
+**`POST /admin/settings/import`**
+Accepts the same flat `{ [key]: value }` shape the export produces. Body validation: reject if any key isn't in `SETTINGS_BY_KEY` (unknown-key rejection, same rule as PATCH). Then call the *existing* `updateSettings()` function with the whole object — do not write a second validation path. This makes import behave identically to a very large PATCH: all-or-nothing, one transaction, one version bump. Frontend: support both a standard file-picker input and dropping a `.json` file directly onto the import zone (a `dragover`/`drop` handler around the same file-read logic — no new parsing path, just a second way to trigger the existing one). Read the file client-side, parse it, and POST the parsed object — show the same field-level error list on failure as the Save bar does.
+
+**`POST /admin/settings/reset-defaults`**
+Builds a patch object of `{ [key]: def.default }` for every entry in `SETTINGS_REGISTRY`, then calls `updateSettings()` with it — same reasoning as import: one shared validation/write path, not a new one. Require a confirmation dialog client-side before calling this ("Reset all settings to their defaults? This can't be undone.") since it's destructive across every category, not just the currently-viewed one.
+
+Frontend undo: immediately before calling this endpoint, snapshot the current (pre-reset) admin settings values already held in local state — no new endpoint needed, this is just the response of the last `GET /admin/settings` you already have in memory. After a successful reset, show a toast: "Settings reset — Undo" with a 10-second countdown. If clicked within that window, send one more `PATCH /admin/settings` with the snapshotted values (reusing the exact same save path as Section 2, not a new one) to restore them, then discard the snapshot. This makes an accidental reset recoverable without building any real version history — it's just a second ordinary write.
+
+Add all three to `lib/api-spec/openapi.yaml` and run codegen (`pnpm --filter @workspace/api-spec run codegen`) before wiring the frontend buttons, per the existing project convention — do not hand-write fetch calls that bypass the generated client.
+
+### 3a. Real health check (backs the Platform Status card's Database/Object Storage rows)
+
+`GET /healthz` currently returns a hardcoded `{ status: "ok" }` with no actual check behind it (`artifacts/api-server/src/routes/health.ts`) — displaying "Database: Connected" / "Storage: Connected" off that endpoint as-is would be exactly the fake data this whole task is trying to avoid. Extend it (or add a new owner-gated `GET /admin/settings/health` if you'd rather not change the public `/healthz` contract) to run two real, cheap checks and return their actual result:
+
+- **Database**: run a trivial real query (e.g. `db.select().from(settingsMetaTable).where(eq(settingsMetaTable.id, 1))`, which already exists and is guaranteed to have exactly one row) wrapped in try/catch — `connected: true` if it resolves, `connected: false` with the caught error's message (server-log only, don't leak raw DB errors to the client) if it throws.
+- **Object Storage**: check that `PUBLIC_OBJECT_SEARCH_PATHS` and `PRIVATE_OBJECT_DIR` are set (same env vars `ObjectStorageService` already requires — see `getPublicObjectSearchPaths()`/`getPrivateObjectDir()` in `lib/objectStorage.ts`, which already throw clear errors when unset) — report `connected: false` if either is missing, `connected: true` otherwise. This doesn't need to be a live GCS round-trip for this task — checking that the required configuration is actually present is a real, honest signal, not a fabricated one.
+
+The frontend polls or fetches this once on page load (no need for continuous polling) and renders the two rows from the real response — if either check fails, the card must visibly show that failure (e.g. a red dot + "Disconnected"), not silently stay green.
+
+## 4. Accessibility baseline
+
+This page is admin-only, but shouldn't be sloppy. Use the existing shadcn/ui primitives (`Button`, `Input`, `Switch`, `Label`, etc.) as-is rather than replacing any of them with bare `<div onClick>` elements, since the shadcn components already carry correct keyboard/focus/ARIA behavior — the risk here is losing that by reimplementing a control from scratch for a "custom" look. Specifically verify: every interactive element (toggles, buttons, the search input, sidebar items) is reachable via Tab in a sensible order, has a visible focus ring, and has an `aria-label` where the visible text alone doesn't describe its purpose (e.g. an icon-only collapsed sidebar item needs an `aria-label` with the category name).
+
+## 5. Responsive behavior (lightweight — this is an owner-only page)
+
+This page sits behind `requireOwner` — realistically it's opened by you, from a desktop, while actively developing. Don't build a full slide-over drawer component for the sidebar or a dedicated mobile navigation pattern for this task; that's real UI work for a screen size this page may rarely see. Instead, a simple breakpoint fallback below ~1024px is enough: the right rail (Live Preview / Platform Status / Settings card) stacks below the main content instead of sitting beside it, and the floating save bar becomes full-width. If you actually find yourself managing settings from a phone regularly, a proper mobile treatment is a fast, cheap follow-up once that's a real need rather than a hypothetical one.
+
+## 6. Field-level layout fixes (visual only, no new data)
+
+- Move each toggle immediately next to its label/description instead of floating on the far right with empty space between — this applies to `maintenance_mode`, `registration_enabled`, `platform_generation_enabled`, and the two banner `enabled` toggles.
+- Theme color field: keep the existing hex text input, but add a color swatch preview next to it reflecting the current (possibly unsaved) value live — this is pure frontend, the stored value and validator (`themeColorValidator`, unchanged) don't change.
+- Constrain the main content column to a max width (~900–1000px) instead of stretching edge to edge, matching standard SaaS admin form width.
+
+## 7. Explicitly cut from this pass (do not build)
+
+- **Tabs or collapsible accordions within a category** (e.g. splitting Branding into "General / Assets / Theme" sub-sections) — the registry's five categories are already the right grouping; Branding has 5 fields total, which doesn't need sub-navigation of any kind, tabbed or accordion. Skip it.
+- **"Paste URL" for logo/favicon** — no longer deferred. Use the shared `assetImport` utility built in the Provider Management task (`artifacts/api-server/src/lib/media/assetImport.ts` — download-and-reupload with content-type/size validation) — do not write a second, separate download-and-reupload implementation here. If the Provider Management task hasn't shipped yet, build this task's logo/favicon fields with upload-only for now and come back to wire Paste URL in once that shared utility exists, rather than duplicating the logic.
+- **Any sidebar item without a real settings category behind it** (Providers, Models, Billing, Analytics, Logs, Database, Storage, Advanced) — these are future pages with their own schema/routes/master prompts, not line items to stub here.
+- **Exposing `settings_meta.version` anywhere in the UI or any API response** — it's documented in-code as internal-only, used solely for cache invalidation. Don't add a "Version: N" display, don't add it to the export JSON, don't return it from any admin endpoint.
+- **A separate "System Health" card alongside "Platform Status"** — one card, not two showing overlapping toggle state.
+- **Duplicating Export/Import/Reset buttons in more than one place on the page** — Export/Import/Refresh live once, in the top toolbar; Reset-to-defaults lives once, in the Danger Zone. Not repeated in the sidebar or anywhere else.
+- **Simultaneous desktop + mobile Live Preview panels** — a Desktop/Mobile toggle on the single preview gets the same value with far less UI surface to build and maintain; do that instead.
+- **A Provider Status row in the right rail** — there's no Providers page or provider health data yet; this gets added when that page exists, not before.
+
+## 8. Verification before calling this done
+
+Do real testing, not a visual pass:
+
+1. Edit a field in each of the five categories without saving, confirm each shows a modified indicator and the floating bar shows the correct count.
+2. Click Discard — confirm all fields revert and the bar disappears.
+3. Make edits across two different categories, Save once — confirm exactly one `PATCH` network call fires with both changed keys, and reloading the page shows both persisted.
+4. Trigger a validation failure (e.g. an invalid hex color) alongside one valid change, Save — confirm the whole batch is rejected (per the existing all-or-nothing transaction), `dirtyFields` is NOT cleared, and both the inline error and the sticky top error summary appear, with the summary's link scrolling to the failed field.
+5. Export, edit one value in the downloaded JSON, Import it back — confirm the change lands after a page reload.
+6. Reset to defaults — confirm every one of the 15 keys reverts to its registry default, confirm the confirmation dialog actually blocks an accidental click, and confirm the post-reset "Undo" toast restores the exact pre-reset values if clicked within 10 seconds (and does nothing if the window expires).
+7. Confirm the Live Preview card updates on keystroke (before Save) for site name, tagline, logo, and theme color, and confirm it's rendering the real Header/Hero components (not a second hand-built preview) unless the fallback case genuinely applies.
+8. Type a partial label into Settings Search (e.g. "maintenance") — confirm only matching fields stay visible/highlighted and the sidebar jumps to their section if it wasn't already active. Clear the search — confirm everything reappears at the scroll position you were at before searching.
+9. Collapse the sidebar — confirm it shrinks to icon-only and each icon still navigates correctly; expand it back.
+10. Confirm the "Last saved" card shows a relative time that updates after a successful Save, and confirm no "Version" number appears anywhere on the page or in the export JSON.
+11. Confirm Export/Import/Refresh appear only in the top toolbar and Reset-to-defaults appears only in the Danger Zone — not duplicated anywhere else on the page.
+12. Confirm the Platform Status card shows exactly one card (not a second "System Health" card), with real Database/Object Storage rows. Temporarily unset `PRIVATE_OBJECT_DIR` (or otherwise break the health check) and confirm the Object Storage row actually flips to a visible "Disconnected" state — it must not be hardcoded green regardless of the underlying check.
+13. Test `Ctrl+S` with unsaved changes (saves), `/` from outside any input (focuses search), and `Esc` while search is focused with text in it (clears search, does not discard unsaved field edits).
+14. Drop a valid `.json` export file directly onto the Import zone — confirm it imports the same way the file-picker path does.
+15. Make an edit, then rapid-double-click Save (or hit `Ctrl+S` twice quickly) — confirm only one `PATCH` request fires, not two, and every field/toolbar button is genuinely disabled while the request is in flight.
+16. Make an edit, then click Refresh — confirm a confirmation dialog appears before anything is discarded; cancel it and confirm the edit is still there.
+17. Tab through the entire page using only the keyboard — confirm every interactive control is reachable in a sensible order with a visible focus ring, and that the collapsed sidebar's icon-only items have `aria-label`s (check with a screen reader or the browser's accessibility inspector, not just visually).
+18. Resize the browser below ~1024px — confirm the right rail stacks below the main content and the save bar goes full-width, without needing a drawer component.

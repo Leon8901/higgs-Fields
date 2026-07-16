@@ -406,6 +406,122 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /admin/settings/export:
+    get:
+      operationId: getAdminSettingsExport
+      tags: [admin]
+      summary: Export all settings as a flat key→value JSON file (owner-only)
+      responses:
+        "200":
+          description: Flat key→value map of all settings (sent as a downloadable attachment)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminSettingsExport"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden — not the owner
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/settings/import:
+    post:
+      operationId: importAdminSettings
+      tags: [admin]
+      summary: Import settings from a flat JSON export (owner-only, all-or-nothing)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminSettingsExport"
+      responses:
+        "200":
+          description: Updated settings array
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminSetting"
+        "400":
+          description: Validation failed — no fields were written
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden — not the owner
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/settings/reset-defaults:
+    post:
+      operationId: resetAdminSettingsToDefaults
+      tags: [admin]
+      summary: Reset every setting to its registry default (owner-only, destructive)
+      responses:
+        "200":
+          description: Updated settings array after reset
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminSetting"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden — not the owner
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/settings/health:
+    get:
+      operationId: getAdminSettingsHealth
+      tags: [admin]
+      summary: Real infrastructure health checks + last-saved time for the admin panel (owner-only)
+      responses:
+        "200":
+          description: Health status for database and object storage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminHealthStatus"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden — not the owner
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /models:
     get:
       operationId: listModels
@@ -1335,6 +1451,33 @@ components:
       type: object
       description: Partial map of setting key -> new value. Every key must be a known registry key; every value is validated server-side before anything is written. The whole request fails atomically if any field is invalid.
       additionalProperties: true
+
+    AdminSettingsExport:
+      type: object
+      description: Flat key→value map of all settings — the shape produced by export and consumed by import.
+      additionalProperties: true
+
+    AdminHealthCheckItem:
+      type: object
+      properties:
+        connected:
+          type: boolean
+      required:
+        - connected
+
+    AdminHealthStatus:
+      type: object
+      properties:
+        database:
+          $ref: "#/components/schemas/AdminHealthCheckItem"
+        objectStorage:
+          $ref: "#/components/schemas/AdminHealthCheckItem"
+        lastSavedAt:
+          type: ["string", "null"]
+          format: date-time
+      required:
+        - database
+        - objectStorage
 
     ModelParamsSchema:
       type: object
