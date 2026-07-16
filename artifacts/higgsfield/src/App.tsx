@@ -145,6 +145,12 @@ function ClerkQueryClientCacheInvalidator() {
   return null;
 }
 
+function AdminRedirect() {
+  const [, nav] = useLocation();
+  useEffect(() => { nav("/admin/branding", { replace: true }); }, [nav]);
+  return null;
+}
+
 function Router() {
   return (
     <Switch>
@@ -162,6 +168,7 @@ function Router() {
       <Route path="/library" component={Library} />
       <Route path="/account" component={Account} />
       <Route path="/api-keys" component={ApiKeys} />
+      <Route path="/admin" component={AdminRedirect} />
       <Route path="/admin/settings" component={AdminSettings} />
       <Route path="/admin/branding" component={AdminBranding} />
       <Route path="/admin/providers/platform" component={AdminPlatformProviders} />

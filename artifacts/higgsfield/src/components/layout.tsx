@@ -9,7 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useState } from "react";
-import { X, Menu, Zap, LibraryBig, User, LogOut, Key } from "lucide-react";
+import { X, Menu, Zap, LibraryBig, User, LogOut, Key, Settings } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Show, useUser, useClerk } from "@clerk/react";
@@ -36,6 +36,7 @@ function CreditsBadge() {
 function AuthArea({ mobile = false, onNavigate }: { mobile?: boolean; onNavigate?: () => void }) {
   const { user } = useUser();
   const { signOut } = useClerk();
+  const { data: me } = useGetMe();
 
   if (mobile) {
     return (
@@ -124,6 +125,16 @@ function AuthArea({ mobile = false, onNavigate }: { mobile?: boolean; onNavigate
                 <Key className="w-4 h-4" /> API Keys
               </Link>
             </DropdownMenuItem>
+            {me?.isOwner && (
+              <>
+                <DropdownMenuSeparator className="bg-white/10" />
+                <DropdownMenuItem asChild className="text-primary/80 focus:text-primary focus:bg-primary/10 cursor-pointer">
+                  <Link href="/admin/branding" className="flex items-center gap-2 w-full">
+                    <Settings className="w-4 h-4" /> Admin Panel
+                  </Link>
+                </DropdownMenuItem>
+              </>
+            )}
             <DropdownMenuSeparator className="bg-white/10" />
             <DropdownMenuItem
               className="text-red-400 focus:text-red-300 focus:bg-red-500/10 cursor-pointer"

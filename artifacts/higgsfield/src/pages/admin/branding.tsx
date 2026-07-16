@@ -26,11 +26,13 @@ import {
   Database,
   HardDrive,
   X,
-  Search,
   RotateCcw,
   AlertCircle,
   Link2,
   Check,
+  Palette,
+  Copy,
+  Circle,
 } from "lucide-react";
 import {
   useGetAdminSettings,
@@ -45,17 +47,15 @@ import type { AdminSetting } from "@workspace/api-client-react";
 import { toast } from "@/hooks/use-toast";
 import { AdminShell } from "./shell";
 
-// ── Constants ──────────────────────────────────────────────────────────────────
-
 const PAGE_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
-// The 5 tabs and which setting keys belong in each.
-// Only covers branding + access + content categories (NOT credits/defaults).
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+
 const TABS = [
   {
     key: "brand-identity",
     label: "Brand Identity",
-    settingKeys: ["site_name", "site_tagline"],
+    settingKeys: ["logo_url", "favicon_url", "site_name", "theme_color", "site_tagline", "favicon_alt_text"],
   },
   {
     key: "logos-icons",
@@ -70,12 +70,7 @@ const TABS = [
   {
     key: "site-settings",
     label: "Site Settings",
-    settingKeys: [
-      "maintenance_mode",
-      "maintenance_message",
-      "registration_enabled",
-      "platform_generation_enabled",
-    ],
+    settingKeys: ["maintenance_mode", "maintenance_message", "registration_enabled", "platform_generation_enabled"],
   },
   {
     key: "content",
@@ -86,7 +81,9 @@ const TABS = [
 
 type TabKey = (typeof TABS)[number]["key"];
 
-// ── Utility ────────────────────────────────────────────────────────────────────
+const ALLOWED_CATEGORIES = new Set(["branding", "access", "content"]);
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function relativeTime(date: Date | string | null | undefined): string {
   if (!date) return "Never";
@@ -98,16 +95,6 @@ function relativeTime(date: Date | string | null | undefined): string {
   if (diff < 3600000) return `${Math.floor(diff / 60000)} min ago`;
   if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
   return `${Math.floor(diff / 86400000)}d ago`;
-}
-
-function parseValidationErrors(err: unknown): Array<{ key: string; error: string }> {
-  if (typeof err === "object" && err !== null && "data" in err) {
-    const data = (err as { data: Record<string, unknown> | null }).data;
-    if (data && Array.isArray(data.fields)) {
-      return data.fields as Array<{ key: string; error: string }>;
-    }
-  }
-  return [];
 }
 
 async function importAssetFromUrl(url: string): Promise<string> {
@@ -125,26 +112,29 @@ async function importAssetFromUrl(url: string): Promise<string> {
   return data.path;
 }
 
-// ── Image Upload Field (file + paste URL) ─────────────────────────────────────
+// ── Logo / Favicon asset card ─────────────────────────────────────────────────
 
-function ImageUploadField({
-  setting,
+function AssetCard({
+  label,
+  hint,
   value,
   onChange,
 }: {
-  setting: AdminSetting;
-  value: unknown;
-  onChange: (value: unknown) => void;
+  label: string;
+  hint: string;
+  value: string;
+  onChange: (v: string) => void;
 }) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [pasteMode, setPasteMode] = useState(false);
   const [pasteUrl, setPasteUrl] = useState("");
   const [pasting, setPasting] = useState(false);
   const requestUploadUrl = useRequestUploadUrl();
 
-  const currentPath = typeof value === "string" ? value : "";
-  const previewSrc = currentPath ? `${PAGE_BASE}${currentPath}` : "";
+  const previewSrc = value ? `${PAGE_BASE}${value}` : "";
+  const hasValue = Boolean(value);
+  const isConnected = hasValue; // green dot when set
 
   async function handleFile(file: File) {
     setUploading(true);
@@ -152,14 +142,9 @@ function ImageUploadField({
       const res = await requestUploadUrl.mutateAsync({
         data: { name: file.name, size: file.size, contentType: file.type },
       });
-      const put = await fetch(res.uploadURL, {
-        method: "PUT",
-        body: file,
-        headers: { "Content-Type": file.type },
-      });
-      if (!put.ok) throw new Error(`Upload failed: ${put.status}`);
+      await fetch(res.uploadURL, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
       onChange(`/api/storage${res.objectPath}`);
-      toast({ title: "File uploaded", description: "Click Save changes to apply." });
+      toast({ title: "Uploaded", description: "Click Save changes to apply." });
     } catch (err) {
       toast({ title: "Upload failed", description: String(err), variant: "destructive" });
     } finally {
@@ -167,7 +152,7 @@ function ImageUploadField({
     }
   }
 
-  async function handlePasteUrl() {
+  async function handlePaste() {
     if (!pasteUrl.trim()) return;
     setPasting(true);
     try {
@@ -175,7 +160,7 @@ function ImageUploadField({
       onChange(path);
       setPasteMode(false);
       setPasteUrl("");
-      toast({ title: "Image imported", description: "Click Save changes to apply." });
+      toast({ title: "Imported", description: "Click Save changes to apply." });
     } catch (err) {
       toast({ title: "Import failed", description: String(err), variant: "destructive" });
     } finally {
@@ -183,363 +168,433 @@ function ImageUploadField({
     }
   }
 
-  const hint =
-    setting.key === "logo_url"
-      ? "Recommended: 512×512px"
-      : setting.key === "favicon_url"
-        ? "Recommended: 32×32px"
-        : undefined;
-
   return (
-    <div className="py-3">
-      <Label className="text-white text-sm font-semibold">{setting.label}</Label>
-      {hint && <p className="text-xs text-white/40 mt-0.5">{hint}</p>}
-      <p className="text-xs text-white/40 mt-0.5 mb-3">{setting.description}</p>
+    <div className="bg-[#141414] border border-white/[0.08] rounded-xl overflow-hidden flex flex-col">
+      {/* Header */}
+      <div className="flex items-center gap-2 px-4 pt-4 pb-2">
+        <span className="text-sm font-semibold text-white">{label}</span>
+        <span
+          className={cn(
+            "w-2 h-2 rounded-full shrink-0",
+            isConnected ? "bg-green-400" : "bg-white/20",
+          )}
+        />
+      </div>
+      <p className="text-xs text-white/40 px-4 pb-3">{hint}</p>
 
-      {/* Preview */}
-      {previewSrc && (
-        <div className="mb-3 w-20 h-20 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden">
+      {/* Preview area */}
+      <div className="mx-4 mb-4 rounded-lg bg-[#0a0a0a] border border-white/[0.06] flex items-center justify-center" style={{ height: 120 }}>
+        {previewSrc ? (
           <img
             src={previewSrc}
-            alt={setting.label}
-            className="max-w-full max-h-full object-contain p-2"
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = "none";
-            }}
+            alt={label}
+            className="max-h-full max-w-full object-contain p-3"
+            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
           />
-        </div>
-      )}
-
-      <div className="flex flex-wrap gap-2 mb-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={uploading || pasting}
-          onClick={() => fileInputRef.current?.click()}
-          className="border-white/20 text-white hover:bg-white/10"
-        >
-          {uploading ? (
-            <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Uploading…</>
-          ) : (
-            <><Upload className="w-3.5 h-3.5 mr-1.5" />Upload new</>
-          )}
-        </Button>
-
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={uploading || pasting}
-          onClick={() => setPasteMode((v) => !v)}
-          className={cn(
-            "border-white/20 text-white hover:bg-white/10",
-            pasteMode && "border-primary/50 text-primary",
-          )}
-        >
-          <Link2 className="w-3.5 h-3.5 mr-1.5" />
-          Paste URL
-        </Button>
-
-        {currentPath && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => onChange("")}
-            className="text-red-400/60 hover:text-red-400 hover:bg-red-500/10"
-          >
-            <X className="w-3.5 h-3.5 mr-1 " />
-            Remove
-          </Button>
+        ) : (
+          <div className="flex flex-col items-center gap-1 text-white/20">
+            <Upload className="w-6 h-6" />
+            <span className="text-xs">No image set</span>
+          </div>
         )}
       </div>
 
+      {/* Paste URL mode */}
       {pasteMode && (
-        <div className="flex gap-2 max-w-lg mt-1">
+        <div className="px-4 pb-3 flex gap-2">
           <Input
             placeholder="https://example.com/logo.png"
             value={pasteUrl}
             onChange={(e) => setPasteUrl(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") handlePasteUrl();
+              if (e.key === "Enter") handlePaste();
               if (e.key === "Escape") { setPasteMode(false); setPasteUrl(""); }
             }}
-            className="bg-white/[0.04] border-white/10 text-white text-sm h-9"
+            className="h-8 text-xs bg-white/[0.04] border-white/10 text-white"
             autoFocus
           />
-          <Button
-            type="button"
-            size="sm"
-            onClick={handlePasteUrl}
-            disabled={!pasteUrl.trim() || pasting}
-            className="bg-primary text-black font-bold hover:bg-primary/90 h-9 shrink-0"
-          >
+          <Button size="sm" onClick={handlePaste} disabled={!pasteUrl.trim() || pasting}
+            className="h-8 bg-primary text-black font-bold hover:bg-primary/90 shrink-0 px-2">
             {pasting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
           </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => { setPasteMode(false); setPasteUrl(""); }}
-            className="h-9 text-white/40 hover:text-white shrink-0"
-          >
+          <Button size="sm" variant="ghost" onClick={() => { setPasteMode(false); setPasteUrl(""); }}
+            className="h-8 text-white/40 hover:text-white shrink-0 px-2">
             <X className="w-3.5 h-3.5" />
           </Button>
         </div>
       )}
 
-      {currentPath && (
-        <p className="text-xs text-white/30 font-mono mt-2 truncate max-w-sm" title={currentPath}>
-          {currentPath}
-        </p>
-      )}
+      {/* Actions */}
+      <div className="flex items-center gap-2 px-4 pb-4">
+        <Button
+          type="button" variant="outline" size="sm"
+          disabled={uploading || pasting}
+          onClick={() => fileRef.current?.click()}
+          className="h-8 text-xs border-white/20 text-white hover:bg-white/10 flex-1"
+        >
+          {uploading
+            ? <><Loader2 className="w-3 h-3 mr-1.5 animate-spin" />Uploading…</>
+            : <><Upload className="w-3 h-3 mr-1.5" />Upload new</>}
+        </Button>
+        <Button
+          type="button" variant="outline" size="sm"
+          disabled={uploading || pasting}
+          onClick={() => setPasteMode((v) => !v)}
+          className={cn(
+            "h-8 text-xs border-white/20 text-white hover:bg-white/10 flex-1",
+            pasteMode && "border-primary/50 text-primary",
+          )}
+        >
+          <Link2 className="w-3 h-3 mr-1.5" />Paste URL
+        </Button>
+        {hasValue && (
+          <Button
+            type="button" variant="ghost" size="sm"
+            onClick={() => onChange("")}
+            className="h-8 text-xs text-red-400/60 hover:text-red-400 hover:bg-red-500/10 shrink-0"
+          >
+            <X className="w-3 h-3 mr-1" />Remove
+          </Button>
+        )}
+      </div>
 
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*,.svg"
-        className="hidden"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) handleFile(file);
-          e.target.value = "";
-        }}
-      />
+      <input ref={fileRef} type="file" accept="image/*,.svg" className="hidden"
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }} />
     </div>
   );
 }
 
-// ── Setting Field ──────────────────────────────────────────────────────────────
+// ── Brand Identity tab content ────────────────────────────────────────────────
 
-function SettingField({
+function BrandIdentityTab({
+  settings,
+  draft,
+  onChange,
+}: {
+  settings: AdminSetting[];
+  draft: Record<string, unknown>;
+  onChange: (key: string, value: unknown) => void;
+}) {
+  const get = (key: string) => draft[key];
+
+  const siteName = typeof get("site_name") === "string" ? (get("site_name") as string) : "";
+  const themeColor = typeof get("theme_color") === "string" ? (get("theme_color") as string) : "#CEFF00";
+  const tagline = typeof get("site_tagline") === "string" ? (get("site_tagline") as string) : "";
+  const faviconAlt = typeof get("favicon_alt_text") === "string" ? (get("favicon_alt_text") as string) : "";
+  const logoUrl = typeof get("logo_url") === "string" ? (get("logo_url") as string) : "";
+  const faviconUrl = typeof get("favicon_url") === "string" ? (get("favicon_url") as string) : "";
+
+  const isValidHex = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(themeColor);
+
+  return (
+    <div className="space-y-6">
+      {/* Brand Assets */}
+      <div>
+        <h2 className="text-sm font-bold text-white mb-3">Brand Assets</h2>
+        <div className="grid grid-cols-2 gap-4">
+          <AssetCard
+            label="Logo"
+            hint="Recommended: 512×512px"
+            value={logoUrl}
+            onChange={(v) => onChange("logo_url", v)}
+          />
+          <AssetCard
+            label="Favicon"
+            hint="Recommended: 32×32px"
+            value={faviconUrl}
+            onChange={(v) => onChange("favicon_url", v)}
+          />
+        </div>
+      </div>
+
+      {/* Brand Information */}
+      <div>
+        <h2 className="text-sm font-bold text-white mb-3">Brand Information</h2>
+        <div className="grid grid-cols-2 gap-4">
+          {/* Site Name */}
+          <div>
+            <Label className="text-xs font-semibold text-white/70 mb-1.5 block">
+              Site Name
+              <span className="block font-normal text-white/30 mt-0.5">Your site's primary name</span>
+            </Label>
+            <Input
+              value={siteName}
+              onChange={(e) => onChange("site_name", e.target.value)}
+              placeholder="Higgsfield"
+              className="bg-[#141414] border-white/[0.08] text-white h-9"
+            />
+          </div>
+
+          {/* Theme Color */}
+          <div>
+            <Label className="text-xs font-semibold text-white/70 mb-1.5 block">
+              Theme Color
+              <span className="block font-normal text-white/30 mt-0.5">Primary brand color used across the platform</span>
+            </Label>
+            <div className="flex items-center gap-2">
+              <div
+                className="w-9 h-9 rounded-lg border border-white/[0.08] shrink-0"
+                style={{ backgroundColor: isValidHex ? themeColor : "transparent" }}
+              />
+              <Input
+                value={themeColor}
+                onChange={(e) => onChange("theme_color", e.target.value)}
+                placeholder="#CEFF00"
+                className="bg-[#141414] border-white/[0.08] text-white h-9 font-mono"
+              />
+              {isValidHex && (
+                <button
+                  onClick={() => { navigator.clipboard.writeText(themeColor); toast({ title: "Copied!" }); }}
+                  className="shrink-0 p-1.5 rounded text-white/30 hover:text-white/70 hover:bg-white/5 transition-colors"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Site Tagline */}
+          <div>
+            <Label className="text-xs font-semibold text-white/70 mb-1.5 block">
+              Site Tagline
+              <span className="block font-normal text-white/30 mt-0.5">Short description shown in headers and meta tags</span>
+            </Label>
+            <Input
+              value={tagline}
+              onChange={(e) => onChange("site_tagline", e.target.value)}
+              placeholder="The Next Generation AI Platform"
+              className="bg-[#141414] border-white/[0.08] text-white h-9"
+            />
+          </div>
+
+          {/* Favicon Alt Text */}
+          <div>
+            <Label className="text-xs font-semibold text-white/70 mb-1.5 block">
+              Favicon Alt Text
+              <span className="block font-normal text-white/30 mt-0.5">Accessibility text for the favicon</span>
+            </Label>
+            <Input
+              value={faviconAlt}
+              onChange={(e) => onChange("favicon_alt_text", e.target.value)}
+              placeholder="Higgsfield"
+              className="bg-[#141414] border-white/[0.08] text-white h-9"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Preview Header */}
+      <div>
+        <h2 className="text-sm font-bold text-white mb-3">Preview <span className="text-white/30 font-normal">(Header)</span></h2>
+        <div className="rounded-xl border border-white/[0.08] overflow-hidden">
+          <div className="bg-[#0a0a0a] px-4 py-3 flex items-center gap-3 border-b border-white/[0.06]">
+            {logoUrl ? (
+              <img src={`${PAGE_BASE}${logoUrl}`} alt={siteName} className="h-5 object-contain" />
+            ) : (
+              <div className="w-5 h-5 rounded bg-primary flex items-center justify-center">
+                <div className="w-2 h-2 bg-black rounded-sm" />
+              </div>
+            )}
+            <span className="font-bold text-white text-sm">{siteName || "Higgsfield"}</span>
+            <div className="flex items-center gap-4 ml-2">
+              {["Features", "Models", "Pricing", "Docs", "Enterprise"].map((l) => (
+                <span key={l} className="text-xs text-white/40">{l}</span>
+              ))}
+            </div>
+            <div className="ml-auto">
+              <div
+                className="px-3 py-1 rounded-lg text-xs font-bold text-black"
+                style={{ backgroundColor: isValidHex ? themeColor : "#CEFF00" }}
+              >
+                Get Started
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Logos & Icons tab ─────────────────────────────────────────────────────────
+
+function LogosTab({
+  draft,
+  onChange,
+}: {
+  draft: Record<string, unknown>;
+  onChange: (key: string, value: unknown) => void;
+}) {
+  const logoUrl = typeof draft.logo_url === "string" ? draft.logo_url : "";
+  const faviconUrl = typeof draft.favicon_url === "string" ? draft.favicon_url : "";
+  return (
+    <div className="grid grid-cols-2 gap-4">
+      <AssetCard label="Logo" hint="Recommended: 512×512px" value={logoUrl} onChange={(v) => onChange("logo_url", v)} />
+      <AssetCard label="Favicon" hint="Recommended: 32×32px" value={faviconUrl} onChange={(v) => onChange("favicon_url", v)} />
+    </div>
+  );
+}
+
+// ── Theme tab ─────────────────────────────────────────────────────────────────
+
+function ThemeTab({
+  draft,
+  onChange,
+}: {
+  draft: Record<string, unknown>;
+  onChange: (key: string, value: unknown) => void;
+}) {
+  const themeColor = typeof draft.theme_color === "string" ? draft.theme_color : "#CEFF00";
+  const isValidHex = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(themeColor);
+  return (
+    <div className="max-w-sm space-y-4">
+      <div>
+        <Label className="text-xs font-semibold text-white/70 mb-1.5 block">
+          Theme Color
+          <span className="block font-normal text-white/30 mt-0.5">Primary brand color used across the platform</span>
+        </Label>
+        <div className="flex items-center gap-2">
+          <div
+            className="w-9 h-9 rounded-lg border border-white/[0.08] shrink-0 transition-colors"
+            style={{ backgroundColor: isValidHex ? themeColor : "transparent" }}
+          />
+          <Input
+            value={themeColor}
+            onChange={(e) => onChange("theme_color", e.target.value)}
+            placeholder="#CEFF00"
+            className="bg-[#141414] border-white/[0.08] text-white h-9 font-mono"
+          />
+          {isValidHex && (
+            <button
+              onClick={() => { navigator.clipboard.writeText(themeColor); toast({ title: "Copied!" }); }}
+              className="shrink-0 p-1.5 rounded text-white/30 hover:text-white/70 hover:bg-white/5 transition-colors"
+            >
+              <Copy className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Generic boolean/string field ──────────────────────────────────────────────
+
+function GenericField({
   setting,
   value,
   onChange,
-  error,
 }: {
   setting: AdminSetting;
   value: unknown;
-  onChange: (value: unknown) => void;
-  error?: string;
+  onChange: (v: unknown) => void;
 }) {
-  if (setting.key === "logo_url" || setting.key === "favicon_url") {
-    return <ImageUploadField setting={setting} value={value} onChange={onChange} />;
-  }
-
   if (setting.type === "boolean") {
     return (
-      <div className="flex items-start gap-3 py-3">
-        <Switch
-          checked={Boolean(value)}
-          onCheckedChange={(checked) => onChange(checked)}
-          className="shrink-0 mt-0.5"
-          aria-label={setting.label}
-        />
+      <div className="flex items-start gap-3 py-2">
+        <Switch checked={Boolean(value)} onCheckedChange={onChange} className="shrink-0 mt-0.5" />
         <div>
-          <Label className="text-white text-sm font-semibold">{setting.label}</Label>
+          <Label className="text-sm font-semibold text-white">{setting.label}</Label>
           <p className="text-xs text-white/40 mt-0.5">{setting.description}</p>
         </div>
       </div>
     );
   }
-
-  if (
-    setting.type === "json" &&
-    typeof value === "object" &&
-    value !== null &&
-    "enabled" in value &&
-    "text" in value
-  ) {
-    const banner = value as {
-      enabled: boolean;
-      text: string;
-      linkUrl?: string;
-      linkLabel?: string;
-    };
-    return (
-      <div className="py-3">
-        <div className="flex items-start gap-3 mb-3">
-          <Switch
-            checked={banner.enabled}
-            onCheckedChange={(checked) => onChange({ ...banner, enabled: checked })}
-            className="shrink-0 mt-0.5"
-            aria-label={setting.label}
-          />
-          <div>
-            <Label className="text-white text-sm font-semibold">{setting.label}</Label>
-            <p className="text-xs text-white/40 mt-0.5">{setting.description}</p>
-          </div>
-        </div>
-        <div className="grid gap-2 max-w-lg ml-9">
-          <Input
-            placeholder="Banner text"
-            value={banner.text}
-            onChange={(e) => onChange({ ...banner, text: e.target.value })}
-            className="bg-white/[0.04] border-white/10 text-white"
-          />
-          <div className="grid grid-cols-2 gap-2">
-            <Input
-              placeholder="Link URL (optional)"
-              value={banner.linkUrl ?? ""}
-              onChange={(e) => onChange({ ...banner, linkUrl: e.target.value })}
-              className="bg-white/[0.04] border-white/10 text-white"
-            />
-            <Input
-              placeholder="Link label (optional)"
-              value={banner.linkLabel ?? ""}
-              onChange={(e) => onChange({ ...banner, linkLabel: e.target.value })}
-              className="bg-white/[0.04] border-white/10 text-white"
-            />
-          </div>
-        </div>
-        {error && <p className="text-xs text-red-400 mt-1">{error}</p>}
-      </div>
-    );
-  }
-
-  if (setting.key === "theme_color") {
-    const hex = typeof value === "string" ? value : "";
-    const isValidHex = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(hex);
-    return (
-      <div className="py-3">
-        <Label className="text-white text-sm font-semibold">{setting.label}</Label>
-        <p className="text-xs text-white/40 mt-0.5 mb-2">{setting.description}</p>
-        <div className="flex items-center gap-3">
-          <div
-            className="w-8 h-8 rounded-md border border-white/20 shrink-0 transition-colors"
-            style={{ backgroundColor: isValidHex ? hex : "transparent" }}
-          />
-          <Input
-            value={hex}
-            onChange={(e) => onChange(e.target.value)}
-            className="bg-white/[0.04] border-white/10 text-white max-w-[200px]"
-            placeholder="#CEFF00"
-          />
-          {/* Copy hex */}
-          {isValidHex && (
-            <button
-              onClick={() => navigator.clipboard.writeText(hex)}
-              className="text-xs text-white/30 hover:text-white/60 transition-colors font-mono"
-            >
-              {hex}
-            </button>
-          )}
-        </div>
-        {error && <p className="text-xs text-red-400 mt-1">{error}</p>}
-      </div>
-    );
-  }
-
-  // String (short or long)
-  const strValue = typeof value === "string" ? value : "";
-  const isLong = strValue.length > 80 || setting.key.includes("message");
+  const strVal = typeof value === "string" ? value : "";
   return (
-    <div className="py-3">
-      <Label className="text-white text-sm font-semibold">{setting.label}</Label>
-      <p className="text-xs text-white/40 mt-0.5 mb-2">{setting.description}</p>
-      {isLong ? (
-        <Textarea
-          value={strValue}
-          onChange={(e) => onChange(e.target.value)}
-          className="bg-white/[0.04] border-white/10 text-white max-w-xl"
-          rows={3}
-        />
+    <div className="py-2">
+      <Label className="text-xs font-semibold text-white/70 mb-1.5 block">
+        {setting.label}
+        {setting.description && <span className="block font-normal text-white/30 mt-0.5">{setting.description}</span>}
+      </Label>
+      {strVal.length > 80 || setting.key.includes("message") ? (
+        <Textarea value={strVal} onChange={(e) => onChange(e.target.value)} className="bg-[#141414] border-white/[0.08] text-white" rows={3} />
       ) : (
-        <Input
-          value={strValue}
-          onChange={(e) => onChange(e.target.value)}
-          className="bg-white/[0.04] border-white/10 text-white max-w-xl"
-        />
+        <Input value={strVal} onChange={(e) => onChange(e.target.value)} className="bg-[#141414] border-white/[0.08] text-white h-9" />
       )}
-      {error && <p className="text-xs text-red-400 mt-1">{error}</p>}
     </div>
   );
 }
 
-function FieldCard({
-  setting,
-  value,
-  isDirty,
-  error,
+// ── Site Settings tab ─────────────────────────────────────────────────────────
+
+function SiteSettingsTab({
+  settings,
+  draft,
   onChange,
 }: {
-  setting: AdminSetting;
-  value: unknown;
-  isDirty: boolean;
-  error?: string;
-  onChange: (value: unknown) => void;
+  settings: AdminSetting[];
+  draft: Record<string, unknown>;
+  onChange: (key: string, value: unknown) => void;
 }) {
+  const keys = ["maintenance_mode", "maintenance_message", "registration_enabled", "platform_generation_enabled"];
+  const relevant = settings.filter((s) => keys.includes(s.key));
   return (
-    <div
-      className={cn(
-        "border rounded-xl p-4 mb-3 transition-colors",
-        isDirty
-          ? "border-primary/40 bg-primary/[0.03]"
-          : error
-            ? "border-red-500/40 bg-red-500/[0.03]"
-            : "border-white/[0.08] bg-[#141414]",
-      )}
-    >
-      {isDirty && (
-        <div className="flex items-center gap-1.5 mb-1">
-          <div className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
-          <span className="text-[10px] font-bold text-primary/80 uppercase tracking-wider">
-            Unsaved
-          </span>
+    <div className="space-y-1 max-w-xl">
+      {relevant.map((s) => (
+        <div key={s.key} className="bg-[#141414] border border-white/[0.08] rounded-xl px-4">
+          <GenericField setting={s} value={draft[s.key]} onChange={(v) => onChange(s.key, v)} />
         </div>
-      )}
-      {error && !isDirty && (
-        <div className="flex items-center gap-1.5 mb-1">
-          <AlertCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />
-          <span className="text-[10px] font-bold text-red-400 uppercase tracking-wider">
-            Validation error
-          </span>
-        </div>
-      )}
-      <SettingField setting={setting} value={value} onChange={onChange} error={error} />
+      ))}
     </div>
   );
 }
 
-// ── Live Preview ───────────────────────────────────────────────────────────────
+// ── Content tab ───────────────────────────────────────────────────────────────
+
+function ContentTab({
+  settings,
+  draft,
+  onChange,
+}: {
+  settings: AdminSetting[];
+  draft: Record<string, unknown>;
+  onChange: (key: string, value: unknown) => void;
+}) {
+  const relevant = settings.filter((s) => ["homepage_banner", "announcement"].includes(s.key));
+  return (
+    <div className="space-y-3 max-w-xl">
+      {relevant.map((s) => (
+        <div key={s.key} className="bg-[#141414] border border-white/[0.08] rounded-xl px-4">
+          <GenericField setting={s} value={draft[s.key]} onChange={(v) => onChange(s.key, v)} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Right rail ────────────────────────────────────────────────────────────────
 
 function LivePreviewCard({ draft }: { draft: Record<string, unknown> }) {
   const [viewMode, setViewMode] = useState<"desktop" | "mobile">("desktop");
-
   const siteName = typeof draft.site_name === "string" ? draft.site_name : "Higgsfield AI";
   const tagline = typeof draft.site_tagline === "string" ? draft.site_tagline : "";
   const themeColor =
-    typeof draft.theme_color === "string" &&
-    /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(draft.theme_color)
+    typeof draft.theme_color === "string" && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(draft.theme_color)
       ? draft.theme_color
       : "#CEFF00";
+  const logoUrl = typeof draft.logo_url === "string" ? draft.logo_url : "";
 
   return (
     <div className="bg-[#141414] border border-white/[0.08] rounded-xl p-4">
       <div className="flex items-center justify-between mb-3">
         <div>
-          <h3 className="text-sm font-bold text-white">Live Preview</h3>
-          <p className="text-xs text-white/40">Real-time preview of your site</p>
+          <div className="flex items-center gap-1.5">
+            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+            <h3 className="text-sm font-bold text-white">Live Preview</h3>
+          </div>
+          <p className="text-xs text-white/40 mt-0.5">Real-time preview of your site</p>
         </div>
         <div className="flex gap-1 bg-white/5 rounded-lg p-0.5">
           <button
             onClick={() => setViewMode("desktop")}
-            className={cn(
-              "p-1.5 rounded-md transition-colors",
-              viewMode === "desktop" ? "bg-white/10 text-white" : "text-white/40 hover:text-white",
-            )}
-            aria-label="Desktop preview"
+            className={cn("p-1.5 rounded-md transition-colors", viewMode === "desktop" ? "bg-white/10 text-white" : "text-white/40 hover:text-white")}
           >
             <Monitor className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={() => setViewMode("mobile")}
-            className={cn(
-              "p-1.5 rounded-md transition-colors",
-              viewMode === "mobile" ? "bg-white/10 text-white" : "text-white/40 hover:text-white",
-            )}
-            aria-label="Mobile preview"
+            className={cn("p-1.5 rounded-md transition-colors", viewMode === "mobile" ? "bg-white/10 text-white" : "text-white/40 hover:text-white")}
           >
             <Smartphone className="w-3.5 h-3.5" />
           </button>
@@ -547,50 +602,37 @@ function LivePreviewCard({ draft }: { draft: Record<string, unknown> }) {
       </div>
 
       <div className="overflow-hidden rounded-lg border border-white/10">
-        <div
-          className={cn(
-            "transition-all duration-300 mx-auto",
-            viewMode === "mobile" ? "max-w-[320px]" : "w-full",
-          )}
-        >
-          {/* Nav */}
-          <div className="bg-[#0a0a0a] border-b border-white/5 px-3 py-2.5 flex items-center gap-2">
-            <div
-              className="w-5 h-5 rounded flex items-center justify-center shrink-0"
-              style={{ backgroundColor: themeColor }}
-            >
-              <div className="w-1.5 h-1.5 bg-black rounded-sm" />
-            </div>
-            <span className="font-bold text-white text-xs truncate">{siteName}</span>
+        <div className={cn("transition-all duration-300 mx-auto", viewMode === "mobile" ? "max-w-[180px]" : "w-full")}>
+          {/* Simulated nav */}
+          <div className="bg-[#0a0a0a] border-b border-white/5 px-2.5 py-2 flex items-center gap-1.5">
+            {logoUrl ? (
+              <img src={`${PAGE_BASE}${logoUrl}`} alt={siteName} className="h-3.5 object-contain" />
+            ) : (
+              <div className="w-3.5 h-3.5 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: themeColor }}>
+                <div className="w-1 h-1 bg-black rounded-sm" />
+              </div>
+            )}
+            <span className="font-bold text-white text-[9px] truncate">{siteName}</span>
             {viewMode === "desktop" && (
-              <div className="flex items-center gap-3 ml-3">
+              <div className="flex items-center gap-2 ml-2">
                 {["Explore", "Image", "Video"].map((l) => (
-                  <span key={l} className="text-[10px] text-white/30">
-                    {l}
-                  </span>
+                  <span key={l} className="text-[8px] text-white/30">{l}</span>
                 ))}
               </div>
             )}
             <div className="ml-auto">
-              <div
-                className="px-2 py-0.5 rounded text-[10px] font-bold text-black"
-                style={{ backgroundColor: themeColor }}
-              >
-                Get Started
+              <div className="px-1.5 py-0.5 rounded text-[8px] font-bold text-black" style={{ backgroundColor: themeColor }}>
+                {viewMode === "desktop" ? "Sign up" : "→"}
               </div>
             </div>
           </div>
           {/* Hero */}
-          <div className="bg-[#0a0a0a] px-4 py-6 text-center">
-            <p className="text-[10px] text-white/40 uppercase tracking-widest mb-1">
-              The Next Generation AI Platform
-            </p>
-            <h2 className="text-white font-black text-sm mb-1 leading-tight">
-              {siteName}
-            </h2>
-            <p className="text-white/40 text-[10px] line-clamp-2">{tagline}</p>
+          <div className="bg-[#0d0d0d] px-3 py-4 text-center">
+            <p className="text-[7px] text-white/30 uppercase tracking-widest mb-1">The Next Generation AI Platform</p>
+            <h2 className="text-white font-black text-[9px] mb-1 leading-tight">{siteName}</h2>
+            <p className="text-white/40 text-[7px] line-clamp-1">{tagline}</p>
             <div
-              className="inline-flex items-center gap-1 mt-3 px-3 py-1.5 rounded-lg text-[10px] font-bold text-black"
+              className="inline-flex items-center gap-1 mt-2 px-2 py-1 rounded-md text-[7px] font-bold text-black"
               style={{ backgroundColor: themeColor }}
             >
               Get Started →
@@ -602,752 +644,336 @@ function LivePreviewCard({ draft }: { draft: Record<string, unknown> }) {
   );
 }
 
-// ── Platform Status ─────────────────────────────────────────────────────────────
-
-function PlatformStatusCard({
-  settings,
-  health,
-  healthLoading,
-}: {
-  settings: AdminSetting[] | undefined;
-  health:
-    | { database: { connected: boolean }; objectStorage: { connected: boolean } }
-    | undefined;
-  healthLoading: boolean;
-}) {
-  function getVal(key: string) {
-    return settings?.find((s) => s.key === key)?.value;
-  }
-
-  const statusRows = [
-    { label: "Maintenance Mode", value: Boolean(getVal("maintenance_mode")), invert: true },
-    { label: "Registration", value: Boolean(getVal("registration_enabled")), invert: false },
-    {
-      label: "Platform Generation",
-      value: Boolean(getVal("platform_generation_enabled")),
-      invert: false,
-    },
+function QuickStatusCard({ settings }: { settings: AdminSetting[] | undefined }) {
+  function getVal(key: string) { return settings?.find((s) => s.key === key)?.value; }
+  const rows = [
+    { label: "Maintenance Mode", value: Boolean(getVal("maintenance_mode")), danger: true },
+    { label: "Registration", value: Boolean(getVal("registration_enabled")), danger: false },
+    { label: "Platform Generation", value: Boolean(getVal("platform_generation_enabled")), danger: false },
   ];
-
   return (
     <div className="bg-[#141414] border border-white/[0.08] rounded-xl p-4">
-      <h3 className="text-sm font-bold text-white mb-3">Quick Status</h3>
+      <h3 className="text-sm font-bold text-white mb-1">Quick Status</h3>
       <p className="text-xs text-white/40 mb-3">Overview of important settings</p>
       <div className="space-y-2.5">
-        {statusRows.map((row) => {
-          const isOn = row.invert ? !row.value : row.value;
-          return (
-            <div key={row.label} className="flex items-center justify-between">
-              <span className="text-xs text-white/60">{row.label}</span>
-              <span
-                className={cn(
-                  "text-xs font-semibold px-2 py-0.5 rounded-full",
-                  row.label === "Maintenance Mode"
-                    ? row.value
-                      ? "bg-yellow-500/15 text-yellow-400"
-                      : "bg-white/[0.06] text-white/40"
-                    : row.value
-                      ? "bg-green-500/15 text-green-400"
-                      : "bg-red-500/15 text-red-400",
-                )}
-              >
-                {row.label === "Maintenance Mode"
-                  ? row.value
-                    ? "On"
-                    : "Off"
-                  : row.value
-                    ? "On"
-                    : "Off"}
-              </span>
-            </div>
-          );
-        })}
-
-        <div className="h-px bg-white/[0.06] my-1" />
-
-        {healthLoading ? (
-          <div className="flex items-center gap-2 text-white/30 text-xs">
-            <Loader2 className="w-3 h-3 animate-spin" /> Checking…
+        {rows.map((row) => (
+          <div key={row.label} className="flex items-center justify-between">
+            <span className="text-xs text-white/60">{row.label}</span>
+            <span className={cn(
+              "text-xs font-semibold px-2 py-0.5 rounded-full",
+              row.danger
+                ? row.value ? "bg-yellow-500/15 text-yellow-400" : "bg-white/[0.06] text-white/40"
+                : row.value ? "bg-green-500/15 text-green-400" : "bg-red-500/15 text-red-400",
+            )}>
+              {row.value ? "On" : "Off"}
+            </span>
           </div>
-        ) : (
-          <>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <Database className="w-3 h-3 text-white/40" />
-                <span className="text-xs text-white/60">Database</span>
-              </div>
-              <span
-                className={cn(
-                  "text-xs font-semibold px-2 py-0.5 rounded-full",
-                  health?.database.connected
-                    ? "bg-green-500/15 text-green-400"
-                    : "bg-red-500/15 text-red-400",
-                )}
-              >
-                {health?.database.connected ? "Connected" : "Disconnected"}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <HardDrive className="w-3 h-3 text-white/40" />
-                <span className="text-xs text-white/60">Object Storage</span>
-              </div>
-              <span
-                className={cn(
-                  "text-xs font-semibold px-2 py-0.5 rounded-full",
-                  health?.objectStorage.connected
-                    ? "bg-green-500/15 text-green-400"
-                    : "bg-red-500/15 text-red-400",
-                )}
-              >
-                {health?.objectStorage.connected ? "Connected" : "Disconnected"}
-              </span>
-            </div>
-          </>
-        )}
+        ))}
       </div>
-      <p className="text-[10px] text-white/30 mt-3">
-        Changes are saved instantly and applied across the platform.
-      </p>
     </div>
   );
 }
 
-function SettingsInfoCard({ lastSavedAt }: { lastSavedAt: Date | null }) {
-  const [, setTick] = useState(0);
+function InfoCard({ lastSavedAt }: { lastSavedAt: Date | null }) {
+  const [, tick] = useState(0);
   useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 30000);
+    const id = setInterval(() => tick((t) => t + 1), 30_000);
     return () => clearInterval(id);
   }, []);
-
   return (
     <div className="bg-[#141414] border border-white/[0.08] rounded-xl p-4">
-      <h3 className="text-sm font-bold text-white mb-3">Info</h3>
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-white/50">Last saved</span>
-          <span className="text-xs text-white/80 font-medium">{relativeTime(lastSavedAt)}</span>
+      <div className="flex items-start gap-2">
+        <div className="w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0 mt-0.5">
+          <Circle className="w-2.5 h-2.5 text-blue-400 fill-blue-400" />
         </div>
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-white/50">Last updated by</span>
-          <span className="text-xs text-white/80 font-medium">Owner</span>
+        <div>
+          <h3 className="text-xs font-bold text-white mb-1">Info</h3>
+          <p className="text-[11px] text-white/40">Changes are saved instantly and applied across the platform.</p>
+          {lastSavedAt && (
+            <p className="text-[10px] text-white/30 mt-1">Last saved {relativeTime(lastSavedAt)}</p>
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-// ── Main Branding Panel ────────────────────────────────────────────────────────
+// ── Main panel ────────────────────────────────────────────────────────────────
 
 function BrandingPanel() {
   const { data: settings, isLoading, refetch } = useGetAdminSettings();
-  const { data: health, isLoading: healthLoading } = useGetAdminSettingsHealth();
+  const { data: health } = useGetAdminSettingsHealth();
   const updateMutation = useUpdateAdminSettings();
   const importMutation = useImportAdminSettings();
   const resetMutation = useResetAdminSettingsToDefaults();
 
-  const [savedValues, setSavedValues] = useState<Record<string, unknown>>({});
-  const [dirtyFields, setDirtyFields] = useState<Record<string, unknown>>({});
+  const [draft, setDraft] = useState<Record<string, unknown>>({});
   const [activeTab, setActiveTab] = useState<TabKey>("brand-identity");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [isSavingState, setIsSavingState] = useState(false);
-  const isSavingRef = useRef(false);
-  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [errorBanner, setErrorBanner] = useState<Array<{ key: string; label: string; error: string }>>([]);
-  const [undoSnapshot, setUndoSnapshot] = useState<Record<string, unknown> | null>(null);
-  const [undoSecondsLeft, setUndoSecondsLeft] = useState(0);
-  const [showRefreshConfirm, setShowRefreshConfirm] = useState(false);
-  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [isDragOver, setIsDragOver] = useState(false);
-  const searchInputRef = useRef<HTMLInputElement>(null);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const importFileRef = useRef<HTMLInputElement>(null);
 
-  // Only show settings from branding+access+content categories (not credits/defaults)
-  const ALLOWED_CATEGORIES = new Set(["branding", "access", "content"]);
   const filteredSettings = (settings ?? []).filter((s) => ALLOWED_CATEGORIES.has(s.category));
 
+  // Initialise draft from server
   useEffect(() => {
     if (!filteredSettings.length) return;
-    const initial: Record<string, unknown> = {};
-    for (const s of filteredSettings) initial[s.key] = s.value;
-    setSavedValues(initial);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setDraft((prev) => {
+      const next: Record<string, unknown> = {};
+      for (const s of filteredSettings) next[s.key] = s.value;
+      return Object.keys(prev).length ? prev : next; // don't overwrite local edits on re-fetch
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings]);
 
   useEffect(() => {
-    if (health?.lastSavedAt && !lastSavedAt) {
-      setLastSavedAt(new Date(health.lastSavedAt as string));
+    if ((health as { lastSavedAt?: string } | undefined)?.lastSavedAt && !lastSavedAt) {
+      setLastSavedAt(new Date((health as { lastSavedAt: string }).lastSavedAt));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [health]);
 
+  // Ctrl+S
   useEffect(() => {
-    if (undoSecondsLeft <= 0) {
-      if (undoSnapshot) setUndoSnapshot(null);
-      return;
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "s") { e.preventDefault(); handleSave(); }
     }
-    const id = setTimeout(() => setUndoSecondsLeft((s) => s - 1), 1000);
-    return () => clearTimeout(id);
-  }, [undoSecondsLeft, undoSnapshot]);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft, filteredSettings]);
 
-  useEffect(() => {
-    const hasDirty = Object.keys(dirtyFields).length > 0;
-    const handler = (e: BeforeUnloadEvent) => {
-      if (hasDirty) { e.preventDefault(); e.returnValue = ""; }
-    };
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
-  }, [dirtyFields]);
+  // Dirty count
+  const serverMap: Record<string, unknown> = {};
+  for (const s of filteredSettings) serverMap[s.key] = s.value;
+  const dirtyKeys = Object.keys(draft).filter((k) => JSON.stringify(draft[k]) !== JSON.stringify(serverMap[k]));
+  const dirtyCount = dirtyKeys.length;
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "s") {
-        e.preventDefault();
-        if (Object.keys(dirtyFields).length > 0) handleSave();
-        return;
-      }
-      if (
-        e.key === "/" &&
-        document.activeElement &&
-        !["INPUT", "TEXTAREA"].includes((document.activeElement as HTMLElement).tagName)
-      ) {
-        e.preventDefault();
-        searchInputRef.current?.focus();
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dirtyFields]);
-
-  const currentValues = useCallback(
-    (key: string) => (key in dirtyFields ? dirtyFields[key] : savedValues[key]),
-    [dirtyFields, savedValues],
-  );
-
-  const draftForPreview: Record<string, unknown> = { ...savedValues, ...dirtyFields };
-
-  // Build map: settingKey → AdminSetting
-  const settingByKey = new Map<string, AdminSetting>();
-  for (const s of filteredSettings) settingByKey.set(s.key, s);
-
-  function getTabSettings(tab: (typeof TABS)[number]) {
-    return tab.settingKeys
-      .map((k) => settingByKey.get(k))
-      .filter(Boolean) as AdminSetting[];
-  }
-
-  // Search: finds which tab the query matches and jumps to it
-  function handleSearch(q: string) {
-    setSearchQuery(q);
-    if (q) {
-      for (const tab of TABS) {
-        const tabSettings = getTabSettings(tab);
-        const hasMatch = tabSettings.some((s) =>
-          s.label.toLowerCase().includes(q.toLowerCase()),
-        );
-        if (hasMatch) {
-          setActiveTab(tab.key);
-          break;
-        }
-      }
-    }
-  }
-
-  function setField(key: string, value: unknown) {
-    setDirtyFields((prev) => ({ ...prev, [key]: value }));
-    if (fieldErrors[key]) {
-      setFieldErrors((prev) => { const n = { ...prev }; delete n[key]; return n; });
-    }
-  }
-
-  function discardChanges() {
-    setDirtyFields({});
-    setFieldErrors({});
-    setErrorBanner([]);
+  function onChange(key: string, value: unknown) {
+    setDraft((prev) => ({ ...prev, [key]: value }));
   }
 
   async function handleSave() {
-    if (isSavingRef.current || Object.keys(dirtyFields).length === 0) return;
-    isSavingRef.current = true;
-    setIsSavingState(true);
-    setFieldErrors({});
-    setErrorBanner([]);
+    if (!dirtyCount || saving) return;
+    setSaving(true);
     try {
-      const updated = await updateMutation.mutateAsync({ data: dirtyFields });
-      const newSaved: Record<string, unknown> = {};
-      for (const s of updated) newSaved[s.key] = s.value;
-      setSavedValues((prev) => ({ ...prev, ...newSaved }));
-      setDirtyFields({});
+      const updates = dirtyKeys.map((key) => ({ key, value: draft[key] }));
+      await updateMutation.mutateAsync({ data: { settings: updates } });
       setLastSavedAt(new Date());
-      toast({ title: "✓ Settings saved" });
-    } catch (err) {
-      const fields = parseValidationErrors(err);
-      if (fields.length > 0) {
-        const errs: Record<string, string> = {};
-        const banner: Array<{ key: string; label: string; error: string }> = [];
-        for (const f of fields) {
-          errs[f.key] = f.error;
-          const s = settingByKey.get(f.key);
-          banner.push({ key: f.key, label: s?.label ?? f.key, error: f.error });
-        }
-        setFieldErrors(errs);
-        setErrorBanner(banner);
-      }
-      toast({ title: "Save failed — check errors above", variant: "destructive" });
+      await refetch();
+      setDraft({});
+      toast({ title: "Saved", description: "Settings applied across the platform." });
+    } catch {
+      toast({ title: "Save failed", variant: "destructive" });
     } finally {
-      isSavingRef.current = false;
-      setIsSavingState(false);
+      setSaving(false);
     }
   }
 
-  async function handleRefresh() {
-    if (Object.keys(dirtyFields).length > 0) { setShowRefreshConfirm(true); return; }
-    await doRefresh();
-  }
-
-  async function doRefresh() {
-    await refetch();
-    setDirtyFields({});
-    setFieldErrors({});
-    setErrorBanner([]);
+  function handleDiscard() {
+    const reset: Record<string, unknown> = {};
+    for (const s of filteredSettings) reset[s.key] = s.value;
+    setDraft(reset);
+    setShowDiscardConfirm(false);
+    toast({ title: "Changes discarded" });
   }
 
   async function handleExport() {
     setExporting(true);
     try {
       const data = await getAdminSettingsExport();
-      const json = JSON.stringify(data, null, 2);
-      const blob = new Blob([json], { type: "application/json" });
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `site-settings-${new Date().toISOString().split("T")[0]}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      const a = document.createElement("a"); a.href = url; a.download = "admin-settings.json"; a.click();
       URL.revokeObjectURL(url);
-    } catch {
-      toast({ title: "Export failed", variant: "destructive" });
-    } finally {
-      setExporting(false);
-    }
+    } catch { toast({ title: "Export failed", variant: "destructive" }); }
+    finally { setExporting(false); }
   }
 
-  async function processImportFile(file: File) {
+  async function handleImportFile(file: File) {
     setImporting(true);
     try {
       const text = await file.text();
       const parsed = JSON.parse(text);
-      if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-        throw new Error("File must be a flat JSON object");
-      }
-      const updated = await importMutation.mutateAsync({ data: parsed });
-      const newSaved: Record<string, unknown> = {};
-      for (const s of updated) newSaved[s.key] = s.value;
-      setSavedValues((prev) => ({ ...prev, ...newSaved }));
-      setDirtyFields({});
-      setLastSavedAt(new Date());
-      toast({ title: "✓ Settings imported" });
-    } catch (err) {
-      const fields = parseValidationErrors(err);
-      if (fields.length > 0) {
-        const errs: Record<string, string> = {};
-        const banner: Array<{ key: string; label: string; error: string }> = [];
-        for (const f of fields) {
-          errs[f.key] = f.error;
-          const s = settingByKey.get(f.key);
-          banner.push({ key: f.key, label: s?.label ?? f.key, error: f.error });
-        }
-        setFieldErrors(errs);
-        setErrorBanner(banner);
-      }
-      toast({ title: "Import failed", variant: "destructive" });
-    } finally {
-      setImporting(false);
-    }
+      await importMutation.mutateAsync({ data: parsed });
+      await refetch();
+      setDraft({});
+      toast({ title: "Imported successfully" });
+    } catch { toast({ title: "Import failed", variant: "destructive" }); }
+    finally { setImporting(false); }
   }
 
-  async function handleResetToDefaults() {
-    const snapshot = { ...savedValues };
+  async function handleReset() {
     try {
-      const updated = await resetMutation.mutateAsync();
-      const newSaved: Record<string, unknown> = {};
-      for (const s of updated) newSaved[s.key] = s.value;
-      setSavedValues(newSaved);
-      setDirtyFields({});
-      setLastSavedAt(new Date());
-      setUndoSnapshot(snapshot);
-      setUndoSecondsLeft(10);
-      toast({ title: "Settings reset to defaults" });
-    } catch {
-      toast({ title: "Reset failed", variant: "destructive" });
-    }
-  }
-
-  async function handleUndo() {
-    if (!undoSnapshot) return;
-    const snap = undoSnapshot;
-    setUndoSnapshot(null);
-    setUndoSecondsLeft(0);
-    try {
-      const updated = await updateMutation.mutateAsync({ data: snap });
-      const newSaved: Record<string, unknown> = {};
-      for (const s of updated) newSaved[s.key] = s.value;
-      setSavedValues(newSaved);
-      setLastSavedAt(new Date());
-      toast({ title: "✓ Settings restored" });
-    } catch {
-      toast({ title: "Undo failed", variant: "destructive" });
-    }
+      await resetMutation.mutateAsync({});
+      await refetch();
+      setDraft({});
+      setShowResetConfirm(false);
+      toast({ title: "Reset to defaults" });
+    } catch { toast({ title: "Reset failed", variant: "destructive" }); }
   }
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-24 text-white/40">
-        <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading settings…
+      <div className="flex items-center justify-center h-full text-white/40">
+        <Loader2 className="w-5 h-5 animate-spin" />
       </div>
     );
   }
 
-  const dirtyKeys = Object.keys(dirtyFields);
-  const hasDirty = dirtyKeys.length > 0;
-  const dirtyLabels = dirtyKeys
-    .map((k) => settingByKey.get(k)?.label ?? k)
-    .join(", ");
-
-  const activeTabDef = TABS.find((t) => t.key === activeTab)!;
-  const activeTabSettings = getTabSettings(activeTabDef).filter((s) => {
-    if (!searchQuery) return true;
-    return s.label.toLowerCase().includes(searchQuery.toLowerCase());
-  });
-
-  // Count dirty fields per tab (for the tab indicator)
-  function tabDirtyCount(tab: (typeof TABS)[number]) {
-    return tab.settingKeys.filter((k) => k in dirtyFields).length;
-  }
-
   return (
-    <div className="p-6 max-w-[1400px]">
+    <div className="flex flex-col h-full">
       {/* Page header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-black text-white">Branding</h1>
-        <p className="text-sm text-white/50 mt-1">
-          Manage your site identity, logos, and visual branding.
-        </p>
+      <div className="shrink-0 border-b border-white/[0.06] px-6 py-4">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-primary/15 flex items-center justify-center">
+              <Palette className="w-4 h-4 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-lg font-black text-white">Branding</h1>
+              <p className="text-xs text-white/40">Manage your site identity, logos, and visual branding.</p>
+            </div>
+          </div>
+
+          {/* Toolbar */}
+          <div className="flex items-center gap-2 shrink-0">
+            <Button variant="outline" size="sm" onClick={handleExport} disabled={exporting}
+              className="h-8 text-xs border-white/20 text-white/70 hover:text-white hover:bg-white/10">
+              {exporting ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Download className="w-3.5 h-3.5 mr-1.5" />}
+              Export
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => importFileRef.current?.click()} disabled={importing}
+              className="h-8 text-xs border-white/20 text-white/70 hover:text-white hover:bg-white/10">
+              {importing ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <FileUp className="w-3.5 h-3.5 mr-1.5" />}
+              Import
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setShowResetConfirm(true)}
+              className="h-8 text-xs border-white/20 text-white/70 hover:text-white hover:bg-white/10">
+              <RotateCcw className="w-3.5 h-3.5 mr-1.5" />Reset to defaults
+            </Button>
+            <Button size="sm" onClick={handleSave} disabled={!dirtyCount || saving}
+              className="h-8 text-xs bg-primary text-black font-bold hover:bg-primary/90 disabled:opacity-40">
+              {saving ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : null}
+              Save changes
+            </Button>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-0 mt-4 border-b border-white/[0.06] -mb-[1px]">
+          {TABS.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={cn(
+                "px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px",
+                activeTab === tab.key
+                  ? "text-white border-primary"
+                  : "text-white/40 border-transparent hover:text-white/70",
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-3 mb-5 p-3 bg-[#141414] border border-white/[0.08] rounded-xl">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30" />
-          <input
-            ref={searchInputRef}
-            type="text"
-            value={searchQuery}
-            onChange={(e) => handleSearch(e.target.value)}
-            placeholder="Search settings… (/)"
-            className="w-full bg-white/[0.04] border border-white/10 rounded-lg pl-8 pr-3 py-2 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-white/20"
-            aria-label="Search settings"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => { setSearchQuery(""); }}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-white/10 rounded"
-              aria-label="Clear search"
-            >
-              <X className="w-3 h-3 text-white/40" />
-            </button>
+      {/* Body */}
+      <div className="flex-1 overflow-hidden flex min-h-0">
+        {/* Main content */}
+        <div className="flex-1 overflow-y-auto px-6 py-5">
+          {activeTab === "brand-identity" && (
+            <BrandIdentityTab settings={filteredSettings} draft={draft} onChange={onChange} />
+          )}
+          {activeTab === "logos-icons" && (
+            <LogosTab draft={draft} onChange={onChange} />
+          )}
+          {activeTab === "theme" && (
+            <ThemeTab draft={draft} onChange={onChange} />
+          )}
+          {activeTab === "site-settings" && (
+            <SiteSettingsTab settings={filteredSettings} draft={draft} onChange={onChange} />
+          )}
+          {activeTab === "content" && (
+            <ContentTab settings={filteredSettings} draft={draft} onChange={onChange} />
           )}
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExport}
-            disabled={isSavingState || exporting}
-            className="border-white/15 text-white/80 hover:bg-white/10"
-          >
-            {exporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-            <span className="ml-1.5">Export</span>
-          </Button>
-
-          <div
-            onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
-            onDragLeave={() => setIsDragOver(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setIsDragOver(false);
-              const file = e.dataTransfer.files[0];
-              if (file?.name.endsWith(".json")) processImportFile(file);
-            }}
-          >
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => importFileRef.current?.click()}
-              disabled={importing}
-              className={cn(
-                "border-white/15 text-white/80 hover:bg-white/10",
-                isDragOver && "border-primary text-primary",
-              )}
-            >
-              {importing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileUp className="w-3.5 h-3.5" />}
-              <span className="ml-1.5">Import</span>
-            </Button>
-            <input
-              ref={importFileRef}
-              type="file"
-              accept=".json"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) processImportFile(f);
-                e.target.value = "";
-              }}
-            />
-          </div>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRefresh}
-            disabled={isSavingState || importing}
-            className="border-white/15 text-white/80 hover:bg-white/10"
-          >
-            <RefreshCcw className="w-3.5 h-3.5" />
-            <span className="ml-1.5">Refresh</span>
-          </Button>
-
-          <Button
-            size="sm"
-            onClick={handleSave}
-            disabled={!hasDirty || isSavingState}
-            className="bg-primary text-black font-bold hover:bg-primary/90"
-          >
-            {isSavingState ? (
-              <><Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />Saving…</>
-            ) : (
-              "Save changes"
-            )}
-          </Button>
-        </div>
-      </div>
-
-      {/* Error banner */}
-      {errorBanner.length > 0 && (
-        <div className="mb-4 p-4 bg-red-500/10 border border-red-500/30 rounded-xl">
-          <div className="flex items-start gap-2 mb-2">
-            <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-            <p className="text-sm font-semibold text-red-400">
-              {errorBanner.length} field{errorBanner.length > 1 ? "s" : ""} failed validation
-            </p>
-            <button onClick={() => setErrorBanner([])} className="ml-auto shrink-0">
-              <X className="w-4 h-4 text-red-400/60 hover:text-red-400" />
-            </button>
-          </div>
-          <div className="space-y-1 ml-6">
-            {errorBanner.map((e) => (
-              <p key={e.key} className="text-xs text-red-300">
-                {e.label}: {e.error}
-              </p>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Main layout: tabs + content + right rail */}
-      <div className="lg:grid lg:grid-cols-[1fr_300px] gap-6">
-        <div>
-          {/* Tabs */}
-          <div className="border-b border-white/[0.08] mb-5">
-            <div className="flex gap-0 overflow-x-auto">
-              {TABS.map((tab) => {
-                const isActive = activeTab === tab.key;
-                const dirty = tabDirtyCount(tab);
-                return (
-                  <button
-                    key={tab.key}
-                    onClick={() => setActiveTab(tab.key)}
-                    className={cn(
-                      "px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors relative",
-                      isActive
-                        ? "border-primary text-white"
-                        : "border-transparent text-white/40 hover:text-white/70 hover:border-white/20",
-                    )}
-                  >
-                    {tab.label}
-                    {dirty > 0 && (
-                      <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-primary text-black text-[9px] font-black">
-                        {dirty}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Tab content */}
-          <div className="max-w-[900px]">
-            {activeTabSettings.length === 0 ? (
-              <div className="py-12 text-center text-white/30 text-sm">
-                {searchQuery ? "No settings match your search in this tab." : "No settings here."}
-              </div>
-            ) : (
-              activeTabSettings.map((s) => (
-                <FieldCard
-                  key={s.key}
-                  setting={s}
-                  value={currentValues(s.key)}
-                  isDirty={s.key in dirtyFields}
-                  error={fieldErrors[s.key]}
-                  onChange={(v) => setField(s.key, v)}
-                />
-              ))
-            )}
-
-            {/* Danger Zone — only on Site Settings tab */}
-            {activeTab === "site-settings" && !searchQuery && (
-              <div className="border border-red-500/30 rounded-xl p-5 mt-6">
-                <div className="flex items-center gap-2 mb-1">
-                  <AlertCircle className="w-4 h-4 text-red-400" />
-                  <h2 className="text-sm font-bold text-red-400 uppercase tracking-wider">
-                    Danger Zone
-                  </h2>
-                </div>
-                <p className="text-xs text-white/40 mb-4">
-                  Destructive actions. You'll have 10 seconds to undo.
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowResetConfirm(true)}
-                  disabled={isSavingState || resetMutation.isPending}
-                  className="border-red-500/30 text-red-400 hover:bg-red-500/10 hover:border-red-500/50"
-                >
-                  <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
-                  Reset to defaults
-                </Button>
-              </div>
-            )}
-          </div>
-        </div>
-
         {/* Right rail */}
-        <div className="space-y-4 mt-2">
-          <LivePreviewCard draft={draftForPreview} />
-          <PlatformStatusCard
-            settings={settings}
-            health={health}
-            healthLoading={healthLoading}
-          />
-          <SettingsInfoCard lastSavedAt={lastSavedAt} />
+        <div className="w-[260px] shrink-0 border-l border-white/[0.06] overflow-y-auto px-4 py-4 space-y-3">
+          <LivePreviewCard draft={draft} />
+          <QuickStatusCard settings={filteredSettings.length ? filteredSettings : undefined} />
+          <InfoCard lastSavedAt={lastSavedAt} />
         </div>
       </div>
 
-      {/* Floating save bar */}
-      {hasDirty && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-2xl px-4">
-          <div className="bg-[#1a1a1a] border border-white/15 rounded-2xl shadow-2xl p-4 flex flex-wrap items-center gap-3">
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-white">
-                {dirtyKeys.length} unsaved change{dirtyKeys.length > 1 ? "s" : ""}
-              </p>
-              <p className="text-xs text-white/40 truncate">Edited: {dirtyLabels}</p>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={discardChanges}
-                disabled={isSavingState}
-                className="text-white/60 hover:text-white"
-              >
-                Discard changes
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleSave}
-                disabled={isSavingState}
-                className="bg-primary text-black font-bold hover:bg-primary/90"
-              >
-                {isSavingState ? (
-                  <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Saving…</>
-                ) : (
-                  "Save all changes"
-                )}
-              </Button>
-            </div>
+      {/* Unsaved changes footer bar */}
+      {dirtyCount > 0 && (
+        <div className="shrink-0 border-t border-white/[0.06] bg-[#0f0f0f] px-6 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-primary shrink-0" />
+            <span className="text-sm font-semibold text-white">{dirtyCount} unsaved {dirtyCount === 1 ? "change" : "changes"}</span>
+            <span className="text-xs text-white/40">You have unsaved modifications.</span>
           </div>
-        </div>
-      )}
-
-      {/* Undo toast */}
-      {undoSnapshot && undoSecondsLeft > 0 && (
-        <div className="fixed bottom-28 left-1/2 -translate-x-1/2 z-50">
-          <div className="bg-[#1a1a1a] border border-white/15 rounded-xl shadow-xl px-4 py-3 flex items-center gap-4">
-            <span className="text-sm text-white">Settings reset to defaults</span>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleUndo}
-              className="border-primary/40 text-primary hover:bg-primary/10"
-            >
-              Undo ({undoSecondsLeft}s)
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowDiscardConfirm(true)}
+              className="h-8 text-xs border-white/20 text-white/70 hover:text-white hover:bg-white/10">
+              Discard changes
+            </Button>
+            <Button size="sm" onClick={handleSave} disabled={saving}
+              className="h-8 text-xs bg-primary text-black font-bold hover:bg-primary/90">
+              {saving && <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />}
+              Save all changes
             </Button>
           </div>
         </div>
       )}
 
-      {/* Confirm dialogs */}
-      <AlertDialog open={showRefreshConfirm} onOpenChange={setShowRefreshConfirm}>
-        <AlertDialogContent className="bg-[#1a1a1a] border-white/15">
+      {/* Hidden inputs */}
+      <input ref={importFileRef} type="file" accept=".json" className="hidden"
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportFile(f); e.target.value = ""; }} />
+
+      {/* Reset confirm */}
+      <AlertDialog open={showResetConfirm} onOpenChange={setShowResetConfirm}>
+        <AlertDialogContent className="bg-[#141414] border-white/10 text-white">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-white">Discard unsaved changes and reload?</AlertDialogTitle>
+            <AlertDialogTitle>Reset to defaults?</AlertDialogTitle>
             <AlertDialogDescription className="text-white/50">
-              You have {dirtyKeys.length} unsaved change{dirtyKeys.length > 1 ? "s" : ""} that will be lost.
+              All settings will be reset to their original default values. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="border-white/15 text-white/70 hover:bg-white/10">Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => { setShowRefreshConfirm(false); doRefresh(); }}
-              className="bg-white text-black hover:bg-white/90"
-            >
-              Reload
-            </AlertDialogAction>
+            <AlertDialogCancel className="border-white/20 text-white/70 hover:text-white bg-transparent">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleReset} className="bg-red-500 text-white hover:bg-red-600">Reset</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={showResetConfirm} onOpenChange={setShowResetConfirm}>
-        <AlertDialogContent className="bg-[#1a1a1a] border-white/15">
+      {/* Discard confirm */}
+      <AlertDialog open={showDiscardConfirm} onOpenChange={setShowDiscardConfirm}>
+        <AlertDialogContent className="bg-[#141414] border-white/10 text-white">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-white">Reset all settings to their defaults?</AlertDialogTitle>
+            <AlertDialogTitle>Discard changes?</AlertDialogTitle>
             <AlertDialogDescription className="text-white/50">
-              This overwrites every setting with its registry default. You'll have 10 seconds to undo.
+              All {dirtyCount} unsaved changes will be lost.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="border-white/15 text-white/70 hover:bg-white/10">Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => { setShowResetConfirm(false); handleResetToDefaults(); }}
-              className="bg-red-600 text-white hover:bg-red-700"
-            >
-              Reset to defaults
-            </AlertDialogAction>
+            <AlertDialogCancel className="border-white/20 text-white/70 hover:text-white bg-transparent">Keep editing</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDiscard} className="bg-red-500 text-white hover:bg-red-600">Discard</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>
   );
 }
+
+// ── Page export ───────────────────────────────────────────────────────────────
 
 export default function AdminBranding() {
   return (
