@@ -20,7 +20,13 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AdminAssetImportResult,
   AdminHealthStatus,
+  AdminProvider,
+  AdminProviderIconBody,
+  AdminProviderPatch,
+  AdminProviderPlatformKeyBody,
+  AdminProviderTestResult,
   AdminSetting,
   AdminSettingsExport,
   ApiKeyInput,
@@ -1604,6 +1610,512 @@ export function useGetAdminSettingsHealth<TData = Awaited<ReturnType<typeof getA
 
 
 
+
+export const getImportAdminAssetUrl = () => {
+
+
+
+
+  return `/api/admin/settings/import-asset`
+}
+
+/**
+ * @summary Fetch a public image URL server-side, validate, and re-host on our own storage (owner-only)
+ */
+export const importAdminAsset = async (adminProviderIconBody: AdminProviderIconBody, options?: RequestInit): Promise<AdminAssetImportResult> => {
+
+  return customFetch<AdminAssetImportResult>(getImportAdminAssetUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(adminProviderIconBody)
+  }
+);}
+
+
+
+
+
+export const getImportAdminAssetMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importAdminAsset>>, TError,{data: BodyType<AdminProviderIconBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof importAdminAsset>>, TError,{data: BodyType<AdminProviderIconBody>}, TContext> => {
+
+const mutationKey = ['importAdminAsset'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof importAdminAsset>>, {data: BodyType<AdminProviderIconBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  importAdminAsset(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ImportAdminAssetMutationResult = NonNullable<Awaited<ReturnType<typeof importAdminAsset>>>
+    export type ImportAdminAssetMutationBody = BodyType<AdminProviderIconBody>
+    export type ImportAdminAssetMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Fetch a public image URL server-side, validate, and re-host on our own storage (owner-only)
+ */
+export const useImportAdminAsset = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importAdminAsset>>, TError,{data: BodyType<AdminProviderIconBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof importAdminAsset>>,
+        TError,
+        {data: BodyType<AdminProviderIconBody>},
+        TContext
+      > => {
+      return useMutation(getImportAdminAssetMutationOptions(options));
+    }
+
+export const getListAdminProvidersUrl = () => {
+
+
+
+
+  return `/api/admin/providers`
+}
+
+/**
+ * @summary All providers with platform key info, model counts, and live discovery (owner-only)
+ */
+export const listAdminProviders = async ( options?: RequestInit): Promise<AdminProvider[]> => {
+
+  return customFetch<AdminProvider[]>(getListAdminProvidersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAdminProvidersQueryKey = () => {
+    return [
+    `/api/admin/providers`
+    ] as const;
+    }
+
+
+export const getListAdminProvidersQueryOptions = <TData = Awaited<ReturnType<typeof listAdminProviders>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminProviders>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAdminProvidersQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminProviders>>> = ({ signal }) => listAdminProviders({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAdminProviders>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAdminProvidersQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminProviders>>>
+export type ListAdminProvidersQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary All providers with platform key info, model counts, and live discovery (owner-only)
+ */
+
+export function useListAdminProviders<TData = Awaited<ReturnType<typeof listAdminProviders>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminProviders>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAdminProvidersQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getPatchAdminProviderUrl = (slug: string,) => {
+
+
+
+
+  return `/api/admin/providers/${slug}`
+}
+
+/**
+ * @summary Update provider fields (owner-only)
+ */
+export const patchAdminProvider = async (slug: string,
+    adminProviderPatch: AdminProviderPatch, options?: RequestInit): Promise<AdminProvider> => {
+
+  return customFetch<AdminProvider>(getPatchAdminProviderUrl(slug),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(adminProviderPatch)
+  }
+);}
+
+
+
+
+
+export const getPatchAdminProviderMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchAdminProvider>>, TError,{slug: string;data: BodyType<AdminProviderPatch>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof patchAdminProvider>>, TError,{slug: string;data: BodyType<AdminProviderPatch>}, TContext> => {
+
+const mutationKey = ['patchAdminProvider'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof patchAdminProvider>>, {slug: string;data: BodyType<AdminProviderPatch>}> = (props) => {
+          const {slug,data} = props ?? {};
+
+          return  patchAdminProvider(slug,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PatchAdminProviderMutationResult = NonNullable<Awaited<ReturnType<typeof patchAdminProvider>>>
+    export type PatchAdminProviderMutationBody = BodyType<AdminProviderPatch>
+    export type PatchAdminProviderMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Update provider fields (owner-only)
+ */
+export const usePatchAdminProvider = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchAdminProvider>>, TError,{slug: string;data: BodyType<AdminProviderPatch>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof patchAdminProvider>>,
+        TError,
+        {slug: string;data: BodyType<AdminProviderPatch>},
+        TContext
+      > => {
+      return useMutation(getPatchAdminProviderMutationOptions(options));
+    }
+
+export const getSetAdminProviderPlatformKeyUrl = (slug: string,) => {
+
+
+
+
+  return `/api/admin/providers/${slug}/platform-key`
+}
+
+/**
+ * @summary Validate (if possible) and store a platform API key for a provider (owner-only)
+ */
+export const setAdminProviderPlatformKey = async (slug: string,
+    adminProviderPlatformKeyBody: AdminProviderPlatformKeyBody, options?: RequestInit): Promise<AdminProvider> => {
+
+  return customFetch<AdminProvider>(getSetAdminProviderPlatformKeyUrl(slug),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(adminProviderPlatformKeyBody)
+  }
+);}
+
+
+
+
+
+export const getSetAdminProviderPlatformKeyMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setAdminProviderPlatformKey>>, TError,{slug: string;data: BodyType<AdminProviderPlatformKeyBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setAdminProviderPlatformKey>>, TError,{slug: string;data: BodyType<AdminProviderPlatformKeyBody>}, TContext> => {
+
+const mutationKey = ['setAdminProviderPlatformKey'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setAdminProviderPlatformKey>>, {slug: string;data: BodyType<AdminProviderPlatformKeyBody>}> = (props) => {
+          const {slug,data} = props ?? {};
+
+          return  setAdminProviderPlatformKey(slug,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetAdminProviderPlatformKeyMutationResult = NonNullable<Awaited<ReturnType<typeof setAdminProviderPlatformKey>>>
+    export type SetAdminProviderPlatformKeyMutationBody = BodyType<AdminProviderPlatformKeyBody>
+    export type SetAdminProviderPlatformKeyMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Validate (if possible) and store a platform API key for a provider (owner-only)
+ */
+export const useSetAdminProviderPlatformKey = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setAdminProviderPlatformKey>>, TError,{slug: string;data: BodyType<AdminProviderPlatformKeyBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setAdminProviderPlatformKey>>,
+        TError,
+        {slug: string;data: BodyType<AdminProviderPlatformKeyBody>},
+        TContext
+      > => {
+      return useMutation(getSetAdminProviderPlatformKeyMutationOptions(options));
+    }
+
+export const getDeleteAdminProviderPlatformKeyUrl = (slug: string,) => {
+
+
+
+
+  return `/api/admin/providers/${slug}/platform-key`
+}
+
+/**
+ * @summary Remove stored platform key and force platformEnabled to false (owner-only)
+ */
+export const deleteAdminProviderPlatformKey = async (slug: string, options?: RequestInit): Promise<AdminProvider> => {
+
+  return customFetch<AdminProvider>(getDeleteAdminProviderPlatformKeyUrl(slug),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteAdminProviderPlatformKeyMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAdminProviderPlatformKey>>, TError,{slug: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteAdminProviderPlatformKey>>, TError,{slug: string}, TContext> => {
+
+const mutationKey = ['deleteAdminProviderPlatformKey'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteAdminProviderPlatformKey>>, {slug: string}> = (props) => {
+          const {slug} = props ?? {};
+
+          return  deleteAdminProviderPlatformKey(slug,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteAdminProviderPlatformKeyMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAdminProviderPlatformKey>>>
+
+    export type DeleteAdminProviderPlatformKeyMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Remove stored platform key and force platformEnabled to false (owner-only)
+ */
+export const useDeleteAdminProviderPlatformKey = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAdminProviderPlatformKey>>, TError,{slug: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteAdminProviderPlatformKey>>,
+        TError,
+        {slug: string},
+        TContext
+      > => {
+      return useMutation(getDeleteAdminProviderPlatformKeyMutationOptions(options));
+    }
+
+export const getTestAdminProviderConnectionUrl = (slug: string,) => {
+
+
+
+
+  return `/api/admin/providers/${slug}/test-connection`
+}
+
+/**
+ * @summary Live pass/fail test using the stored platform key (owner-only)
+ */
+export const testAdminProviderConnection = async (slug: string, options?: RequestInit): Promise<AdminProviderTestResult> => {
+
+  return customFetch<AdminProviderTestResult>(getTestAdminProviderConnectionUrl(slug),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getTestAdminProviderConnectionMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof testAdminProviderConnection>>, TError,{slug: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof testAdminProviderConnection>>, TError,{slug: string}, TContext> => {
+
+const mutationKey = ['testAdminProviderConnection'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof testAdminProviderConnection>>, {slug: string}> = (props) => {
+          const {slug} = props ?? {};
+
+          return  testAdminProviderConnection(slug,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type TestAdminProviderConnectionMutationResult = NonNullable<Awaited<ReturnType<typeof testAdminProviderConnection>>>
+
+    export type TestAdminProviderConnectionMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Live pass/fail test using the stored platform key (owner-only)
+ */
+export const useTestAdminProviderConnection = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof testAdminProviderConnection>>, TError,{slug: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof testAdminProviderConnection>>,
+        TError,
+        {slug: string},
+        TContext
+      > => {
+      return useMutation(getTestAdminProviderConnectionMutationOptions(options));
+    }
+
+export const getSetAdminProviderIconUrlUrl = (slug: string,) => {
+
+
+
+
+  return `/api/admin/providers/${slug}/icon`
+}
+
+/**
+ * @summary Fetch a public image URL and set it as the provider icon (owner-only, paste-URL path)
+ */
+export const setAdminProviderIconUrl = async (slug: string,
+    adminProviderIconBody: AdminProviderIconBody, options?: RequestInit): Promise<AdminProvider> => {
+
+  return customFetch<AdminProvider>(getSetAdminProviderIconUrlUrl(slug),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(adminProviderIconBody)
+  }
+);}
+
+
+
+
+
+export const getSetAdminProviderIconUrlMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setAdminProviderIconUrl>>, TError,{slug: string;data: BodyType<AdminProviderIconBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setAdminProviderIconUrl>>, TError,{slug: string;data: BodyType<AdminProviderIconBody>}, TContext> => {
+
+const mutationKey = ['setAdminProviderIconUrl'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setAdminProviderIconUrl>>, {slug: string;data: BodyType<AdminProviderIconBody>}> = (props) => {
+          const {slug,data} = props ?? {};
+
+          return  setAdminProviderIconUrl(slug,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetAdminProviderIconUrlMutationResult = NonNullable<Awaited<ReturnType<typeof setAdminProviderIconUrl>>>
+    export type SetAdminProviderIconUrlMutationBody = BodyType<AdminProviderIconBody>
+    export type SetAdminProviderIconUrlMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Fetch a public image URL and set it as the provider icon (owner-only, paste-URL path)
+ */
+export const useSetAdminProviderIconUrl = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setAdminProviderIconUrl>>, TError,{slug: string;data: BodyType<AdminProviderIconBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setAdminProviderIconUrl>>,
+        TError,
+        {slug: string;data: BodyType<AdminProviderIconBody>},
+        TContext
+      > => {
+      return useMutation(getSetAdminProviderIconUrlMutationOptions(options));
+    }
 
 export const getListModelsUrl = (params?: ListModelsParams,) => {
   const normalizedParams = new URLSearchParams();

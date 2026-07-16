@@ -1,5 +1,5 @@
 import { and, eq } from "drizzle-orm";
-import { db, userApiKeysTable, type Model } from "@workspace/db";
+import { db, userApiKeysTable, providersTable, type Model } from "@workspace/db";
 import { decryptSecret } from "../crypto";
 import { isPlatformGenerationEnabled } from "../settings";
 
@@ -44,27 +44,37 @@ export async function resolveGenerationKey(
     };
   }
 
-  return { apiKey: getPlatformApiKey(model.adapter), usedOwnKey: false };
+  return { apiKey: await getPlatformApiKey(model.adapter), usedOwnKey: false };
 }
 
-// The platform's own provider key, used when a user isn't paying via BYOK.
-// Only WaveSpeed is wired up today; add a case here as new adapters go live.
+// The platform's own provider key — now a real async DB lookup instead of a
+// hardcoded switch. Reads `platform_enabled` + `encrypted_platform_key` from
+// the providers table and decrypts via lib/crypto.ts. This is the change that
+// makes the admin "manage any provider's key" UI real: previously a switch
+// statement could only ever surface WAVESPEED_API_KEY; now any provider the
+// owner enables in the admin panel is routed automatically.
 //
-// BYOK-only adapters (no platform subsidy — users must bring their own key):
-//   openai      — OpenAI DALL·E image generation
-//   kling       — Kling AI direct video generation
-//   elevenlabs  — ElevenLabs text-to-speech
-//
-// For these, the default branch returns undefined, and resolveGenerationKey()
-// propagates that undefined to the generation route, which returns 402 if no
-// valid user-owned key is found. This is the intended UX: users see a prompt
-// to add their own key in the "Add Your Keys" panel.
-export function getPlatformApiKey(adapterSlug: string): string | undefined {
-  switch (adapterSlug) {
-    case "wavespeed":
-      return process.env.WAVESPEED_API_KEY;
-    // openai, kling, elevenlabs → BYOK-only, no platform key available.
-    default:
-      return undefined;
+// Degrades gracefully: if no row has platformEnabled=true for this slug, or
+// decryption fails (malformed ciphertext), returns undefined. The generation
+// route propagates that undefined to a 402 response — the same UX as before
+// for adapters that have no platform key configured.
+export async function getPlatformApiKey(adapterSlug: string): Promise<string | undefined> {
+  const [provider] = await db
+    .select({
+      encryptedPlatformKey: providersTable.encryptedPlatformKey,
+      platformEnabled: providersTable.platformEnabled,
+    })
+    .from(providersTable)
+    .where(and(eq(providersTable.slug, adapterSlug), eq(providersTable.platformEnabled, true)));
+
+  if (!provider?.encryptedPlatformKey) return undefined;
+
+  try {
+    return decryptSecret(provider.encryptedPlatformKey);
+  } catch {
+    // Malformed encrypted key — silently degrade rather than crashing the
+    // generation request. The platform key goes missing for this request; the
+    // generation route returns 402 rather than 500.
+    return undefined;
   }
 }

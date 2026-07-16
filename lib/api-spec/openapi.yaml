@@ -522,6 +522,217 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /admin/settings/import-asset:
+    post:
+      operationId: importAdminAsset
+      tags: [admin]
+      summary: Fetch a public image URL server-side, validate, and re-host on our own storage (owner-only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminProviderIconBody"
+      responses:
+        "200":
+          description: Owned asset path
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminAssetImportResult"
+        "400":
+          description: Invalid URL, non-image content, or exceeds 5 MB
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/providers:
+    get:
+      operationId: listAdminProviders
+      tags: [admin]
+      summary: All providers with platform key info, model counts, and live discovery (owner-only)
+      responses:
+        "200":
+          description: Providers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminProvider"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/providers/{slug}:
+    patch:
+      operationId: patchAdminProvider
+      tags: [admin]
+      summary: Update provider fields (owner-only)
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminProviderPatch"
+      responses:
+        "200":
+          description: Updated provider
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminProvider"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Provider not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/providers/{slug}/platform-key:
+    post:
+      operationId: setAdminProviderPlatformKey
+      tags: [admin]
+      summary: Validate (if possible) and store a platform API key for a provider (owner-only)
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminProviderPlatformKeyBody"
+      responses:
+        "200":
+          description: Updated provider
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminProvider"
+        "400":
+          description: Key rejected by provider or validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: Provider validation call failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteAdminProviderPlatformKey
+      tags: [admin]
+      summary: Remove stored platform key and force platformEnabled to false (owner-only)
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Updated provider (key cleared)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminProvider"
+        "404":
+          description: Provider not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/providers/{slug}/test-connection:
+    post:
+      operationId: testAdminProviderConnection
+      tags: [admin]
+      summary: Live pass/fail test using the stored platform key (owner-only)
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Test result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminProviderTestResult"
+        "400":
+          description: No key saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/providers/{slug}/icon:
+    post:
+      operationId: setAdminProviderIconUrl
+      tags: [admin]
+      summary: Fetch a public image URL and set it as the provider icon (owner-only, paste-URL path)
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminProviderIconBody"
+      responses:
+        "200":
+          description: Updated provider
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminProvider"
+        "400":
+          description: Invalid URL or non-image content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /models:
     get:
       operationId: listModels
@@ -1748,6 +1959,12 @@ components:
           type: ["string", "null"]
         docsUrl:
           type: ["string", "null"]
+        status:
+          type: string
+          description: active | disabled — controls BYOK availability for users
+        unavailableMessage:
+          type: ["string", "null"]
+          description: Message shown to users when status is disabled
       required:
         - slug
         - name
@@ -1757,6 +1974,147 @@ components:
         - keyFormatHint
         - description
         - docsUrl
+        - status
+
+    AdminProvider:
+      type: object
+      description: Full provider row for the owner admin panel — includes platform key info, model counts, and live discovery
+      properties:
+        id:
+          type: integer
+        slug:
+          type: string
+        name:
+          type: string
+        icon:
+          type: ["string", "null"]
+        capabilities:
+          type: array
+          items:
+            type: string
+        supportsByok:
+          type: boolean
+        keyFormatHint:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        docsUrl:
+          type: ["string", "null"]
+        status:
+          type: string
+        sortOrder:
+          type: integer
+        unavailableMessage:
+          type: ["string", "null"]
+        baseUrl:
+          type: ["string", "null"]
+        metadata:
+          type: object
+          additionalProperties: true
+        hasAdapter:
+          type: boolean
+          description: True if a code adapter is registered — required to route platform generation
+        platformEnabled:
+          type: boolean
+        platformKeyLastFour:
+          type: ["string", "null"]
+        platformKeyStatus:
+          type: ["string", "null"]
+          description: valid | invalid | unknown | null
+        platformKeyValidatedAt:
+          type: ["string", "null"]
+          format: date-time
+        modelsCataloged:
+          type: integer
+        modelsEnabled:
+          type: integer
+        liveAvailableModels:
+          type: ["array", "null"]
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              name:
+                type: string
+            required: [id, name]
+        liveAvailableModelsReason:
+          type: ["string", "null"]
+      required:
+        - id
+        - slug
+        - name
+        - capabilities
+        - supportsByok
+        - status
+        - sortOrder
+        - hasAdapter
+        - platformEnabled
+        - modelsCataloged
+        - modelsEnabled
+
+    AdminProviderPatch:
+      type: object
+      properties:
+        platformEnabled:
+          type: boolean
+        baseUrl:
+          type: ["string", "null"]
+        metadata:
+          type: object
+          additionalProperties: true
+        sortOrder:
+          type: integer
+        status:
+          type: string
+          enum: [active, disabled]
+        description:
+          type: ["string", "null"]
+        docsUrl:
+          type: ["string", "null"]
+        keyFormatHint:
+          type: ["string", "null"]
+        unavailableMessage:
+          type: ["string", "null"]
+        icon:
+          type: ["string", "null"]
+
+    AdminProviderPlatformKeyBody:
+      type: object
+      required: [apiKey]
+      properties:
+        apiKey:
+          type: string
+          minLength: 1
+
+    AdminProviderTestResult:
+      type: object
+      properties:
+        testable:
+          type: boolean
+        ok:
+          type: boolean
+        message:
+          type: string
+        reason:
+          type: string
+      required: [testable]
+
+    AdminAssetImportResult:
+      type: object
+      properties:
+        path:
+          type: string
+          description: Owned /api/storage/objects/… path — always starts with /api/storage
+      required: [path]
+
+    AdminProviderIconBody:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+          description: Public https URL to fetch and re-host
 
     ProviderVoice:
       type: object

@@ -6,8 +6,18 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './adminAssetImportResult';
 export * from './adminHealthCheckItem';
 export * from './adminHealthStatus';
+export * from './adminProvider';
+export * from './adminProviderIconBody';
+export * from './adminProviderLiveAvailableModelsItem';
+export * from './adminProviderMetadata';
+export * from './adminProviderPatch';
+export * from './adminProviderPatchMetadata';
+export * from './adminProviderPatchStatus';
+export * from './adminProviderPlatformKeyBody';
+export * from './adminProviderTestResult';
 export * from './adminSetting';
 export * from './adminSettingsExport';
 export * from './adminSettingType';

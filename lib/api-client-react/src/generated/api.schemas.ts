@@ -434,6 +434,115 @@ export interface Provider {
   description: string | null;
   /** @nullable */
   docsUrl: string | null;
+  /** active | disabled — controls BYOK availability for users */
+  status: string;
+  /**
+     * Message shown to users when status is disabled
+     * @nullable
+     */
+  unavailableMessage?: string | null;
+}
+
+export type AdminProviderMetadata = { [key: string]: unknown };
+
+export type AdminProviderLiveAvailableModelsItem = {
+  id: string;
+  name: string;
+};
+
+/**
+ * Full provider row for the owner admin panel — includes platform key info, model counts, and live discovery
+ */
+export interface AdminProvider {
+  id: number;
+  slug: string;
+  name: string;
+  /** @nullable */
+  icon?: string | null;
+  capabilities: string[];
+  supportsByok: boolean;
+  /** @nullable */
+  keyFormatHint?: string | null;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  docsUrl?: string | null;
+  status: string;
+  sortOrder: number;
+  /** @nullable */
+  unavailableMessage?: string | null;
+  /** @nullable */
+  baseUrl?: string | null;
+  metadata?: AdminProviderMetadata;
+  /** True if a code adapter is registered — required to route platform generation */
+  hasAdapter: boolean;
+  platformEnabled: boolean;
+  /** @nullable */
+  platformKeyLastFour?: string | null;
+  /**
+     * valid | invalid | unknown | null
+     * @nullable
+     */
+  platformKeyStatus?: string | null;
+  /** @nullable */
+  platformKeyValidatedAt?: string | null;
+  modelsCataloged: number;
+  modelsEnabled: number;
+  /** @nullable */
+  liveAvailableModels?: AdminProviderLiveAvailableModelsItem[] | null;
+  /** @nullable */
+  liveAvailableModelsReason?: string | null;
+}
+
+export type AdminProviderPatchMetadata = { [key: string]: unknown };
+
+export type AdminProviderPatchStatus = typeof AdminProviderPatchStatus[keyof typeof AdminProviderPatchStatus];
+
+
+export const AdminProviderPatchStatus = {
+  active: 'active',
+  disabled: 'disabled',
+} as const;
+
+export interface AdminProviderPatch {
+  platformEnabled?: boolean;
+  /** @nullable */
+  baseUrl?: string | null;
+  metadata?: AdminProviderPatchMetadata;
+  sortOrder?: number;
+  status?: AdminProviderPatchStatus;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  docsUrl?: string | null;
+  /** @nullable */
+  keyFormatHint?: string | null;
+  /** @nullable */
+  unavailableMessage?: string | null;
+  /** @nullable */
+  icon?: string | null;
+}
+
+export interface AdminProviderPlatformKeyBody {
+  /** @minLength 1 */
+  apiKey: string;
+}
+
+export interface AdminProviderTestResult {
+  testable: boolean;
+  ok?: boolean;
+  message?: string;
+  reason?: string;
+}
+
+export interface AdminAssetImportResult {
+  /** Owned /api/storage/objects/… path — always starts with /api/storage */
+  path: string;
+}
+
+export interface AdminProviderIconBody {
+  /** Public https URL to fetch and re-host */
+  url: string;
 }
 
 export interface ProviderVoice {

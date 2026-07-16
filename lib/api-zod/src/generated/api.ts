@@ -336,6 +336,239 @@ export const GetAdminSettingsHealthResponse = zod.object({
 
 
 /**
+ * @summary Fetch a public image URL server-side, validate, and re-host on our own storage (owner-only)
+ */
+export const ImportAdminAssetBody = zod.object({
+  "url": zod.string().describe('Public https URL to fetch and re-host')
+})
+
+export const ImportAdminAssetResponse = zod.object({
+  "path": zod.string().describe('Owned \/api\/storage\/objects\/… path — always starts with \/api\/storage')
+})
+
+
+/**
+ * @summary All providers with platform key info, model counts, and live discovery (owner-only)
+ */
+export const ListAdminProvidersResponseItem = zod.object({
+  "id": zod.number(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "icon": zod.string().nullish(),
+  "capabilities": zod.array(zod.string()),
+  "supportsByok": zod.boolean(),
+  "keyFormatHint": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "docsUrl": zod.string().nullish(),
+  "status": zod.string(),
+  "sortOrder": zod.number(),
+  "unavailableMessage": zod.string().nullish(),
+  "baseUrl": zod.string().nullish(),
+  "metadata": zod.record(zod.string(), zod.unknown()).optional(),
+  "hasAdapter": zod.boolean().describe('True if a code adapter is registered — required to route platform generation'),
+  "platformEnabled": zod.boolean(),
+  "platformKeyLastFour": zod.string().nullish(),
+  "platformKeyStatus": zod.string().nullish().describe('valid | invalid | unknown | null'),
+  "platformKeyValidatedAt": zod.coerce.date().nullish(),
+  "modelsCataloged": zod.number(),
+  "modelsEnabled": zod.number(),
+  "liveAvailableModels": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string()
+})).nullish(),
+  "liveAvailableModelsReason": zod.string().nullish()
+}).describe('Full provider row for the owner admin panel — includes platform key info, model counts, and live discovery')
+export const ListAdminProvidersResponse = zod.array(ListAdminProvidersResponseItem)
+
+
+/**
+ * @summary Update provider fields (owner-only)
+ */
+export const PatchAdminProviderParams = zod.object({
+  "slug": zod.coerce.string()
+})
+
+export const PatchAdminProviderBody = zod.object({
+  "platformEnabled": zod.boolean().optional(),
+  "baseUrl": zod.string().nullish(),
+  "metadata": zod.record(zod.string(), zod.unknown()).optional(),
+  "sortOrder": zod.number().optional(),
+  "status": zod.enum(['active', 'disabled']).optional(),
+  "description": zod.string().nullish(),
+  "docsUrl": zod.string().nullish(),
+  "keyFormatHint": zod.string().nullish(),
+  "unavailableMessage": zod.string().nullish(),
+  "icon": zod.string().nullish()
+})
+
+export const PatchAdminProviderResponse = zod.object({
+  "id": zod.number(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "icon": zod.string().nullish(),
+  "capabilities": zod.array(zod.string()),
+  "supportsByok": zod.boolean(),
+  "keyFormatHint": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "docsUrl": zod.string().nullish(),
+  "status": zod.string(),
+  "sortOrder": zod.number(),
+  "unavailableMessage": zod.string().nullish(),
+  "baseUrl": zod.string().nullish(),
+  "metadata": zod.record(zod.string(), zod.unknown()).optional(),
+  "hasAdapter": zod.boolean().describe('True if a code adapter is registered — required to route platform generation'),
+  "platformEnabled": zod.boolean(),
+  "platformKeyLastFour": zod.string().nullish(),
+  "platformKeyStatus": zod.string().nullish().describe('valid | invalid | unknown | null'),
+  "platformKeyValidatedAt": zod.coerce.date().nullish(),
+  "modelsCataloged": zod.number(),
+  "modelsEnabled": zod.number(),
+  "liveAvailableModels": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string()
+})).nullish(),
+  "liveAvailableModelsReason": zod.string().nullish()
+}).describe('Full provider row for the owner admin panel — includes platform key info, model counts, and live discovery')
+
+
+/**
+ * @summary Validate (if possible) and store a platform API key for a provider (owner-only)
+ */
+export const SetAdminProviderPlatformKeyParams = zod.object({
+  "slug": zod.coerce.string()
+})
+
+
+
+
+export const SetAdminProviderPlatformKeyBody = zod.object({
+  "apiKey": zod.string().min(1)
+})
+
+export const SetAdminProviderPlatformKeyResponse = zod.object({
+  "id": zod.number(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "icon": zod.string().nullish(),
+  "capabilities": zod.array(zod.string()),
+  "supportsByok": zod.boolean(),
+  "keyFormatHint": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "docsUrl": zod.string().nullish(),
+  "status": zod.string(),
+  "sortOrder": zod.number(),
+  "unavailableMessage": zod.string().nullish(),
+  "baseUrl": zod.string().nullish(),
+  "metadata": zod.record(zod.string(), zod.unknown()).optional(),
+  "hasAdapter": zod.boolean().describe('True if a code adapter is registered — required to route platform generation'),
+  "platformEnabled": zod.boolean(),
+  "platformKeyLastFour": zod.string().nullish(),
+  "platformKeyStatus": zod.string().nullish().describe('valid | invalid | unknown | null'),
+  "platformKeyValidatedAt": zod.coerce.date().nullish(),
+  "modelsCataloged": zod.number(),
+  "modelsEnabled": zod.number(),
+  "liveAvailableModels": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string()
+})).nullish(),
+  "liveAvailableModelsReason": zod.string().nullish()
+}).describe('Full provider row for the owner admin panel — includes platform key info, model counts, and live discovery')
+
+
+/**
+ * @summary Remove stored platform key and force platformEnabled to false (owner-only)
+ */
+export const DeleteAdminProviderPlatformKeyParams = zod.object({
+  "slug": zod.coerce.string()
+})
+
+export const DeleteAdminProviderPlatformKeyResponse = zod.object({
+  "id": zod.number(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "icon": zod.string().nullish(),
+  "capabilities": zod.array(zod.string()),
+  "supportsByok": zod.boolean(),
+  "keyFormatHint": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "docsUrl": zod.string().nullish(),
+  "status": zod.string(),
+  "sortOrder": zod.number(),
+  "unavailableMessage": zod.string().nullish(),
+  "baseUrl": zod.string().nullish(),
+  "metadata": zod.record(zod.string(), zod.unknown()).optional(),
+  "hasAdapter": zod.boolean().describe('True if a code adapter is registered — required to route platform generation'),
+  "platformEnabled": zod.boolean(),
+  "platformKeyLastFour": zod.string().nullish(),
+  "platformKeyStatus": zod.string().nullish().describe('valid | invalid | unknown | null'),
+  "platformKeyValidatedAt": zod.coerce.date().nullish(),
+  "modelsCataloged": zod.number(),
+  "modelsEnabled": zod.number(),
+  "liveAvailableModels": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string()
+})).nullish(),
+  "liveAvailableModelsReason": zod.string().nullish()
+}).describe('Full provider row for the owner admin panel — includes platform key info, model counts, and live discovery')
+
+
+/**
+ * @summary Live pass/fail test using the stored platform key (owner-only)
+ */
+export const TestAdminProviderConnectionParams = zod.object({
+  "slug": zod.coerce.string()
+})
+
+export const TestAdminProviderConnectionResponse = zod.object({
+  "testable": zod.boolean(),
+  "ok": zod.boolean().optional(),
+  "message": zod.string().optional(),
+  "reason": zod.string().optional()
+})
+
+
+/**
+ * @summary Fetch a public image URL and set it as the provider icon (owner-only, paste-URL path)
+ */
+export const SetAdminProviderIconUrlParams = zod.object({
+  "slug": zod.coerce.string()
+})
+
+export const SetAdminProviderIconUrlBody = zod.object({
+  "url": zod.string().describe('Public https URL to fetch and re-host')
+})
+
+export const SetAdminProviderIconUrlResponse = zod.object({
+  "id": zod.number(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "icon": zod.string().nullish(),
+  "capabilities": zod.array(zod.string()),
+  "supportsByok": zod.boolean(),
+  "keyFormatHint": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "docsUrl": zod.string().nullish(),
+  "status": zod.string(),
+  "sortOrder": zod.number(),
+  "unavailableMessage": zod.string().nullish(),
+  "baseUrl": zod.string().nullish(),
+  "metadata": zod.record(zod.string(), zod.unknown()).optional(),
+  "hasAdapter": zod.boolean().describe('True if a code adapter is registered — required to route platform generation'),
+  "platformEnabled": zod.boolean(),
+  "platformKeyLastFour": zod.string().nullish(),
+  "platformKeyStatus": zod.string().nullish().describe('valid | invalid | unknown | null'),
+  "platformKeyValidatedAt": zod.coerce.date().nullish(),
+  "modelsCataloged": zod.number(),
+  "modelsEnabled": zod.number(),
+  "liveAvailableModels": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string()
+})).nullish(),
+  "liveAvailableModelsReason": zod.string().nullish()
+}).describe('Full provider row for the owner admin panel — includes platform key info, model counts, and live discovery')
+
+
+/**
  * @summary List all generation models
  */
 export const ListModelsQueryParams = zod.object({
@@ -605,7 +838,9 @@ export const ListProvidersResponseItem = zod.object({
   "supportsByok": zod.boolean(),
   "keyFormatHint": zod.string().nullable(),
   "description": zod.string().nullable(),
-  "docsUrl": zod.string().nullable()
+  "docsUrl": zod.string().nullable(),
+  "status": zod.string().describe('active | disabled — controls BYOK availability for users'),
+  "unavailableMessage": zod.string().nullish().describe('Message shown to users when status is disabled')
 })
 export const ListProvidersResponse = zod.array(ListProvidersResponseItem)
 

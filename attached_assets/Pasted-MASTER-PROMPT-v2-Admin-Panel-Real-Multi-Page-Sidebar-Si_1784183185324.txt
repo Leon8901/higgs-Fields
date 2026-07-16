@@ -1,0 +1,153 @@
+MASTER PROMPT v2 — Admin Panel: Real Multi-Page Sidebar (Site Branding, Platform Providers, BYOK Providers)
+
+Paste into Replit as its own isolated task. This SUPERSEDES any earlier admin-panel master prompt — if `admin-settings.tsx` was already partially rebuilt from a prior prompt, treat this document as the authoritative spec and correct anything that conflicts with it, especially Section 1's routing fix.
+
+## 0. What went wrong last time — read this first
+
+The previous build has a real bug: the sidebar items ("Branding," "Access & Security," etc.) all scroll to sections on ONE single page instead of navigating to separate real pages. That's why clicking different sidebar items feels like "the same page" — because it is the same page, just scrolled to a different spot. This prompt fixes that explicitly in Section 1: **each top-level sidebar item is a real, separately-routed page using the existing Wouter router**, not an anchor link into a shared scroll container.
+
+There was also a visual bug reported in testing: overlapping/garbled text where a sticky section header rendered on top of field content instead of pushing it down. Whatever layout technique is used for any sticky element in this build (see Section 2), verify with real scrolling — not just a static screenshot — that content never overlaps.
+
+A reference image (GPT-generated mockup of a Higgsfield-style admin panel) may be attached alongside this prompt. **Use it only for visual polish — spacing, card styling, the toolbar layout, the Live Preview panel concept, tab styling.** Do NOT copy its sidebar structure. That mockup's sidebar (Providers, Models, Platform Keys, Plans, Usage, Analytics, Logs, Database, Storage, Advanced) does not match this task's real scope. The actual sidebar for this task has exactly three top-level items, defined in Sections 2–4 below.
+
+## 1. Admin shell — real routing, not scroll-anchors
+
+Build one persistent shell component wrapping three real pages:
+
+- `/admin/branding` — Site Branding (Section 2)
+- `/admin/providers/platform` — Platform Providers (Section 3)
+- `/admin/providers/byok` — BYOK Providers (Section 4)
+
+Use Wouter's actual routing (`<Route>`/`<Switch>`, matching how the rest of the app already routes — see `App.tsx`) — clicking a sidebar item must navigate to a different URL and render a different page component, full stop. No shared scroll container, no anchor-link sidebar.
+
+The shell (persistent across all three pages) contains:
+- **Left sidebar**, collapsible (icon-only rail toggle, pure frontend state), exactly three items: Site Branding, Platform Providers, BYOK Providers. Highlight whichever matches the current route.
+- **Top toolbar area** — page-specific (each page defines its own toolbar contents; see each section below), but positioned consistently.
+
+Existing settings not covered by this task (Credits, Model Defaults) are NOT part of this new sidebar. They still work via the existing settings API — don't delete or break them — but they don't get a dedicated page in this round. Don't invent placeholder sidebar items for them either; they simply aren't part of this task's navigation yet.
+
+## 2. Site Branding page (`/admin/branding`)
+
+This wraps your existing 15-key `SETTINGS_REGISTRY` (all of `branding`, `access`, and `content` categories — NOT `credits`/`defaults`, per Section 1) under one page, organized into five internal tabs — this is a deliberate exception to "don't add tabs for a handful of fields": at 15 fields across three categories bundled into one page, tabs earn their place here in a way they didn't when Branding alone had 5 fields.
+
+**Tabs** (styled like the reference image's Brand Identity/Logos & Icons/Theme/Site Preview tabs, but mapped to your real categories):
+
+1. **Brand Identity** — `site_name`, `site_tagline`.
+2. **Logos & Icons** — `logo_url`, `favicon_url`. Each supports BOTH upload from device AND paste-a-URL. Paste URL must go through the shared `assetImport` utility (Section 2a below) — download the remote image server-side, validate it's actually an image and under a sane size limit, re-upload to your own object storage, store the resulting owned `/objects/...` path. Never store a raw external URL directly — this is the same rule `validateOwnedAssetPath` already enforces; paste-URL support means honoring that rule with a real fetch-and-rehost step, not bypassing it.
+3. **Theme** — `theme_color`, hex input plus a live swatch preview. Still explicitly NOT wired to any live re-theming of the actual site CSS — storage only, per the setting's own description in the registry.
+4. **Site Settings** — `maintenance_mode`, `maintenance_message`, `registration_enabled`, `platform_generation_enabled`. Toggles sit directly next to their labels/descriptions, not floated far-right with dead space.
+5. **Content** — `homepage_banner`, `announcement` (each: enabled toggle, banner text, optional link URL, optional link label).
+
+**Page toolbar** (top of the page, above the tabs): Settings Search (client-side filter across all five tabs' fields by label — jump to the tab containing a match), Export, Import, Refresh (with the same "discard unsaved changes and reload?" confirmation if there are unsaved edits).
+
+**Change tracking**: one `dirtyFields` map covering all 15 fields regardless of which tab they're on, one floating save bar ("`N` unsaved changes — Edited: Site Name, Theme Color, Registration enabled" / Discard / Save changes), one `PATCH /admin/settings` call per save — this part is unchanged from the prior spec and already matches your working backend (`updateSettings()`, all-or-nothing transaction).
+
+**Right rail**: Live Preview (real Header/Hero components, live on every keystroke, Desktop/Mobile toggle), Platform Status (Maintenance/Registration/Platform Generation + real Database/Object Storage health rows — see the health-check note in Section 2b), Settings card (Last saved relative time + "Last updated by: Owner" static label — no `settings_meta.version` exposed anywhere, ever).
+
+Reset-to-defaults lives in a red-bordered Danger Zone card at the bottom of this page only, with the confirm dialog and the 10-second Undo toast (snapshot-then-repatch, no new endpoint) as previously specced.
+
+Accessibility (tab-reachable, focus rings, aria-labels) and the lightweight responsive stacking below ~1024px both apply here, same as previously specced — this is an owner-only page, no drawer component needed.
+
+### 2a. Shared asset-import utility
+
+One function, `artifacts/api-server/src/lib/media/assetImport.ts`: given a URL, fetch with a timeout, verify `Content-Type` is a real image type, enforce a max size (~5MB), upload the bytes to object storage, return the owned path. Used by: Logos & Icons (this page), provider icons (Sections 3 and 4). Written once, called three times — not reimplemented per feature.
+
+### 2b. Real health check
+
+`GET /healthz` today is a hardcoded `{ status: "ok" }` stub with no actual check. Extend it (or add `GET /admin/settings/health`, owner-gated) to do two real checks: a trivial DB query (e.g. select the single `settings_meta` row, wrapped in try/catch) and a check that `PUBLIC_OBJECT_SEARCH_PATHS`/`PRIVATE_OBJECT_DIR` are actually set. Report the real pass/fail of each — if either fails, the Platform Status card must visibly show "Disconnected," not stay hardcoded green.
+
+## 3. Platform Providers page (`/admin/providers/platform`)
+
+This is developer/owner-only: the platform's own API keys, used to fund generation for users who aren't using their own BYOK key.
+
+### 3a. Mandatory first step — real audit
+
+Before writing any route, actually check and report:
+1. `SELECT slug, name, status FROM providers` — your real provider rows (currently 8: `wavespeed`, `openai`, `kling`, `elevenlabs`, `fal`, `openrouter`, `anthropic`, `google` — confirm against the live DB, this may have changed).
+2. Which of those have a real code adapter in `artifacts/api-server/src/lib/media/registry.ts`'s `adapters` map (currently 4: `wavespeed`, `openai`, `kling`, `elevenlabs`). A provider row with no adapter can still have a platform key stored, but can't be enabled for live generation routing or tested — the UI must say so honestly, not imply it works.
+3. `SELECT adapter, COUNT(*), COUNT(*) FILTER (WHERE is_active) FROM models GROUP BY adapter` — real cataloged/enabled model counts.
+4. Confirm `getPlatformApiKey()` in `keyRouting.ts` currently only returns a real key for `wavespeed` (from `process.env.WAVESPEED_API_KEY`); every other adapter falls through to BYOK-only today.
+
+### 3b. Schema — extend `providers`, one row per provider
+
+Add to the existing `providers` table (do not create a parallel table):
+
+```
+platform_enabled        boolean, not null, default false
+encrypted_platform_key  text, nullable   -- same AES-256-GCM scheme as user_api_keys, via lib/crypto.ts
+platform_key_last_four  text, nullable
+platform_key_status     text, nullable   -- "valid" | "invalid" | "unknown"
+platform_key_validated_at  timestamp, nullable
+base_url                text, nullable
+metadata                jsonb, not null, default '{}'   -- org id, region, etc. — a flexible bag, not one column per possible provider quirk
+sort_order              integer, not null, default 0
+```
+
+Do not touch `status` — that field already means "BYOK-enabled or not" and is used by two existing files (`routes/providers.ts`, `routes/api-keys.ts`). `platform_enabled` is a genuinely separate axis; keep them separate, don't merge or duplicate.
+
+**Migration**: backfill `wavespeed`'s row with `platform_enabled = true` and `encrypted_platform_key` from the current `WAVESPEED_API_KEY` env var, so the one provider that already works in production has identical behavior after this ships.
+
+### 3c. Honest model counts — real numbers only, three tiers, no fabrication
+
+Never show a single invented "Available: 24" figure. Show what's actually knowable, clearly labeled:
+
+- **Cataloged / Enabled** (always real, zero new work) — `COUNT(*)` / `COUNT(*) FILTER (WHERE is_active)` from your `models` table for that adapter. Every provider gets this, including ones with 0.
+- **Live Available** (real, but only for providers with a genuine model-discovery API) — add an optional adapter capability, `listAvailableModels?(apiKey): Promise<{ id: string; name: string }[]>`, matching the existing optional `listVoices?()` pattern in `MediaAdapter`. Implement it for `openai` (real endpoint: `GET https://api.openai.com/v1/models`, confirmed working, returns every model the key can access) and `anthropic` if/when that adapter exists (same real endpoint shape). For providers without a real discovery endpoint (WaveSpeed's aggregation model, Kling, ElevenLabs's generation models specifically, Fal, OpenRouter unless you choose to wire its public catalog endpoint too), show **"Live catalog not available for this provider"** — not a zero, not a guess, an honest label explaining why the number isn't there.
+- Require a platform key to be saved and marked `valid` before attempting a Live Available call — don't call a provider's discovery endpoint with no key or an unverified one.
+
+### 3d. Routes (`artifacts/api-server/src/routes/admin-providers.ts`, new, owner-gated throughout)
+
+- `GET /admin/providers` — every row, with: catalog fields, `hasAdapter` (computed from the registry, not stored), `modelsCataloged`/`modelsEnabled`, `platformEnabled`, masked platform key info, `liveAvailableModels` (only attempted for adapters implementing `listAvailableModels`, cached briefly rather than called on every page load — a few minutes is fine).
+- `PATCH /admin/providers/:slug` — updates `platformEnabled`, `baseUrl`, `metadata`, `sortOrder`. Reject `platformEnabled: true` for a slug with no adapter, with a clear error message.
+- `POST /admin/providers/:slug/platform-key` — validate via `adapter.validateKey` if it exists (same pattern as your existing BYOK key-add route), encrypt, store. Save with `status: "unknown"` if no adapter can verify it yet.
+- `DELETE /admin/providers/:slug/platform-key` — clears the key columns and forces `platformEnabled = false`.
+- `POST /admin/providers/:slug/test-connection` — real pass/fail if testable, otherwise `{ testable: false, reason: "..." }` — never a fake green check.
+- `POST /admin/providers/:slug/icon` — upload or paste-URL, via the Section 2a shared utility.
+
+Add to `openapi.yaml`, run codegen, per project convention.
+
+### 3e. Rewire the real generation path
+
+`getPlatformApiKey()` in `keyRouting.ts` is currently a hardcoded switch with one case. Replace with a real async DB lookup keyed on `platformEnabled` + `encryptedPlatformKey`, decrypting via `lib/crypto.ts`. Update its one call site (`resolveGenerationKey`, same file) to `await` it. **This is the change that makes "owner can manage any provider's key" real** — without it, the admin UI is decoration over the same switch statement. This touches your only currently-working payment path (WaveSpeed) — after this change, run one real WaveSpeed generation end-to-end and confirm it still succeeds before calling this task done.
+
+### 3f. Frontend
+
+One card per provider: name, icon, `hasAdapter` badge ("Adapter ready" / "No adapter yet"), platform key status (masked), Enable/Disable platform key (disabled with a tooltip if no adapter), Test Connection (real result), Cataloged/Enabled counts, Live Available count or the honest fallback label. Clicking a card expands full config (key input, base URL, metadata).
+
+## 4. BYOK Providers page (`/admin/providers/byok`)
+
+End-user-facing config: which providers users can bring their own key for, and how they're presented.
+
+This reuses the SAME `providers` table rows as Platform Providers (per Section 3b) — one provider, two admin pages editing different fields. Don't create a second table.
+
+**Editable here**: `status` (`active`/`disabled` — this already gates `POST /api-keys` today, don't duplicate the mechanism), `icon` (upload or paste-URL via the Section 2a utility), `description`, `docsUrl`, `keyFormatHint`, a new `unavailable_message` column (nullable text, falls back to a generic default if blank), `sort_order` (shared with Section 3b, same column).
+
+**Disabling a provider** must do all of this, for real:
+- The card in this admin page shows it as disabled, obviously.
+- On the actual public BYOK page users see (`add-keys-panel.tsx`/`provider-key.tsx`), the card renders **visibly greyed out** — not hidden. Today, `GET /providers` filters out `status !== "active"` entirely, so a disabled provider currently just vanishes; that has to change — return all `supportsByok` providers regardless of status, include `status` in the response, and have the frontend render disabled ones as a dulled, non-interactive card with the `unavailableMessage` (or the generic fallback: "This provider is temporarily unavailable. Please use another provider.").
+- No "Add Key" button is clickable on a disabled card — nothing to intercept, since there's no button to click in the first place.
+- `POST /api-keys` already rejects a disabled provider server-side (`providerRow.status !== "active"` check already exists in `routes/api-keys.ts`) — verify this still works after the `GET /providers` change, and improve its error message to the friendlier wording you described ("This provider is temporarily unavailable and will be available soon — you can use another provider in the meantime.").
+
+**Icon management**: upload from device or paste a URL, same shared utility as everywhere else in this task.
+
+## 5. Explicitly cut / deferred from this task
+
+- Any sidebar item beyond the three defined in Section 1 (Models, Plans, Analytics, Logs, Database, Storage, Advanced, etc.) — not built, not stubbed, not referenced.
+- Credits and Model Defaults getting a dedicated page — still functional via the existing settings API, just not restructured this round.
+- Exposing `settings_meta.version` anywhere — still forbidden, for the same reason as before.
+- A live model-discovery call for any adapter that doesn't have a real, documented endpoint — show the honest "not available" label instead of a hardcoded or guessed number.
+- Full mobile drawer navigation — the lightweight responsive stacking from the prior spec is enough for an owner-only page.
+
+## 6. Verification before calling this done
+
+1. From a fresh page load, click all three sidebar items — confirm the URL actually changes each time (`/admin/branding`, `/admin/providers/platform`, `/admin/providers/byok`) and each renders a genuinely different page component, not a scroll position on a shared page.
+2. On Site Branding, switch between all five tabs, edit a field on each, confirm the floating save bar's count and edited-field list cover fields across all five tabs, save once, confirm one `PATCH` call and correct persistence after reload.
+3. Scroll the Site Branding page with several fields visible and confirm no sticky element ever overlaps or garbles the text/inputs beneath it — this exact bug happened last time, check it for real, not just at the top of the page.
+4. Upload a logo via file, then set a favicon via pasted URL — confirm both end up as owned `/objects/...` paths, never a raw external URL, and confirm the paste-URL path actually rejects a non-image URL.
+5. Run the Section 3a audit for real and confirm the numbers reported match the live DB and `registry.ts` — don't assume they still match what's written in this document.
+6. Enable a platform key for `openai` — confirm Test Connection gives a real result, confirm the Live Available count for OpenAI reflects a real call to `GET /v1/models`, and confirm a subsequent platform-funded OpenAI generation actually uses that key (check `usedOwnKey: false` on the resulting generation row).
+7. Attempt to enable a platform key for a provider with no adapter (e.g. `fal`) — confirm the backend rejects `platformEnabled: true` and the UI explains why.
+8. Run one real WaveSpeed generation end-to-end after the `keyRouting.ts` rewire — confirm it still succeeds and bills identically to before this task.
+9. On BYOK Providers, disable `elevenlabs` — confirm the public BYOK list still returns it (not filtered out), confirm it renders greyed-out with the unavailable message on the real user-facing page, and confirm `POST /api-keys` for it is rejected server-side via a direct API call, not just hidden in the UI.
+10. Re-enable it — confirm it's clickable again and a real key can be added end-to-end.
+11. Upload a provider icon both ways (file + pasted URL) on the BYOK Providers page — confirm it updates `providers.icon` and appears correctly on the real public BYOK page.

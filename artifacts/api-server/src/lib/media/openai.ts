@@ -92,6 +92,21 @@ export const openaiAdapter: MediaAdapter = {
     return { kind: "completed", outputUrls: [url] };
   },
 
+  // Lists all models accessible to the given API key via GET /v1/models.
+  // Used by the Platform Providers admin page to show a "Live Available"
+  // count. Only called when the provider has a valid platform key saved.
+  // Returns every model the key can access — may include non-image models.
+  async listAvailableModels(apiKey: string): Promise<{ id: string; name: string }[]> {
+    const res = await fetch(`${BASE_URL}/models`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    if (!res.ok) {
+      throw new Error(`GET /v1/models failed: ${res.status} ${res.statusText}`);
+    }
+    const body = (await res.json()) as { data?: Array<{ id: string }> };
+    return (body.data ?? []).map((m) => ({ id: m.id, name: m.id }));
+  },
+
   // poll() is intentionally absent — this is a synchronous adapter.
   // The generation service never calls poll() on a generation with no
   // providerTaskId, so omitting it here is safe. See types.ts for the contract.

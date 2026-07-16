@@ -27,8 +27,11 @@ router.get("/providers", async (req, res): Promise<void> => {
         : eq(providersTable.supportsByok, true),
     );
 
+  // Return ALL supportsByok providers regardless of status — disabled providers
+  // must be visible on the public BYOK page as a greyed-out, non-interactive
+  // card with the unavailable message, not hidden entirely. The frontend renders
+  // them as disabled; POST /api-keys still rejects them server-side.
   const providers = rows
-    .filter((p) => p.status === "active")
     .map((p) => ({
       slug: p.slug,
       name: p.name,
@@ -38,6 +41,8 @@ router.get("/providers", async (req, res): Promise<void> => {
       keyFormatHint: p.keyFormatHint,
       description: p.description ?? null,
       docsUrl: p.docsUrl ?? null,
+      status: p.status,
+      unavailableMessage: p.unavailableMessage ?? null,
     }));
 
   const missing = adaptersInUse.filter((slug) => !rows.some((p) => p.slug === slug));

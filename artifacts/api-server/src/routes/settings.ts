@@ -6,6 +6,7 @@ import { requireOwner } from "../middlewares/requireOwner";
 import { getPublicSettings, getAdminSettings, updateSettings } from "../lib/settings";
 import { db, siteSettingsTable, settingsMetaTable } from "@workspace/db";
 import { SETTINGS_REGISTRY } from "@workspace/db/settingsRegistry";
+import { importAssetFromUrl } from "../lib/media/assetImport";
 
 const router: IRouter = Router();
 
@@ -34,6 +35,24 @@ router.patch("/admin/settings", requireAuth, requireOwner, async (req, res): Pro
 
   const settings = await getAdminSettings();
   res.json(UpdateAdminSettingsResponse.parse(settings));
+});
+
+// Shared asset-import endpoint — fetches an external URL server-side,
+// validates it's a real image under 5 MB, re-hosts it on our own storage,
+// and returns the owned path. Used by the Logos & Icons branding tab and
+// provider icon management so raw external URLs never reach the DB directly.
+router.post("/admin/settings/import-asset", requireAuth, requireOwner, async (req, res): Promise<void> => {
+  const { url } = req.body as { url?: string };
+  if (typeof url !== "string" || !url.trim()) {
+    res.status(400).json({ error: "url is required" });
+    return;
+  }
+  try {
+    const path = await importAssetFromUrl(url.trim());
+    res.json({ path });
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : "Asset import failed" });
+  }
 });
 
 // Export all settings as a flat key→value JSON file download.

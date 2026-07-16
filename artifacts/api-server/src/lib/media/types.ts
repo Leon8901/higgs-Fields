@@ -56,6 +56,14 @@ export interface MediaAdapter {
   // plan, and cloned voices differ per account, so no static list is ever
   // correct for every user.
   listVoices?(apiKey: string): Promise<{ id: string; name: string }[]>;
+
+  // Lists all models discoverable via the provider's real model-catalog API.
+  // Optional — only implemented for providers that have a documented, stable
+  // model-list endpoint (currently: OpenAI GET /v1/models). For providers
+  // without such an endpoint (WaveSpeed, Kling, ElevenLabs, Fal, etc.) the
+  // admin UI shows an honest "not available" label rather than fabricating a
+  // number. Requires a valid platform key to be saved before being called.
+  listAvailableModels?(apiKey: string): Promise<{ id: string; name: string }[]>;
 }
 
 // Classifies a failure raised by an adapter so route handlers can log the real

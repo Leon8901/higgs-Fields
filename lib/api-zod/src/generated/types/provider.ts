@@ -19,4 +19,11 @@ export interface Provider {
   description: string | null;
   /** @nullable */
   docsUrl: string | null;
+  /** active | disabled — controls BYOK availability for users */
+  status: string;
+  /**
+     * Message shown to users when status is disabled
+     * @nullable
+     */
+  unavailableMessage?: string | null;
 }

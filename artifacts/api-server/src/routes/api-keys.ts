@@ -34,8 +34,16 @@ router.post("/api-keys", requireAuth, async (req, res): Promise<void> => {
   const { provider, apiKey } = body.data;
 
   const [providerRow] = await db.select().from(providersTable).where(eq(providersTable.slug, provider));
-  if (!providerRow || !providerRow.supportsByok || providerRow.status !== "active") {
+  if (!providerRow || !providerRow.supportsByok) {
     res.status(400).json({ error: "Unsupported provider." });
+    return;
+  }
+  if (providerRow.status !== "active") {
+    res.status(400).json({
+      error:
+        providerRow.unavailableMessage ??
+        "This provider is temporarily unavailable and will be available soon — you can use another provider in the meantime.",
+    });
     return;
   }
 
