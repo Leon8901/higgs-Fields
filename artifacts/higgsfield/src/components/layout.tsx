@@ -375,8 +375,8 @@ const NO_FOOTER_PATHS = ["/image", "/video", "/audio"];
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
-  // Marketing Studio has its own full-screen layout with sidebar — skip global chrome
-  if (location.startsWith("/marketing-studio")) {
+  // Marketing Studio and Admin Panel have their own full-screen layouts — skip global chrome
+  if (location.startsWith("/marketing-studio") || location.startsWith("/admin")) {
     return <>{children}</>;
   }
   const hideFooter = NO_FOOTER_PATHS.includes(location);

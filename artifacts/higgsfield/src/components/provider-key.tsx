@@ -205,9 +205,71 @@ export function ProviderKey({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [reveal, setReveal] = useState(false);
 
+  const isDisabled = (provider as { status?: string }).status === "disabled";
   const hasKey = !!savedKey;
   const meta = hasKey ? statusMeta(savedKey.status) : null;
   const bg = slugColor(provider.slug);
+
+  // Disabled providers: greyed out with unavailable message, no action button
+  if (isDisabled) {
+    const msg =
+      (provider as { unavailableMessage?: string | null }).unavailableMessage ??
+      "This provider is temporarily unavailable. Try another provider.";
+    return (
+      <div className="bg-[#141414] border border-white/[0.05] rounded-2xl p-5 flex flex-col gap-3.5 opacity-50 cursor-not-allowed h-full">
+        {/* Icon — greyscale */}
+        <div className="flex items-start justify-between gap-2">
+          <div
+            className="w-14 h-14 rounded-xl flex items-center justify-center shrink-0 overflow-hidden grayscale"
+            style={{ background: bg }}
+          >
+            {provider.icon ? (
+              <img
+                src={provider.icon}
+                alt={provider.name}
+                className="w-10 h-10 object-contain"
+                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+              />
+            ) : (
+              <span className="text-white font-black text-2xl">{provider.name.charAt(0)}</span>
+            )}
+          </div>
+          <span className="flex items-center gap-1.5 text-xs text-white/25 mt-0.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-white/15 shrink-0" />
+            Unavailable
+          </span>
+        </div>
+
+        {/* Name + description */}
+        <div>
+          <div className="font-bold text-white/50 text-base leading-tight">{provider.name}</div>
+          {provider.description && (
+            <div className="text-xs text-white/25 mt-0.5 leading-relaxed">{provider.description}</div>
+          )}
+        </div>
+
+        {/* Capability badges */}
+        <div className="flex flex-wrap gap-1">
+          {provider.capabilities.map((cap) => (
+            <Badge
+              key={cap}
+              variant="outline"
+              className="border-white/8 bg-white/[0.02] text-white/25 text-[10px] px-1.5 py-0 uppercase tracking-wide"
+            >
+              {cap}
+            </Badge>
+          ))}
+        </div>
+
+        {/* Unavailable message */}
+        <div className="mt-auto">
+          <p className="text-xs text-white/30 leading-relaxed border border-white/[0.06] rounded-lg p-2.5 bg-white/[0.02]">
+            {msg}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
