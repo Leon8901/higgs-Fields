@@ -169,7 +169,7 @@ function Router() {
       <Route path="/account" component={Account} />
       <Route path="/api-keys" component={ApiKeys} />
       <Route path="/admin" component={AdminRedirect} />
-      <Route path="/admin/settings" component={AdminSettings} />
+      <Route path="/admin/settings" component={AdminRedirect} />
       <Route path="/admin/branding" component={AdminBranding} />
       <Route path="/admin/providers/platform" component={AdminPlatformProviders} />
       <Route path="/admin/providers/byok" component={AdminByokProviders} />

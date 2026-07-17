@@ -77,6 +77,11 @@ const TABS = [
     label: "Content",
     settingKeys: ["homepage_banner", "announcement"],
   },
+  {
+    key: "preview",
+    label: "Preview",
+    settingKeys: [],
+  },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
@@ -563,10 +568,11 @@ function ContentTab({
   );
 }
 
-// ── Right rail ────────────────────────────────────────────────────────────────
+// ── Full-width Preview tab ────────────────────────────────────────────────────
 
-function LivePreviewCard({ draft }: { draft: Record<string, unknown> }) {
+function PreviewTab({ draft }: { draft: Record<string, unknown> }) {
   const [viewMode, setViewMode] = useState<"desktop" | "mobile">("desktop");
+
   const siteName = typeof draft.site_name === "string" ? draft.site_name : "Higgsfield AI";
   const tagline = typeof draft.site_tagline === "string" ? draft.site_tagline : "";
   const themeColor =
@@ -575,64 +581,87 @@ function LivePreviewCard({ draft }: { draft: Record<string, unknown> }) {
       : "#CEFF00";
   const logoUrl = typeof draft.logo_url === "string" ? draft.logo_url : "";
 
+  const navLinks = ["Explore", "Image", "Video", "Audio", "Marketing Studio", "Presets", "Shorts", "App Gallery", "Pricing"];
+
   return (
-    <div className="bg-[#141414] border border-white/[0.08] rounded-xl p-4">
-      <div className="flex items-center justify-between mb-3">
+    <div className="flex flex-col gap-4">
+      {/* Toolbar */}
+      <div className="flex items-center justify-between">
         <div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-            <h3 className="text-sm font-bold text-white">Live Preview</h3>
-          </div>
-          <p className="text-xs text-white/40 mt-0.5">Real-time preview of your site</p>
+          <p className="text-sm font-semibold text-white">Live Preview</p>
+          <p className="text-xs text-white/40 mt-0.5">Reflects all unsaved edits in real time — site name, tagline, logo, theme color.</p>
         </div>
-        <div className="flex gap-1 bg-white/5 rounded-lg p-0.5">
+        <div className="flex gap-1 bg-white/5 rounded-lg p-0.5 border border-white/[0.06]">
           <button
             onClick={() => setViewMode("desktop")}
-            className={cn("p-1.5 rounded-md transition-colors", viewMode === "desktop" ? "bg-white/10 text-white" : "text-white/40 hover:text-white")}
+            className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
+              viewMode === "desktop" ? "bg-white/10 text-white" : "text-white/40 hover:text-white")}
           >
-            <Monitor className="w-3.5 h-3.5" />
+            <Monitor className="w-3.5 h-3.5" /> Desktop
           </button>
           <button
             onClick={() => setViewMode("mobile")}
-            className={cn("p-1.5 rounded-md transition-colors", viewMode === "mobile" ? "bg-white/10 text-white" : "text-white/40 hover:text-white")}
+            className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
+              viewMode === "mobile" ? "bg-white/10 text-white" : "text-white/40 hover:text-white")}
           >
-            <Smartphone className="w-3.5 h-3.5" />
+            <Smartphone className="w-3.5 h-3.5" /> Mobile
           </button>
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-white/10">
-        <div className={cn("transition-all duration-300 mx-auto", viewMode === "mobile" ? "max-w-[180px]" : "w-full")}>
-          {/* Simulated nav */}
-          <div className="bg-[#0a0a0a] border-b border-white/5 px-2.5 py-2 flex items-center gap-1.5">
-            {logoUrl ? (
-              <img src={`${PAGE_BASE}${logoUrl}`} alt={siteName} className="h-3.5 object-contain" />
-            ) : (
-              <div className="w-3.5 h-3.5 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: themeColor }}>
-                <div className="w-1 h-1 bg-black rounded-sm" />
-              </div>
-            )}
-            <span className="font-bold text-white text-[9px] truncate">{siteName}</span>
+      {/* Preview frame */}
+      <div className="rounded-xl border border-white/[0.08] overflow-hidden bg-[#0a0a0a]">
+        <div className={cn("transition-all duration-300 mx-auto", viewMode === "mobile" ? "max-w-[390px]" : "w-full")}>
+          {/* Navbar */}
+          <div className="border-b border-white/5 bg-[#0a0a0a]/80 backdrop-blur-xl px-4 h-14 flex items-center justify-between gap-4">
+            {/* Logo + name */}
+            <div className="flex items-center gap-2.5 shrink-0">
+              {logoUrl ? (
+                <img src={`${PAGE_BASE}${logoUrl}`} alt={siteName} className="h-6 object-contain max-w-[120px]" />
+              ) : (
+                <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: themeColor }}>
+                  <div className="w-2 h-2 bg-black rounded-sm" />
+                </div>
+              )}
+              <span className="font-bold text-white text-sm">{siteName}</span>
+            </div>
+
+            {/* Nav links — desktop only */}
             {viewMode === "desktop" && (
-              <div className="flex items-center gap-2 ml-2">
-                {["Explore", "Image", "Video"].map((l) => (
-                  <span key={l} className="text-[8px] text-white/30">{l}</span>
+              <nav className="flex items-center gap-5 overflow-hidden">
+                {navLinks.slice(0, 7).map((l) => (
+                  <span key={l} className="text-xs text-white/50 whitespace-nowrap hover:text-white/80 transition-colors cursor-default">{l}</span>
                 ))}
-              </div>
+              </nav>
             )}
-            <div className="ml-auto">
-              <div className="px-1.5 py-0.5 rounded text-[8px] font-bold text-black" style={{ backgroundColor: themeColor }}>
-                {viewMode === "desktop" ? "Sign up" : "→"}
+
+            {/* CTA */}
+            <div className="flex items-center gap-3 shrink-0 ml-auto">
+              <div
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-black"
+                style={{ backgroundColor: themeColor }}
+              >
+                {viewMode === "mobile" ? "Sign up" : "⚡ 50"}
+              </div>
+              <div className="w-8 h-8 rounded-full bg-white/10 border border-white/15 flex items-center justify-center text-white text-xs font-bold">
+                L
               </div>
             </div>
           </div>
+
           {/* Hero */}
-          <div className="bg-[#0d0d0d] px-3 py-4 text-center">
-            <p className="text-[7px] text-white/30 uppercase tracking-widest mb-1">The Next Generation AI Platform</p>
-            <h2 className="text-white font-black text-[9px] mb-1 leading-tight">{siteName}</h2>
-            <p className="text-white/40 text-[7px] line-clamp-1">{tagline}</p>
+          <div className={cn("px-8 text-center flex flex-col items-center", viewMode === "mobile" ? "py-12" : "py-20")}>
+            <span className="inline-flex items-center gap-1.5 text-xs text-white/40 uppercase tracking-widest mb-4">
+              <span className="text-primary">✦</span> The Next Generation AI Platform
+            </span>
+            <h1 className={cn("font-black text-white leading-none mb-4", viewMode === "mobile" ? "text-4xl" : "text-6xl lg:text-7xl")}>
+              {siteName || "Higgsfield AI"}
+            </h1>
+            <p className={cn("text-white/50 max-w-md leading-relaxed mb-8", viewMode === "mobile" ? "text-sm" : "text-base")}>
+              {tagline || "Generate stunning images, videos, and audio with the most advanced AI models."}
+            </p>
             <div
-              className="inline-flex items-center gap-1 mt-2 px-2 py-1 rounded-md text-[7px] font-bold text-black"
+              className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold text-black"
               style={{ backgroundColor: themeColor }}
             >
               Get Started →
@@ -640,6 +669,10 @@ function LivePreviewCard({ draft }: { draft: Record<string, unknown> }) {
           </div>
         </div>
       </div>
+
+      <p className="text-xs text-white/25 text-center">
+        This preview reflects your unsaved draft values. Save changes to apply them to the live site.
+      </p>
     </div>
   );
 }
@@ -885,31 +918,39 @@ function BrandingPanel() {
 
       {/* Body */}
       <div className="flex-1 overflow-hidden flex min-h-0">
-        {/* Main content */}
-        <div className="flex-1 overflow-y-auto px-6 py-5">
-          {activeTab === "brand-identity" && (
-            <BrandIdentityTab settings={filteredSettings} draft={draft} onChange={onChange} />
-          )}
-          {activeTab === "logos-icons" && (
-            <LogosTab draft={draft} onChange={onChange} />
-          )}
-          {activeTab === "theme" && (
-            <ThemeTab draft={draft} onChange={onChange} />
-          )}
-          {activeTab === "site-settings" && (
-            <SiteSettingsTab settings={filteredSettings} draft={draft} onChange={onChange} />
-          )}
-          {activeTab === "content" && (
-            <ContentTab settings={filteredSettings} draft={draft} onChange={onChange} />
-          )}
-        </div>
+        {activeTab === "preview" ? (
+          /* Preview tab — full-width, no right rail */
+          <div className="flex-1 overflow-y-auto px-6 py-5">
+            <PreviewTab draft={draft} />
+          </div>
+        ) : (
+          <>
+            {/* Main content */}
+            <div className="flex-1 overflow-y-auto px-6 py-5">
+              {activeTab === "brand-identity" && (
+                <BrandIdentityTab settings={filteredSettings} draft={draft} onChange={onChange} />
+              )}
+              {activeTab === "logos-icons" && (
+                <LogosTab draft={draft} onChange={onChange} />
+              )}
+              {activeTab === "theme" && (
+                <ThemeTab draft={draft} onChange={onChange} />
+              )}
+              {activeTab === "site-settings" && (
+                <SiteSettingsTab settings={filteredSettings} draft={draft} onChange={onChange} />
+              )}
+              {activeTab === "content" && (
+                <ContentTab settings={filteredSettings} draft={draft} onChange={onChange} />
+              )}
+            </div>
 
-        {/* Right rail */}
-        <div className="w-[260px] shrink-0 border-l border-white/[0.06] overflow-y-auto px-4 py-4 space-y-3">
-          <LivePreviewCard draft={draft} />
-          <QuickStatusCard settings={filteredSettings.length ? filteredSettings : undefined} />
-          <InfoCard lastSavedAt={lastSavedAt} />
-        </div>
+            {/* Right rail — Quick Status + Info only (no live preview card) */}
+            <div className="w-[260px] shrink-0 border-l border-white/[0.06] overflow-y-auto px-4 py-4 space-y-3">
+              <QuickStatusCard settings={filteredSettings.length ? filteredSettings : undefined} />
+              <InfoCard lastSavedAt={lastSavedAt} />
+            </div>
+          </>
+        )}
       </div>
 
       {/* Unsaved changes footer bar */}

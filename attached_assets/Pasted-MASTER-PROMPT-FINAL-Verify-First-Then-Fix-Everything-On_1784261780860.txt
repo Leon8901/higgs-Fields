@@ -1,0 +1,145 @@
+MASTER PROMPT — FINAL: Verify First, Then Fix Everything (One Admin Panel, No Placeholders)
+
+Paste into Replit as its own isolated task. This is the complete, final spec — it supersedes every earlier admin panel prompt. Do not reference or partially apply older prompts; this document is self-contained.
+
+## Rule zero, before anything else
+
+You cannot tell from a screenshot whether a button, toggle, or field is real or decorative. Neither can the person reviewing your work. **Phase 1 below is mandatory and must be done, and its findings reported in writing, before you change a single line of code.** If Phase 1 finds something is already real and working, leave it alone — don't rewrite working code to match this spec's wording if the underlying behavior is already correct. If Phase 1 finds something that looks real but isn't wired up, that's exactly what Phase 3 onward exists to fix.
+
+No hardcoded values. No placeholder UI that isn't connected to a real backend call. No claiming something works because the code "looks right" — only because you clicked it, watched the network tab, and confirmed it survives a page reload.
+
+---
+
+## PHASE 1 — Audit the current state (mandatory, do this first, report findings before proceeding)
+
+Go through every page currently in the admin panel (`/admin/branding`, `/admin/providers/platform`, `/admin/providers/byok`, and the old `/admin/settings` if it still exists) and for every single interactive element — every text input, every toggle, every button, every upload control — determine and record:
+
+1. Does interacting with it change what's on screen (e.g. typing shows the new text, toggling flips the switch)?
+2. Does it produce a real network request (check the browser Network tab) when it's supposed to — on save, on toggle, on upload?
+3. Does the change survive a hard page reload after that network request succeeds?
+4. If it's a button that should call an endpoint (Save, Export, Import, Refresh, Test Connection, Upload), does that endpoint exist and return something other than a 404/500?
+
+Produce a simple table (field/control → real or not-wired, with a one-line note) before touching any code. This is the ground truth for everything else in this document — where this spec below describes something that Phase 1 shows is already correctly built, skip rebuilding it and move on.
+
+---
+
+## PHASE 2 — One admin panel, not two
+
+`/admin/settings` (old five-category scrolling single-page sidebar: Branding, Access & Security, Credits, Model Defaults, Content) must stop existing as a separate panel. Either delete it or redirect it to `/admin/branding` — pick whichever is less risky given what Phase 1 found — but after this phase, there is exactly one admin panel.
+
+Credits and Model Defaults are not part of this task's scope — nothing needs to be built, moved, or preserved for them. They're not part of the new sidebar.
+
+**Final sidebar, three items**: Site Branding, Platform Providers, BYOK Providers.
+
+**Check the entry point too**: the account dropdown on the main site (the one with Library/Account/API Keys/Admin Panel/Log out) has an "Admin Panel" link — confirm it points at the new panel (`/admin/branding`) and not the old `/admin/settings`.
+
+---
+
+## PHASE 3 — Site Branding (`/admin/branding`)
+
+Six tabs (not five — Preview is its own tab, not a sidebar widget, see below):
+
+1. **Brand Identity** — `site_name`, `site_tagline`.
+2. **Logos & Icons** — `logo_url`, `favicon_url`, each with Upload from device AND Paste URL. Paste URL must go through a real server-side download-and-reupload step (Phase 6 covers the shared utility this depends on) — never store a raw external URL.
+3. **Theme** — `theme_color`, hex input plus a live swatch. Not wired to live re-theming of the actual site — storage only, as already documented on the field itself.
+4. **Site Settings** — `maintenance_mode`, `maintenance_message`, `registration_enabled`, `platform_generation_enabled`. Toggles sit next to their labels, not floated far-right.
+5. **Content** — `homepage_banner`, `announcement` (enabled toggle, text, optional link URL/label, each).
+6. **Preview** — full-width (using the main content column's full width, not a small sidebar card). Renders the real Header and Hero components live, reflecting every unsaved edit across all five other tabs as you type — site name, tagline, logo, favicon, theme color. Include a Desktop/Mobile width toggle. **This replaces the small "Live Preview" card that was in the right rail** — that card was visibly broken (overlapping/cut-off text in testing) and too small to show a header+hero meaningfully. Remove it from the right rail entirely; it only exists as this full tab now.
+
+**Right rail** (what remains after removing Live Preview): Platform Status (Maintenance/Registration/Platform Generation, plus real Database/Object Storage health rows — see Phase 6b) and a Settings card ("Last saved" relative time + "Last updated by: Owner" as a static, honestly-labeled string, no real audit trail behind it — do not add a `settings_meta.version` display anywhere, it's documented in-code as internal-only).
+
+**Toolbar**: Settings Search (client-side, `/` to focus), Export, Import (drag-and-drop supported), Refresh (confirms before discarding unsaved edits). One floating save bar for the whole page covering all six tabs' dirty fields, showing which fields changed, Discard / Save changes, disabling all inputs and showing a spinner while the `PATCH` is in flight, guarded against double-submit.
+
+Danger Zone (bottom of page): Reset to defaults, red-bordered, confirmation dialog, 10-second Undo toast after a successful reset (snapshot-then-repatch, no new endpoint).
+
+---
+
+## PHASE 4 — Platform Providers (`/admin/providers/platform`)
+
+Developer/owner-only: the platform's own API keys, used to fund generation for users without their own BYOK key.
+
+**4a. Real audit before building/fixing anything here**: confirm the actual current provider rows (`SELECT slug, status FROM providers`), which have a real code adapter (check `registry.ts`'s adapters map), and real model counts (`SELECT adapter, COUNT(*), COUNT(*) FILTER (WHERE is_active) FROM models GROUP BY adapter`). Report these numbers. A provider row with no code adapter can store a platform key for later, but can't be tested or enabled for live routing — the UI must say so honestly.
+
+**4b. Schema** — extend the existing `providers` table (don't create a parallel table):
+```
+platform_enabled        boolean, not null, default false
+encrypted_platform_key  text, nullable   -- AES-256-GCM via lib/crypto.ts, same scheme as user_api_keys
+platform_key_last_four  text, nullable
+platform_key_status     text, nullable   -- "valid" | "invalid" | "unknown"
+platform_key_validated_at  timestamp, nullable
+base_url                text, nullable
+metadata                jsonb, not null, default '{}'
+sort_order               integer, not null, default 0
+```
+Do not touch or duplicate `status` — that field already controls BYOK availability in two existing files. `platform_enabled` is a separate, distinct concept. Backfill `wavespeed`'s row with its existing `WAVESPEED_API_KEY` env var so the one provider that currently works keeps working identically.
+
+**4c. Honest model counts, three tiers, never fabricated**:
+- Cataloged / Enabled — real `COUNT(*)` from your `models` table per adapter, always shown, including zero.
+- Live Available — only for adapters with a real, confirmed discovery endpoint. OpenAI's `GET https://api.openai.com/v1/models` is real and confirmed working — implement an optional `listAvailableModels?()` adapter capability (same pattern as the existing optional `listVoices?()`) for it. For any provider without a genuine discovery endpoint, show "Live catalog not available for this provider" — never a guessed number.
+
+**4d. Routes** (new file, owner-gated): `GET /admin/providers` (all rows + `hasAdapter` + counts + masked key info), `PATCH /admin/providers/:slug` (rejects `platformEnabled: true` for a slug with no adapter, with a clear message), `POST /admin/providers/:slug/platform-key` (validate via `adapter.validateKey` if it exists, encrypt, store), `DELETE .../platform-key`, `POST .../test-connection` (real pass/fail or an honest "not testable" reason — never a fake green check), `POST .../icon` (upload or paste-URL via the Phase 6a shared utility).
+
+**4e. Rewire the actual generation key routing** — `getPlatformApiKey()` in `keyRouting.ts` is a hardcoded switch statement today with one working case. Replace with a real async DB lookup gated on `platformEnabled` + `encryptedPlatformKey`. Update its call site to `await` it. **This touches your only currently-working payment path (WaveSpeed)** — after this change, run one real WaveSpeed generation end-to-end and confirm it still succeeds before considering this phase done.
+
+**4f. Frontend**: render provider cards by mapping over the real array `GET /admin/providers` returns — `providers.map(provider => <ProviderCard {...provider} />)` — do NOT write a separate hardcoded component or JSX block per known provider name (no `<OpenAICard />`, no if/else branching on `slug === "openai"`). Every field on the card (name, icon, `hasAdapter` badge, masked platform key status, Enable/Disable toggle, Test Connection, Cataloged/Enabled counts, Live Available or the honest fallback label) comes from that one row's data. This is what makes adding a new provider later a database insert, not a frontend code change.
+
+---
+
+## PHASE 5 — BYOK Providers (`/admin/providers/byok`)
+
+Same `providers` table rows as Phase 4, different editable fields — one provider, two admin pages. Same rule as Phase 4f: render by mapping over the real `providers` array, never a hardcoded card per known provider name. This applies to the real public-facing BYOK page too (`add-keys-panel.tsx`/`provider-key.tsx`) — if that page currently has any hardcoded provider list or per-provider branching, replace it with a map over the real `GET /providers` response as part of this phase.
+
+**Editable here**: `status` (already gates `POST /api-keys` in `routes/api-keys.ts` — don't add a second toggle for the same thing), `icon` (upload/paste-URL, shared utility), `description`, `docsUrl`, `keyFormatHint`, a new nullable `unavailable_message` column (falls back to a generic default), `sort_order` (shared column with Phase 4).
+
+**Disabling a provider, for real, end to end**:
+- This admin page shows it disabled.
+- `GET /providers` (public) currently filters out anything with `status !== "active"` entirely, so a disabled provider just vanishes today — change this to return all `supportsByok` providers regardless of status, with `status` included in the response.
+- The real user-facing BYOK page (`add-keys-panel.tsx`/`provider-key.tsx`) renders a disabled provider as a visibly greyed-out, non-interactive card with the `unavailableMessage` or a generic fallback ("This provider is temporarily unavailable. Please use another provider.") — not hidden.
+- `POST /api-keys` already rejects a disabled provider server-side — verify this still works after the `GET /providers` change, and improve the message to the friendlier wording described.
+
+---
+
+## PHASE 6 — Object storage: diagnose for real, then fix
+
+**A real upload failure was already observed**: `HTTP 500 — Failed to generate upload URL`. The route currently swallows every possible cause into that one generic message:
+
+```javascript
+} catch (error) {
+  req.log.error({ err: error }, 'Error generating upload URL');
+  res.status(500).json({ error: 'Failed to generate upload URL' });
+}
+```
+
+**Before writing any fix, check the actual Replit server console log for the real underlying error** — it's already being logged via `req.log.error`, just not surfaced to the browser. Most likely cause given this project's documented history of secrets being wiped on re-import: `PRIVATE_OBJECT_DIR` isn't set in this environment. Confirm via the Replit Secrets panel and the Object Storage tool's provisioning state — don't guess, check.
+
+**Fix the error handling regardless of the root cause**, so future failures are self-diagnosing instead of requiring a server log lookup:
+```javascript
+} catch (error) {
+  req.log.error({ err: error }, 'Error generating upload URL');
+  const message = error instanceof Error && error.message.includes('not set')
+    ? 'Object Storage is not configured on this server — check PRIVATE_OBJECT_DIR.'
+    : 'Failed to generate upload URL';
+  res.status(500).json({ error: message });
+}
+```
+
+**6a. Shared asset-import utility** (`artifacts/api-server/src/lib/media/assetImport.ts`): given a URL, fetch with a timeout, verify a real image `Content-Type`, enforce a max size (~5MB), upload to object storage, return the owned path. Used by Site Branding's Logos & Icons tab AND both Providers pages' icon fields — write once, call three times.
+
+**6b. Real health check** — `GET /healthz` is currently a hardcoded `{ status: "ok" }` stub with no actual check behind it. Extend it (or add an owner-gated `GET /admin/settings/health`) to run a real DB query and a real check that `PUBLIC_OBJECT_SEARCH_PATHS`/`PRIVATE_OBJECT_DIR` are set, and report the real result — this is what backs the Platform Status card's Database/Object Storage rows. If either check fails, that card must visibly show "Disconnected," not stay hardcoded green.
+
+**6c. Test both upload paths**: inside the embedded Replit preview iframe, and in a real new browser tab. Report which one actually works — if a real new tab still fails, that confirms a genuine backend problem (likely Phase 6's env var issue), not an iframe sandboxing artifact.
+
+---
+
+## FINAL VERIFICATION — do all of this, report pass/fail on each, no summary claims without it
+
+1. Confirm exactly one admin panel exists — the old `/admin/settings` route no longer renders the old sidebar, and the account dropdown's Admin Panel link points to the new one.
+2. On Site Branding, edit at least one field per tab (all six tabs, including confirming Preview updates live on every keystroke), confirm the save bar lists all edited fields, save once, confirm one `PATCH` call, confirm persistence after a hard reload.
+3. Confirm no sticky/floating element overlaps content while scrolling on any page — the prior build had a real overlap bug, check for it directly, don't assume it's gone.
+4. Upload a logo via file, then a favicon via pasted URL — confirm both succeed for real and produce owned `/objects/...` paths. If upload still fails, report the actual server log error, not the generic toast message.
+5. On Platform Providers, confirm the Phase 4a audit numbers match the live DB and codebase. Enable a platform key for `openai`, confirm Test Connection gives a real result and the Live Available count reflects a real API call. Attempt to enable a platform key for a provider with no adapter — confirm it's rejected with a clear reason.
+6. Run one real WaveSpeed generation end-to-end after the `keyRouting.ts` rewire — confirm it still works and bills the same as before this task.
+7. On BYOK Providers, disable a provider, confirm it's still returned by `GET /providers` (not filtered out), confirm it renders greyed-out with the unavailable message on the real public BYOK page, and confirm `POST /api-keys` rejects it via a direct API call, not just a hidden button.
+8. Re-enable it, confirm it works end-to-end again.
+9. Confirm Credits and Model Defaults are reachable from the new sidebar and save correctly using the same pattern as everything else.
+10. Confirm the Platform Status card's Database/Object Storage rows reflect a real check — temporarily break one (e.g. unset `PRIVATE_OBJECT_DIR`) and confirm the card actually shows "Disconnected," then restore it and confirm it goes back to "Connected."

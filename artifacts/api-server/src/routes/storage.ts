@@ -48,7 +48,13 @@ router.post(
       );
     } catch (error) {
       req.log.error({ err: error }, 'Error generating upload URL');
-      res.status(500).json({ error: 'Failed to generate upload URL' });
+      const message =
+        error instanceof Error && error.message.includes('not set')
+          ? 'Object Storage is not configured on this server — check PRIVATE_OBJECT_DIR.'
+          : error instanceof Error && error.message.length < 200
+            ? error.message
+            : 'Failed to generate upload URL';
+      res.status(500).json({ error: message });
     }
   },
 );
