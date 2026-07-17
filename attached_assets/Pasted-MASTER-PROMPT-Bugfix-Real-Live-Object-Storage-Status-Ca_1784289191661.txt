@@ -1,0 +1,43 @@
+MASTER PROMPT — Bugfix: Real Live Object Storage Status Card
+
+One focused addition. Do not touch anything else in this pass.
+
+## Context
+
+Uploads are still failing with the same sidecar signing error (`401, make sure you're running on Replit`) even after creating a brand new bucket — which tells us the problem isn't which bucket is configured, it's that the sidecar authentication handshake itself is failing for this specific running deployment. The existing health check (`GET /admin/settings/health`, built earlier) only checks whether `PRIVATE_OBJECT_DIR`/`PUBLIC_OBJECT_SEARCH_PATHS` env vars are *present* — that check would show "Connected" right now even though uploads are actually broken, because the env vars likely ARE set; the actual signing call is what's failing. That check needs to become a real functional probe, and it needs to be visible on the page at all times, not something you only discover by clicking Upload and getting a red toast.
+
+## The fix
+
+### 1. Make the health check a real functional test, not a presence check
+
+Update (or add alongside, if you'd rather not change the existing endpoint's contract) a check that actually attempts a real, cheap operation against the sidecar — e.g. call `getObjectEntityUploadURL()` (the same function the real upload flow calls) for a throwaway test path, with a short timeout (~5s). Catch the result and classify it into three states, not two:
+- Success (a signed URL comes back) → `status: "connected"`
+- A confirmed error response from the sidecar (e.g. the request completed and got back a 4xx/5xx) → `status: "disconnected"`, with the real error message (e.g. `"Failed to sign object URL, errorcode: 401, make sure you're running on Replit"`)
+- A timeout, network-level failure (connection refused, DNS failure), or any error that isn't a clean HTTP error response → `status: "warning"`, with whatever error detail is available — this is a distinct "couldn't get a conclusive answer" case, not the same as a confirmed rejection.
+
+Do not actually write a persistent test object to the bucket for this check — just confirm the signing step itself succeeds (that's the step that's actually been failing).
+
+### 2. Add a live status card to Site Branding's right rail
+
+New card, positioned directly below the existing "Info" card (per the screenshot layout) — call it **"Object Storage"**. Three states, not two — don't collapse "broken," "couldn't tell," and "working but incomplete" into the same color:
+
+- **Green — Connected**: the real check in step 1 succeeded (a signed URL came back) AND there are zero rows in `generations` with `is_provider_hosted = true` (see below).
+- **Red — Disconnected**: the check got a clear, confirmed failure response from the sidecar (e.g. an explicit 401/500 status code back from the signing request) — this means we know for certain it's broken and why.
+- **Yellow — Warning**, triggered by either of two distinct, real conditions (show which one applies, don't just say "warning"):
+  1. The check couldn't reach a conclusive answer — timed out with no response, threw a network-level error (DNS/connection refused) rather than an HTTP error response, or hit an error type not already handled as a known failure. Don't lump this in with confirmed-red, since the cause and fix could be different (e.g. a timeout might mean the sidecar is just slow right now, not permanently misconfigured).
+  2. The check succeeded (storage is reachable right now) BUT there is at least one row in `generations` with `is_provider_hosted = true` — these are results from the earlier fallback fix, currently served from the provider's temporary URL because storage was down when they finished, not yet migrated to permanent storage. Show the real count: `SELECT COUNT(*) FROM generations WHERE is_provider_hosted = true`. Card text example: `"Connected, but 3 assets are still on temporary provider URLs — not yet migrated."` This tells you storage works again, but there's unfinished cleanup from the last outage.
+
+Show the real error message (or pending-asset count) underneath for red and yellow states — the actual string or number, so the person looking at this page immediately knows *why*, not just *that*. Include a small manual refresh icon/button on the card so it can be re-checked on demand without reloading the whole page (useful right after trying a fix in Replit's Object Storage panel). This card calls the check (and the `is_provider_hosted` count) on page load, and again whenever the refresh button is clicked. A background poll (e.g. every 30s) is a nice-to-have, not required — don't over-build this.
+
+### 3. Reuse this same real check in the existing Platform Status card too
+
+The Platform Status card (Branding tab) already has a Database/Object Storage row from the earlier health-check work — point it at this same real functional check instead of the old presence-only one, so both places agree and neither one lies.
+
+## Verification
+
+1. With uploads currently broken (confirmed 401), load the Site Branding page — confirm the new Object Storage card shows **red/Disconnected** with the real 401 signing error visible, not "Connected."
+2. Simulate a timeout or unreachable sidecar (e.g. temporarily point the sidecar URL at an invalid port, or block it) — confirm the card shows **yellow/Warning**, not red, distinguishing "couldn't tell" from "confirmed broken."
+3. Fix the actual sidecar connection in Replit's Object Storage panel (separately, not via this code change), then click the card's refresh button without reloading the page — confirm it flips to **green/Connected** once the underlying issue is actually resolved.
+4. Confirm the Platform Status row and this new card never disagree with each other — they should be reading the same real three-state check.
+5. Upload a real file successfully once storage is actually fixed — confirm the card still says Connected (i.e., it wasn't a one-time lucky check).
+6. Manually set `is_provider_hosted = true` on one test generation row while storage is otherwise working — confirm the card shows **yellow** with the real count (1) and the correct message, not green, and not confused with the timeout-yellow case. Revert the test row, confirm it goes back to green.

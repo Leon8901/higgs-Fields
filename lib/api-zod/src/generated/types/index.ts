@@ -9,6 +9,7 @@
 export * from './adminAssetImportResult';
 export * from './adminHealthCheckItem';
 export * from './adminHealthStatus';
+export * from './adminStorageHealthStatus';
 export * from './adminProvider';
 export * from './adminProviderIconBody';
 export * from './adminProviderLiveAvailableModelsItem';

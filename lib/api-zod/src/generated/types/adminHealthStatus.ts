@@ -6,10 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { AdminHealthCheckItem } from './adminHealthCheckItem';
+import type { AdminStorageHealthStatus } from './adminStorageHealthStatus';
 
 export interface AdminHealthStatus {
   database: AdminHealthCheckItem;
-  objectStorage: AdminHealthCheckItem;
+  objectStorage: AdminStorageHealthStatus;
   /** @nullable */
   lastSavedAt?: Date | null;
 }

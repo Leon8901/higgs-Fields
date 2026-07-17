@@ -236,9 +236,24 @@ export interface AdminHealthCheckItem {
   connected: boolean;
 }
 
+export type AdminStorageHealthStatusStatus = typeof AdminStorageHealthStatusStatus[keyof typeof AdminStorageHealthStatusStatus];
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const AdminStorageHealthStatusStatus = {
+  connected: 'connected',
+  disconnected: 'disconnected',
+  warning: 'warning',
+} as const;
+
+export interface AdminStorageHealthStatus {
+  status: AdminStorageHealthStatusStatus;
+  message?: string | null;
+  providerHostedCount: number;
+}
+
 export interface AdminHealthStatus {
   database: AdminHealthCheckItem;
-  objectStorage: AdminHealthCheckItem;
+  objectStorage: AdminStorageHealthStatus;
   /** @nullable */
   lastSavedAt?: string | null;
 }

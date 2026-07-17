@@ -329,7 +329,9 @@ export const GetAdminSettingsHealthResponse = zod.object({
   "connected": zod.boolean()
 }),
   "objectStorage": zod.object({
-  "connected": zod.boolean()
+  "status": zod.enum(["connected", "disconnected", "warning"]),
+  "message": zod.string().nullish(),
+  "providerHostedCount": zod.number().int()
 }),
   "lastSavedAt": zod.coerce.date().nullish()
 })

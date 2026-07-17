@@ -4,9 +4,71 @@ import { GetPublicSettingsResponse, GetAdminSettingsResponse, UpdateAdminSetting
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireOwner } from "../middlewares/requireOwner";
 import { getPublicSettings, getAdminSettings, updateSettings } from "../lib/settings";
-import { db, siteSettingsTable, settingsMetaTable } from "@workspace/db";
+import { db, siteSettingsTable, settingsMetaTable, generationsTable } from "@workspace/db";
 import { SETTINGS_REGISTRY } from "@workspace/db/settingsRegistry";
 import { importAssetFromUrl } from "../lib/media/assetImport";
+
+const REPLIT_SIDECAR_ENDPOINT = 'http://127.0.0.1:1106';
+
+/** Real functional probe of the sidecar signing step — the actual step that fails in production.
+ *  Does NOT write any object to storage; it only asks for a signed URL.
+ *  Returns a three-state result:
+ *    connected    — a signed URL came back (storage is working)
+ *    disconnected — sidecar responded with a confirmed HTTP error (4xx/5xx)
+ *    warning      — could not reach a conclusive answer (timeout, DNS failure, etc.)
+ */
+async function probeObjectStorage(): Promise<{
+  status: 'connected' | 'disconnected' | 'warning';
+  message?: string;
+}> {
+  const privateObjectDir = process.env.PRIVATE_OBJECT_DIR;
+  if (!privateObjectDir) {
+    return { status: 'disconnected', message: 'PRIVATE_OBJECT_DIR is not set — create a bucket in Object Storage and set the env var.' };
+  }
+
+  const bucketAndPath = privateObjectDir.replace(/^gs:\/\//, '');
+  const [bucketName, ...rest] = bucketAndPath.split('/');
+  const prefix = rest.length ? rest.join('/') : '';
+  const objectName = `${prefix ? prefix + '/' : ''}__health_probe_do_not_use`;
+
+  const request = {
+    bucket_name: bucketName,
+    object_name: objectName,
+    method: 'PUT',
+    expires_at: new Date(Date.now() + 60_000).toISOString(),
+  };
+
+  try {
+    const response = await fetch(
+      `${REPLIT_SIDECAR_ENDPOINT}/object-storage/signed-object-url`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request),
+        signal: AbortSignal.timeout(5_000),
+      },
+    );
+
+    if (response.ok) {
+      return { status: 'connected' };
+    }
+
+    // Confirmed HTTP error from the sidecar — we know exactly what went wrong
+    let detail = `errorcode: ${response.status}`;
+    try {
+      const body = await response.text();
+      if (body) detail = body;
+    } catch { /* ignore body parse failure */ }
+    return {
+      status: 'disconnected',
+      message: `Failed to sign object URL, ${detail}, make sure you're running on Replit`,
+    };
+  } catch (err) {
+    // Timeout, connection refused, DNS failure — couldn't get a conclusive answer
+    const message = err instanceof Error ? err.message : String(err);
+    return { status: 'warning', message };
+  }
+}
 
 const router: IRouter = Router();
 
@@ -96,35 +158,41 @@ router.post("/admin/settings/reset-defaults", requireAuth, requireOwner, async (
 });
 
 // Real infrastructure health checks for the admin settings panel.
-// Database: runs a real query against settings_meta (always has exactly one row).
-// Object Storage: checks that the required env vars are present — an honest
-//   signal without a live round-trip, per the spec requirement.
+// Database: runs a real query against settings_meta.
+// Object Storage: real functional sidecar signing probe — three states:
+//   connected / disconnected (confirmed error) / warning (couldn't determine).
+// providerHostedCount: rows in generations with is_provider_hosted = true.
 // lastSavedAt: MAX(updated_at) across all site_settings rows.
 router.get("/admin/settings/health", requireAuth, requireOwner, async (_req, res): Promise<void> => {
-  let dbConnected = true;
-  try {
-    await db.select().from(settingsMetaTable).where(eq(settingsMetaTable.id, 1));
-  } catch {
-    dbConnected = false;
-  }
+  // Run all checks concurrently
+  const [dbResult, storageResult, providerHostedResult, lastSavedAtResult] = await Promise.allSettled([
+    db.select().from(settingsMetaTable).where(eq(settingsMetaTable.id, 1)),
+    probeObjectStorage(),
+    db.select({ count: sql<number>`COUNT(*)::int` }).from(generationsTable).where(eq(generationsTable.isProviderHosted, true)),
+    db.select({ maxUpdatedAt: sql<string>`MAX(updated_at)` }).from(siteSettingsTable),
+  ]);
 
-  const storageConnected = Boolean(
-    process.env.PRIVATE_OBJECT_DIR && process.env.PUBLIC_OBJECT_SEARCH_PATHS,
-  );
+  const dbConnected = dbResult.status === 'fulfilled';
 
-  let lastSavedAt: string | null = null;
-  try {
-    const [row] = await db
-      .select({ maxUpdatedAt: sql<string>`MAX(updated_at)` })
-      .from(siteSettingsTable);
-    lastSavedAt = row?.maxUpdatedAt ?? null;
-  } catch {
-    // DB may be unavailable; lastSavedAt stays null — the caller handles it
-  }
+  const storage = storageResult.status === 'fulfilled'
+    ? storageResult.value
+    : { status: 'warning' as const, message: storageResult.reason instanceof Error ? storageResult.reason.message : String(storageResult.reason) };
+
+  const providerHostedCount = providerHostedResult.status === 'fulfilled'
+    ? (providerHostedResult.value[0]?.count ?? 0)
+    : 0;
+
+  const lastSavedAt = lastSavedAtResult.status === 'fulfilled'
+    ? (lastSavedAtResult.value[0]?.maxUpdatedAt ?? null)
+    : null;
 
   res.json({
     database: { connected: dbConnected },
-    objectStorage: { connected: storageConnected },
+    objectStorage: {
+      status: storage.status,
+      message: storage.message ?? null,
+      providerHostedCount,
+    },
     lastSavedAt,
   });
 });

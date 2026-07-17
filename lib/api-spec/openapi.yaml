@@ -1676,13 +1676,38 @@ components:
       required:
         - connected
 
+    AdminStorageHealthStatus:
+      type: object
+      description: Three-state object storage health — result of a real sidecar signing probe.
+      properties:
+        status:
+          type: string
+          enum: [connected, disconnected, warning]
+          description: >
+            connected = signing probe succeeded;
+            disconnected = sidecar returned a confirmed HTTP error (4xx/5xx);
+            warning = could not reach a conclusive answer (timeout / network error).
+        message:
+          type: string
+          nullable: true
+          description: Human-readable detail — the real error string for disconnected/warning states.
+        providerHostedCount:
+          type: integer
+          description: >
+            Number of completed generations whose output_urls are still on the provider's
+            temporary URL (is_provider_hosted = true). Non-zero means storage was down at
+            completion time and those assets haven't been migrated yet.
+      required:
+        - status
+        - providerHostedCount
+
     AdminHealthStatus:
       type: object
       properties:
         database:
           $ref: "#/components/schemas/AdminHealthCheckItem"
         objectStorage:
-          $ref: "#/components/schemas/AdminHealthCheckItem"
+          $ref: "#/components/schemas/AdminStorageHealthStatus"
         lastSavedAt:
           type: ["string", "null"]
           format: date-time

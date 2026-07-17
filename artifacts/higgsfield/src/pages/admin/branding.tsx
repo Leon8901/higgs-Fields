@@ -707,6 +707,70 @@ function QuickStatusCard({ settings }: { settings: AdminSetting[] | undefined })
   );
 }
 
+function ObjectStorageCard() {
+  const { data: health, isLoading, isFetching, refetch } = useGetAdminSettingsHealth();
+  const storage = health?.objectStorage;
+
+  type DisplayState = 'loading' | 'connected' | 'disconnected' | 'warning';
+  let state: DisplayState = 'loading';
+  let statusLabel = 'Checking…';
+  let detail: string | null = null;
+  let badgeClass = 'bg-white/[0.06] text-white/40';
+
+  if (!isLoading && storage) {
+    if (storage.status === 'connected' && storage.providerHostedCount === 0) {
+      state = 'connected';
+      statusLabel = 'Connected';
+      badgeClass = 'bg-green-500/15 text-green-400';
+    } else if (storage.status === 'disconnected') {
+      state = 'disconnected';
+      statusLabel = 'Disconnected';
+      detail = storage.message ?? null;
+      badgeClass = 'bg-red-500/15 text-red-400';
+    } else {
+      // warning: inconclusive probe OR connected but provider-hosted assets remain
+      state = 'warning';
+      statusLabel = 'Warning';
+      badgeClass = 'bg-yellow-500/15 text-yellow-400';
+      if (storage.status === 'connected' && storage.providerHostedCount > 0) {
+        detail = `Connected, but ${storage.providerHostedCount} asset${storage.providerHostedCount === 1 ? '' : 's'} still on temporary provider URLs — not yet migrated.`;
+      } else {
+        detail = storage.message ?? 'Could not reach a conclusive answer.';
+      }
+    }
+  }
+
+  return (
+    <div className="bg-[#141414] border border-white/[0.08] rounded-xl p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <HardDrive className="w-3.5 h-3.5 text-white/40" />
+          <h3 className="text-sm font-bold text-white">Object Storage</h3>
+        </div>
+        <button
+          onClick={() => void refetch()}
+          disabled={isFetching}
+          className="text-white/30 hover:text-white/60 transition-colors disabled:opacity-40"
+          title="Re-check now"
+        >
+          <RefreshCcw className={cn("w-3 h-3", isFetching && "animate-spin")} />
+        </button>
+      </div>
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-white/60">Sidecar signing</span>
+        <span className={cn("text-xs font-semibold px-2 py-0.5 rounded-full", badgeClass)}>
+          {statusLabel}
+        </span>
+      </div>
+      {detail && (
+        <p className="text-[10px] text-white/40 mt-2 leading-relaxed break-words">
+          {detail}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function InfoCard({ lastSavedAt }: { lastSavedAt: Date | null }) {
   const [, tick] = useState(0);
   useEffect(() => {
@@ -945,9 +1009,10 @@ function BrandingPanel() {
               )}
             </div>
 
-            {/* Right rail — Quick Status + Info only (no live preview card) */}
+            {/* Right rail — Quick Status + Object Storage + Info */}
             <div className="w-[260px] shrink-0 border-l border-white/[0.06] overflow-y-auto px-4 py-4 space-y-3">
               <QuickStatusCard settings={filteredSettings.length ? filteredSettings : undefined} />
+              <ObjectStorageCard />
               <InfoCard lastSavedAt={lastSavedAt} />
             </div>
           </>

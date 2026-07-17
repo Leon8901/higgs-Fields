@@ -577,10 +577,14 @@ function PlatformStatusCard({
   settings,
   health,
   healthLoading,
+  onRefreshHealth,
+  healthFetching,
 }: {
   settings: AdminSetting[] | undefined;
-  health: { database: { connected: boolean }; objectStorage: { connected: boolean } } | undefined;
+  health: { database: { connected: boolean }; objectStorage: { status: string; message?: string | null; providerHostedCount: number } } | undefined;
   healthLoading: boolean;
+  onRefreshHealth?: () => void;
+  healthFetching?: boolean;
 }) {
   function getVal(key: string) {
     return settings?.find((s) => s.key === key)?.value;
@@ -592,9 +596,47 @@ function PlatformStatusCard({
     { label: "Platform Generation", value: Boolean(getVal("platform_generation_enabled")), isToggle: true, active: true },
   ];
 
+  // Derive 3-state storage display from the new shape
+  const storage = health?.objectStorage;
+  const storageState: 'connected' | 'disconnected' | 'warning' | undefined = !storage ? undefined
+    : storage.status === 'disconnected' ? 'disconnected'
+    : storage.status === 'warning' ? 'warning'
+    : storage.providerHostedCount > 0 ? 'warning'
+    : 'connected';
+
+  const storageBadgeClass = !storageState
+    ? 'bg-white/[0.06] text-white/40'
+    : storageState === 'connected' ? 'bg-green-500/15 text-green-400'
+    : storageState === 'disconnected' ? 'bg-red-500/15 text-red-400'
+    : 'bg-yellow-500/15 text-yellow-400';
+
+  const storageLabel = !storageState ? '…'
+    : storageState === 'connected' ? 'Connected'
+    : storageState === 'disconnected' ? 'Disconnected'
+    : 'Warning';
+
+  const storageDetail = !storage ? null
+    : storage.status === 'connected' && storage.providerHostedCount > 0
+      ? `${storage.providerHostedCount} asset${storage.providerHostedCount === 1 ? '' : 's'} on temporary URLs`
+      : (storage.status === 'disconnected' || storage.status === 'warning') && storage.message
+        ? storage.message
+        : null;
+
   return (
     <div className="bg-[#141414] border border-white/[0.08] rounded-xl p-4">
-      <h3 className="text-sm font-bold text-white mb-3">Platform Status</h3>
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-bold text-white">Platform Status</h3>
+        {onRefreshHealth && (
+          <button
+            onClick={onRefreshHealth}
+            disabled={healthFetching}
+            className="text-white/30 hover:text-white/60 transition-colors disabled:opacity-40"
+            title="Re-check infrastructure"
+          >
+            <RefreshCcw className={cn("w-3 h-3", healthFetching && "animate-spin")} />
+          </button>
+        )}
+      </div>
       <div className="space-y-2.5">
         {rows.map((row) => (
           <div key={row.label} className="flex items-center justify-between">
@@ -612,12 +654,8 @@ function PlatformStatusCard({
               )}
             >
               {row.label === "Maintenance Mode"
-                ? row.value
-                  ? "On"
-                  : "Off"
-                : row.value
-                  ? "Enabled"
-                  : "Disabled"}
+                ? row.value ? "On" : "Off"
+                : row.value ? "Enabled" : "Disabled"}
             </span>
           </div>
         ))}
@@ -647,21 +685,21 @@ function PlatformStatusCard({
                 {health?.database.connected ? "Connected" : "Disconnected"}
               </span>
             </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <HardDrive className="w-3 h-3 text-white/40" />
-                <span className="text-xs text-white/60">Object Storage</span>
+            <div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <HardDrive className="w-3 h-3 text-white/40" />
+                  <span className="text-xs text-white/60">Object Storage</span>
+                </div>
+                <span className={cn("text-xs font-semibold px-2 py-0.5 rounded-full", storageBadgeClass)}>
+                  {storageLabel}
+                </span>
               </div>
-              <span
-                className={cn(
-                  "text-xs font-semibold px-2 py-0.5 rounded-full",
-                  health?.objectStorage.connected
-                    ? "bg-green-500/15 text-green-400"
-                    : "bg-red-500/15 text-red-400",
-                )}
-              >
-                {health?.objectStorage.connected ? "Connected" : "Disconnected"}
-              </span>
+              {storageDetail && (
+                <p className="text-[10px] text-white/40 mt-1 leading-relaxed break-words pl-4">
+                  {storageDetail}
+                </p>
+              )}
             </div>
           </>
         )}
@@ -701,7 +739,7 @@ function SettingsInfoCard({ lastSavedAt }: { lastSavedAt: Date | null }) {
 
 function AdminSettingsPanel() {
   const { data: settings, isLoading, refetch } = useGetAdminSettings();
-  const { data: health, isLoading: healthLoading } = useGetAdminSettingsHealth();
+  const { data: health, isLoading: healthLoading, isFetching: healthFetching, refetch: refetchHealth } = useGetAdminSettingsHealth();
   const updateMutation = useUpdateAdminSettings();
   const importMutation = useImportAdminSettings();
   const resetMutation = useResetAdminSettingsToDefaults();
@@ -1352,6 +1390,8 @@ function AdminSettingsPanel() {
                 settings={settings}
                 health={health}
                 healthLoading={healthLoading}
+                onRefreshHealth={() => void refetchHealth()}
+                healthFetching={healthFetching}
               />
               <SettingsInfoCard lastSavedAt={lastSavedAt} />
             </div>
