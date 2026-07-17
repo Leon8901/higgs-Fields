@@ -1,0 +1,41 @@
+MASTER PROMPT — Bugfix: Surface Real Save Errors, Add Generation Poll Timeout
+
+Two small, isolated fixes. Not a redesign — do not touch anything else.
+
+## 1. Stop swallowing the real Save error (`artifacts/higgsfield/src/pages/admin/branding.tsx`, `handleSave`)
+
+Current code discards the actual error:
+```javascript
+} catch {
+  toast({ title: "Save failed", variant: "destructive" });
+}
+```
+
+Fix: capture and show the real message, matching how the app already surfaces other API errors elsewhere (e.g. the Import failed / Upload failed toasts already show real detail — Save should too):
+```javascript
+} catch (error) {
+  const description = error instanceof ApiError
+    ? error.message
+    : error instanceof Error
+      ? error.message
+      : "Unknown error";
+  toast({ title: "Save failed", description, variant: "destructive" });
+}
+```
+Check what error type `updateMutation` actually throws (likely the same `ApiError` shape already used elsewhere in this codebase, given the Upload/Import toasts already show detailed provider messages) and match that pattern exactly — don't invent a new error-handling convention.
+
+After this fix, reproduce the original failure (edit Site Name, Save) and report the actual message shown — that tells us the real cause, which we can't currently see.
+
+## 2. Add a staleness timeout to generation polling (`artifacts/api-server/src/lib/generation/statusSync.ts` / `backgroundPoller.ts`)
+
+Currently, if an async generation's poll keeps failing (network issue, transient auth error, rate limit, unexpected response shape), `syncGenerationStatus`'s catch block logs it and leaves the generation in `pending`/`processing` forever — no timeout, no eventual failure, no refund. A user can be stuck looking at "Processing..." indefinitely with zero explanation, even if the underlying provider task actually finished or errored out on their side and your poll simply can't reach or parse it anymore.
+
+Add a staleness check: if a generation has been in `pending`/`processing` for longer than a reasonable ceiling (e.g. 10 minutes — adjust based on your longest real video generation time, don't guess a number shorter than your slowest legitimate job), the background poller should call `finalizeGeneration` with a `failed` result and a clear message ("This generation timed out — please try again"), which already triggers the existing credit-refund path in `finalizeGeneration`. Use `generation.createdAt` (or a dedicated `startedAt` if that's more accurate) to compute elapsed time — check the `generations` schema for the right column before adding a new one.
+
+This does not replace debugging any *specific* current stuck generation — it prevents the *next* one from being stuck forever with no resolution. For the generation already stuck right now, check the Replit server console for a `"Provider poll failed"` log line tied to its ID — that will show the real underlying error (auth, rate limit, or an unexpected response shape) and tell us whether anything beyond this timeout fix is needed.
+
+## Verification
+
+1. Reproduce the Save failure, confirm the toast now shows a real, specific message (not the generic fallback) — report exactly what it says.
+2. Manually set a test generation's `createdAt` far enough in the past to exceed the timeout, run one background poller tick, confirm it flips to `failed` with the timeout message and the user's credits are refunded (check the credit ledger for the refund entry).
+3. Confirm a generation that completes normally within the timeout window is completely unaffected by this change.

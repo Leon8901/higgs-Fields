@@ -111,6 +111,21 @@ export async function finalizeGeneration(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Staleness ceiling for async generations.
+//
+// If a generation has been in pending/processing longer than this, something
+// has gone permanently wrong (provider task lost, poll errors not recoverable,
+// etc). We finalize it as failed so the user gets a clear message and their
+// credits are refunded via the existing finalizeGeneration path — rather than
+// sitting in "Processing…" forever with no resolution.
+//
+// Set to 10 minutes: comfortably above the longest legitimate WaveSpeed or
+// Kling video generation we've observed, but short enough that a truly stuck
+// job is cleaned up within one or two poller ticks after crossing the ceiling.
+// ─────────────────────────────────────────────────────────────────────────────
+const GENERATION_TIMEOUT_MS = 10 * 60 * 1_000; // 10 minutes
+
+// ─────────────────────────────────────────────────────────────────────────────
 // syncGenerationStatus — drives async adapter polling.
 //
 // Single source of truth for "is this async generation done, and is its
@@ -135,6 +150,22 @@ export async function syncGenerationStatus(
     !generation.providerTaskId
   ) {
     return generation;
+  }
+
+  // Staleness check — finalize before touching the provider if this generation
+  // has been in-flight longer than the ceiling. Using createdAt as the start
+  // time (no dedicated startedAt column in the schema). See GENERATION_TIMEOUT_MS.
+  const elapsedMs = Date.now() - generation.createdAt.getTime();
+  if (elapsedMs > GENERATION_TIMEOUT_MS) {
+    log.error(
+      { generationId: generation.id, elapsedMs, adapter: model.adapter },
+      "Generation exceeded staleness ceiling — finalizing as failed and refunding credits",
+    );
+    return finalizeGeneration(
+      generation,
+      { status: "failed", errorMessage: "This generation timed out — please try again." },
+      log,
+    );
   }
 
   try {

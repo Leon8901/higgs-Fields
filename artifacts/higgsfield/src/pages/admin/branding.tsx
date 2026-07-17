@@ -800,8 +800,9 @@ function BrandingPanel() {
       await refetch();
       setDraft({});
       toast({ title: "Saved", description: "Settings applied across the platform." });
-    } catch {
-      toast({ title: "Save failed", variant: "destructive" });
+    } catch (error) {
+      const description = error instanceof Error ? error.message : "Unknown error";
+      toast({ title: "Save failed", description, variant: "destructive" });
     } finally {
       setSaving(false);
     }
