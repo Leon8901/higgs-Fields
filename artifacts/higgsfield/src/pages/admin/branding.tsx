@@ -858,7 +858,18 @@ function BrandingPanel() {
     if (!dirtyCount || saving) return;
     setSaving(true);
     try {
-      const updates = dirtyKeys.map((key) => ({ key, value: draft[key] }));
+      // Guard: only send keys the server recognises. If a field exists in the
+      // draft but was never returned by GET /admin/settings it isn't in the
+      // registry, and one unknown key fails the entire PATCH. Log loudly so
+      // future orphaned-field bugs are caught immediately in the console.
+      const knownKeys = new Set(Object.keys(serverMap));
+      const orphans = dirtyKeys.filter((k) => !knownKeys.has(k));
+      for (const k of orphans) {
+        console.warn(`Field '${k}' is not a recognized setting and will not be saved`);
+      }
+      const updates = dirtyKeys
+        .filter((k) => knownKeys.has(k))
+        .map((key) => ({ key, value: draft[key] }));
       await updateMutation.mutateAsync({ data: { settings: updates } });
       setLastSavedAt(new Date());
       await refetch();

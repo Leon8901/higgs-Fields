@@ -175,6 +175,16 @@ export const SETTINGS_REGISTRY: SettingDefinition[] = [
     validate: validateOwnedAssetPath,
   },
   {
+    key: "favicon_alt_text",
+    type: "string",
+    category: "branding",
+    label: "Favicon alt text",
+    description: "Accessibility text for the favicon image.",
+    isPublic: true,
+    default: "",
+    validate: stringValidator({ maxLength: 200, allowEmpty: true }),
+  },
+  {
     key: "theme_color",
     type: "string",
     category: "branding",
@@ -295,6 +305,7 @@ export type SettingKey =
   | "site_tagline"
   | "logo_url"
   | "favicon_url"
+  | "favicon_alt_text"
   | "theme_color"
   | "maintenance_mode"
   | "maintenance_message"

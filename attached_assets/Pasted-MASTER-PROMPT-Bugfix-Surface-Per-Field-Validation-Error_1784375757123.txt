@@ -1,0 +1,45 @@
+MASTER PROMPT — Bugfix: Surface Per-Field Validation Errors (Currently Silently Dropped)
+
+One precise, isolated fix. Root cause already found — do not re-investigate, just apply this.
+
+## The bug
+
+`PATCH /admin/settings` correctly returns `{ error: "Validation failed", fields: [...] }` when a save is rejected (`routes/settings.ts`, lines 94 and 140) — `fields` contains the actual per-field validation reasons.
+
+But `buildErrorMessage()` in `lib/api-client-react/src/custom-fetch.ts` (lines 151-171) only reads `data.message`, `data.error_description`, or `data.error` off the response body — it never looks at `data.fields`. So the toast shows only the generic top-level string ("Validation failed") and silently drops the actual reason, even though the backend already sent it.
+
+## The fix
+
+### Part 1 — Surface the real error (do this first, it's the fast diagnostic step)
+
+In `buildErrorMessage()`, after checking for `message`/`error_description`/`error` (keep that fallback for endpoints that don't use the `fields` shape), also check for a `fields` array on the response body. If present and non-empty, append the field-level detail to the message rather than replacing it — e.g.:
+
+```
+HTTP 400 Bad Request: Validation failed — favicon_alt_text: not a recognized setting key
+```
+
+If there are multiple failed fields, join them clearly (e.g. semicolon-separated) rather than truncating to just the first one — the admin should see everything that failed in one save attempt, not just one field at a time across repeated tries.
+
+Keep this generic and reusable — don't special-case it to only the settings endpoint. Any endpoint in this codebase that returns a `fields` array in an error body (check if others do, e.g. the provider/BYOK routes built earlier) should get the same improved message for free, since this is a shared error-formatting function.
+
+### Part 2 — Fix the actual root cause, not just the error message
+
+The person reports that saving Site Name — and "anything else" in Site Branding — fails with the same generic error, not just favicon-related fields. This is consistent with a specific, already-suspected cause: `favicon_alt_text` is rendered as a real input on the Brand Identity/Logos & Icons tab (`branding.tsx`, `settingKeys` array includes `"favicon_alt_text"`, with a working `onChange` wired to it) but **has no matching entry in `SETTINGS_REGISTRY`**. Because the save bar batches ALL currently-dirty fields into one `PATCH` request, and the backend validates that whole batch all-or-nothing in one transaction, a single unregistered field sitting dirty in the batch (`favicon_alt_text`) fails the ENTIRE save — including completely valid, unrelated changes like Site Name. This would explain why the failure looks global rather than isolated to one field.
+
+Confirm this via the Part 1 fix first — retry a Site Name save and read the now-visible field list in the error toast. If it names `favicon_alt_text` (or any other field not in the registry), that confirms this theory; fix it for real, don't just patch around it:
+
+- Add `favicon_alt_text` as a genuine entry in `SETTINGS_REGISTRY` (`lib/db/src/settingsRegistry.ts`) — category `branding`, type `text`, a real label/description ("Accessibility text for the favicon"), sensible validation (e.g. optional string, reasonable max length), and a real default (empty string or `null` — match the pattern other optional text fields in the registry already use). This is not a placeholder or hardcoded value — it's a genuine, permanently registered setting, the same as every other field on this page.
+- Add the corresponding column/seed entry to `site_settings` the same way every other registry key already has one — check how an existing similarly-shaped field (e.g. `site_tagline`) is seeded and mirror that exactly, don't invent a new pattern.
+- If the audit turns up any OTHER input on the Site Branding page with a working `onChange` but no matching registry entry, fix those the same way, in the same pass — don't leave a second orphaned field to cause this exact same failure again later.
+
+### Part 3 — Prevent this failure mode from recurring silently
+
+Since one bad field can currently take down an entire unrelated save, and that's a bad failure mode regardless of which field caused it this time: on the frontend, before constructing the `PATCH` payload from `dirtyFields`, filter to only keys that exist in the settings data already loaded from `GET /admin/settings` (i.e. keys the backend actually recognizes). If a dirty field isn't in that known set, don't silently drop it either — log a clear console warning (`"Field '${key}' is not a recognized setting and will not be saved"`) so a future orphaned-field bug like this one is loud in the browser console immediately, not something that takes a support cycle to trace back to a validation error message.
+
+## Verification
+
+1. Reproduce the original failure: try saving a Site Name change (with favicon alt text also dirty, if that's what's happening) — before the fix, confirm the toast shows the real field name causing the rejection (this confirms Part 1 works and identifies the actual cause).
+2. After Part 2's fix, retry the exact same combination — confirm the save now succeeds and Site Name actually persists after a reload.
+3. Edit ONLY `favicon_alt_text` by itself (no other fields dirty) and save — confirm it now saves successfully as a real, working setting, not still rejected.
+4. Confirm a successful save still shows the normal "Saved" toast, unaffected by this change.
+5. Search the rest of Site Branding's tabs (Logos & Icons, Theme, Site Settings, Content) for any other input wired to `onChange` with a key not present in `SETTINGS_REGISTRY` — fix any found the same way, and confirm none remain by checking the Part 3 console-warning never fires during a normal editing session across all six tabs.

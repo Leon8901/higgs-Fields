@@ -163,9 +163,37 @@ function buildErrorMessage(response: Response, data: unknown): string {
     getStringField(data, "error_description") ??
     getStringField(data, "error");
 
+  // Surface per-field validation errors (e.g. PATCH /admin/settings returns
+  // { error: "Validation failed", fields: [{ key, error }] }). Append field
+  // detail to the top-level message so the toast shows the real reason rather
+  // than the generic "Validation failed" string. Generic for any endpoint that
+  // uses this shape — not special-cased to settings.
+  const fieldsDetail = (() => {
+    if (
+      typeof data !== "object" ||
+      data === null ||
+      !Array.isArray((data as Record<string, unknown>).fields)
+    ) {
+      return undefined;
+    }
+    const fields = (data as Record<string, unknown>).fields as unknown[];
+    const parts = fields
+      .filter(
+        (f): f is { key: string; error: string } =>
+          typeof f === "object" &&
+          f !== null &&
+          typeof (f as Record<string, unknown>).key === "string" &&
+          typeof (f as Record<string, unknown>).error === "string",
+      )
+      .map((f) => `${f.key}: ${f.error}`);
+    return parts.length > 0 ? parts.join("; ") : undefined;
+  })();
+
   if (title && detail) return `${prefix}: ${title} — ${detail}`;
   if (detail) return `${prefix}: ${detail}`;
+  if (message && fieldsDetail) return `${prefix}: ${message} — ${fieldsDetail}`;
   if (message) return `${prefix}: ${message}`;
+  if (fieldsDetail) return `${prefix}: ${fieldsDetail}`;
   if (title) return `${prefix}: ${title}`;
 
   return prefix;
