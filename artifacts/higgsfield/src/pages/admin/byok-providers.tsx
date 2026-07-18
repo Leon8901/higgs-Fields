@@ -133,7 +133,7 @@ function ByokIconUpload({ provider, onUpdated }: { provider: AdminProvider; onUp
       {pasteMode && (
         <div className="flex gap-2">
           <Input
-            placeholder="https://example.com/icon.png"
+            placeholder="https://…/icon.png"
             value={pasteUrl}
             onChange={(e) => setPasteUrl(e.target.value)}
             onKeyDown={(e) => {

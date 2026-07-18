@@ -4,6 +4,7 @@ import { Show } from "@clerk/react";
 import { useUser, useClerk } from "@clerk/react";
 import { useGetMe } from "@workspace/api-client-react";
 import { cn } from "@/lib/utils";
+import { useSiteSettings } from "@/lib/settings";
 import {
   Palette,
   Cpu,
@@ -38,6 +39,7 @@ function AdminSidebar() {
   const { user } = useUser();
   const { signOut } = useClerk();
   const searchRef = useRef<HTMLInputElement>(null);
+  const { site_name: siteName } = useSiteSettings();
 
   // ⌘K focuses search
   useEffect(() => {
@@ -66,7 +68,7 @@ function AdminSidebar() {
           H
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-white text-xs font-bold truncate leading-tight">Higgsfield</p>
+          <p className="text-white text-xs font-bold truncate leading-tight">{siteName}</p>
           <p className="text-white/40 text-[10px] leading-tight">Admin Panel</p>
         </div>
       </div>

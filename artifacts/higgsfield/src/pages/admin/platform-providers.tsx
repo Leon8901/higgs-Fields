@@ -174,7 +174,7 @@ function ProviderIconUpload({
       {pasteMode && (
         <div className="flex gap-2 mt-2">
           <Input
-            placeholder="https://example.com/icon.png"
+            placeholder="https://…/icon.png"
             value={pasteUrl}
             onChange={(e) => setPasteUrl(e.target.value)}
             onKeyDown={(e) => {

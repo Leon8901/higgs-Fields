@@ -208,7 +208,7 @@ function AssetCard({
       {pasteMode && (
         <div className="px-4 pb-3 flex gap-2">
           <Input
-            placeholder="https://example.com/logo.png"
+            placeholder="https://…/logo.png"
             value={pasteUrl}
             onChange={(e) => setPasteUrl(e.target.value)}
             onKeyDown={(e) => {
@@ -325,7 +325,7 @@ function BrandIdentityTab({
             <Input
               value={siteName}
               onChange={(e) => onChange("site_name", e.target.value)}
-              placeholder="Higgsfield"
+              placeholder="Enter your site name"
               className="bg-[#141414] border-white/[0.08] text-white h-9"
             />
           </div>
@@ -344,7 +344,7 @@ function BrandIdentityTab({
               <Input
                 value={themeColor}
                 onChange={(e) => onChange("theme_color", e.target.value)}
-                placeholder="#CEFF00"
+                placeholder="#rrggbb"
                 className="bg-[#141414] border-white/[0.08] text-white h-9 font-mono"
               />
               {isValidHex && (
@@ -367,7 +367,7 @@ function BrandIdentityTab({
             <Input
               value={tagline}
               onChange={(e) => onChange("site_tagline", e.target.value)}
-              placeholder="The Next Generation AI Platform"
+              placeholder="Enter a short tagline or description"
               className="bg-[#141414] border-white/[0.08] text-white h-9"
             />
           </div>
@@ -381,7 +381,7 @@ function BrandIdentityTab({
             <Input
               value={faviconAlt}
               onChange={(e) => onChange("favicon_alt_text", e.target.value)}
-              placeholder="Higgsfield"
+              placeholder="Describe the favicon image"
               className="bg-[#141414] border-white/[0.08] text-white h-9"
             />
           </div>
@@ -400,9 +400,9 @@ function BrandIdentityTab({
                 <div className="w-2 h-2 bg-black rounded-sm" />
               </div>
             )}
-            <span className="font-bold text-white text-sm">{siteName || "Higgsfield"}</span>
+            {siteName && <span className="font-bold text-white text-sm">{siteName}</span>}
             <div className="flex items-center gap-4 ml-2">
-              {["Features", "Models", "Pricing", "Docs", "Enterprise"].map((l) => (
+              {["Explore", "Image", "Video", "Audio", "Pricing"].map((l) => (
                 <span key={l} className="text-xs text-white/40">{l}</span>
               ))}
             </div>
@@ -466,7 +466,7 @@ function ThemeTab({
           <Input
             value={themeColor}
             onChange={(e) => onChange("theme_color", e.target.value)}
-            placeholder="#CEFF00"
+            placeholder="#rrggbb"
             className="bg-[#141414] border-white/[0.08] text-white h-9 font-mono"
           />
           {isValidHex && (
@@ -573,7 +573,7 @@ function ContentTab({
 function PreviewTab({ draft }: { draft: Record<string, unknown> }) {
   const [viewMode, setViewMode] = useState<"desktop" | "mobile">("desktop");
 
-  const siteName = typeof draft.site_name === "string" ? draft.site_name : "Higgsfield AI";
+  const siteName = typeof draft.site_name === "string" ? draft.site_name : "";
   const tagline = typeof draft.site_tagline === "string" ? draft.site_tagline : "";
   const themeColor =
     typeof draft.theme_color === "string" && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(draft.theme_color)
@@ -651,14 +651,16 @@ function PreviewTab({ draft }: { draft: Record<string, unknown> }) {
 
           {/* Hero */}
           <div className={cn("px-8 text-center flex flex-col items-center", viewMode === "mobile" ? "py-12" : "py-20")}>
-            <span className="inline-flex items-center gap-1.5 text-xs text-white/40 uppercase tracking-widest mb-4">
-              <span className="text-primary">✦</span> The Next Generation AI Platform
-            </span>
+            {tagline && (
+              <span className="inline-flex items-center gap-1.5 text-xs text-white/40 uppercase tracking-widest mb-4">
+                <span className="text-primary">✦</span> {tagline}
+              </span>
+            )}
             <h1 className={cn("font-black text-white leading-none mb-4", viewMode === "mobile" ? "text-4xl" : "text-6xl lg:text-7xl")}>
-              {siteName || "Higgsfield AI"}
+              {siteName}
             </h1>
             <p className={cn("text-white/50 max-w-md leading-relaxed mb-8", viewMode === "mobile" ? "text-sm" : "text-base")}>
-              {tagline || "Generate stunning images, videos, and audio with the most advanced AI models."}
+              {tagline}
             </p>
             <div
               className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold text-black"
@@ -867,10 +869,12 @@ function BrandingPanel() {
       for (const k of orphans) {
         console.warn(`Field '${k}' is not a recognized setting and will not be saved`);
       }
-      const updates = dirtyKeys
-        .filter((k) => knownKeys.has(k))
-        .map((key) => ({ key, value: draft[key] }));
-      await updateMutation.mutateAsync({ data: { settings: updates } });
+      // API expects a flat Record<settingKey, value> — NOT an array of {key,value} objects.
+      const patch: Record<string, unknown> = {};
+      for (const key of dirtyKeys.filter((k) => knownKeys.has(k))) {
+        patch[key] = draft[key];
+      }
+      await updateMutation.mutateAsync({ data: patch });
       setLastSavedAt(new Date());
       await refetch();
       setDraft({});
