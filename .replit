@@ -23,12 +23,9 @@ timeoutMs = 20000
 channel = "stable-25_05"
 
 [objectStorage]
-defaultBucketID = "replit-objstore-9b4ceee8-ca03-47ca-a6f5-dcb82e0557e1"
+defaultBucketID = "replit-objstore-3bb80658-020f-4406-ac30-faf1676a5629"
 
 [userenv]
 
 [userenv.shared]
-DEFAULT_OBJECT_STORAGE_BUCKET_ID = "replit-objstore-d446f8aa-48c2-473e-839c-152e50235866"
 LOG_LEVEL = "info"
-PRIVATE_OBJECT_DIR = "private"
-PUBLIC_OBJECT_SEARCH_PATHS = "public"
