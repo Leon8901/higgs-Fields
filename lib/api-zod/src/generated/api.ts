@@ -329,10 +329,10 @@ export const GetAdminSettingsHealthResponse = zod.object({
   "connected": zod.boolean()
 }),
   "objectStorage": zod.object({
-  "status": zod.enum(["connected", "disconnected", "warning"]),
-  "message": zod.string().nullish(),
-  "providerHostedCount": zod.number().int()
-}),
+  "status": zod.enum(['connected', 'disconnected', 'warning']).describe('connected = signing probe succeeded; disconnected = sidecar returned a confirmed HTTP error (4xx\/5xx); warning = could not reach a conclusive answer (timeout \/ network error).\n'),
+  "message": zod.string().nullish().describe('Human-readable detail — the real error string for disconnected\/warning states.'),
+  "providerHostedCount": zod.number().describe('Number of completed generations whose output_urls are still on the provider\'s temporary URL (is_provider_hosted = true). Non-zero means storage was down at completion time and those assets haven\'t been migrated yet.\n')
+}).describe('Three-state object storage health — result of a real sidecar signing probe.'),
   "lastSavedAt": zod.coerce.date().nullish()
 })
 
@@ -568,6 +568,103 @@ export const SetAdminProviderIconUrlResponse = zod.object({
 })).nullish(),
   "liveAvailableModelsReason": zod.string().nullish()
 }).describe('Full provider row for the owner admin panel — includes platform key info, model counts, and live discovery')
+
+
+/**
+ * @summary All models with full catalog fields (owner-only)
+ */
+export const ListAdminModelsResponseItem = zod.object({
+  "id": zod.number(),
+  "modelId": zod.string(),
+  "name": zod.string(),
+  "category": zod.enum(['image', 'video', 'audio']),
+  "description": zod.string(),
+  "badge": zod.string().nullish(),
+  "thumbnailUrl": zod.string().nullish(),
+  "isFeatured": zod.boolean(),
+  "sortOrder": zod.number(),
+  "isActive": zod.boolean(),
+  "adapter": zod.string(),
+  "providerModelPath": zod.string(),
+  "basePriceUsd": zod.number(),
+  "creditCost": zod.number(),
+  "createdAt": zod.coerce.date()
+}).describe('Full model row for the owner admin panel — all catalog columns including thumbnailUrl')
+export const ListAdminModelsResponse = zod.array(ListAdminModelsResponseItem)
+
+
+/**
+ * @summary Update editable model fields (owner-only)
+ */
+export const PatchAdminModelParams = zod.object({
+  "modelId": zod.coerce.string()
+})
+
+
+export const patchAdminModelBodySortOrderMin = 0;
+
+export const patchAdminModelBodyCreditCostMin = 0;
+
+
+
+export const PatchAdminModelBody = zod.object({
+  "thumbnailUrl": zod.string().nullish(),
+  "isActive": zod.boolean().optional(),
+  "isFeatured": zod.boolean().optional(),
+  "name": zod.string().min(1).optional(),
+  "description": zod.string().optional(),
+  "badge": zod.string().nullish(),
+  "sortOrder": zod.number().min(patchAdminModelBodySortOrderMin).optional(),
+  "creditCost": zod.number().min(patchAdminModelBodyCreditCostMin).optional()
+})
+
+export const PatchAdminModelResponse = zod.object({
+  "id": zod.number(),
+  "modelId": zod.string(),
+  "name": zod.string(),
+  "category": zod.enum(['image', 'video', 'audio']),
+  "description": zod.string(),
+  "badge": zod.string().nullish(),
+  "thumbnailUrl": zod.string().nullish(),
+  "isFeatured": zod.boolean(),
+  "sortOrder": zod.number(),
+  "isActive": zod.boolean(),
+  "adapter": zod.string(),
+  "providerModelPath": zod.string(),
+  "basePriceUsd": zod.number(),
+  "creditCost": zod.number(),
+  "createdAt": zod.coerce.date()
+}).describe('Full model row for the owner admin panel — all catalog columns including thumbnailUrl')
+
+
+/**
+ * @summary Fetch a public image URL and set it as the model thumbnail (owner-only, paste-URL path)
+ */
+export const SetAdminModelThumbnailUrlParams = zod.object({
+  "modelId": zod.coerce.string()
+})
+
+export const SetAdminModelThumbnailUrlBody = zod.object({
+  "url": zod.string().describe('Public https URL to fetch, validate, and re-host as the model thumbnail')
+})
+
+export const SetAdminModelThumbnailUrlResponse = zod.object({
+  "id": zod.number(),
+  "modelId": zod.string(),
+  "name": zod.string(),
+  "category": zod.enum(['image', 'video', 'audio']),
+  "description": zod.string(),
+  "badge": zod.string().nullish(),
+  "thumbnailUrl": zod.string().nullish(),
+  "isFeatured": zod.boolean(),
+  "sortOrder": zod.number(),
+  "isActive": zod.boolean(),
+  "adapter": zod.string(),
+  "providerModelPath": zod.string(),
+  "basePriceUsd": zod.number(),
+  "creditCost": zod.number(),
+  "createdAt": zod.coerce.date()
+}).describe('Full model row for the owner admin panel — all catalog columns including thumbnailUrl')
 
 
 /**

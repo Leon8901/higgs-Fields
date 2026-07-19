@@ -1,0 +1,55 @@
+MASTER PROMPT — Admin Models Page: Real Thumbnail Management (Upload + URL)
+
+Paste into Replit as its own isolated task. No hardcode, no placeholder, no showcase UI — every field shown must read and write real data through real endpoints.
+
+## 0. Mandatory first step — confirm the real current state
+
+Before building anything, confirm these facts (already found in a prior audit, but re-verify against the live codebase since it may have changed):
+1. `models.thumbnailUrl` already exists as a real column (`lib/db/src/schema/models.ts`) and is already displayed on real public pages: `home.tsx`, `tools.tsx`, `apps.tsx`, `mega-menu.tsx`, `presets.tsx`, `category-studio.tsx`. This task does NOT touch how thumbnails are displayed publicly — that already works. This task ONLY adds the missing piece: a way to actually set/change `thumbnailUrl` (and other model fields) without hand-editing `seed-thumbnails.ts` and re-running a seed script.
+2. Confirm there is currently no admin route for updating a model (`grep` the routes directory for any `PATCH`/model-admin endpoint) and no admin Models page exists. If either of those has since been built, stop and report that instead of duplicating it.
+
+## 1. New sidebar item and page (`/admin/models`)
+
+Add a fourth item to the existing three-item admin sidebar (Site Branding, Platform Providers, BYOK Providers) → **Models**. Same shell pattern as the other three: real Wouter route, not a scroll-anchor.
+
+## 2. Backend routes (`artifacts/api-server/src/routes/admin-models.ts`, new file, owner-gated)
+
+- `GET /admin/models` — returns every row from `models`, including `thumbnailUrl`, `isActive`, `adapter`, `category`, `name`, `creditCost`, and whatever other columns already exist on the table — check the actual schema, don't assume a field list.
+- `PATCH /admin/models/:modelId` — updates editable fields: `thumbnailUrl`, `isActive`, `name`, `description`, `badge`, `sortOrder`, `creditCost` (or the real equivalent column names — check the schema first, don't guess). Validate against an allow-list of these keys, same pattern as `updateSettings()`/the provider PATCH routes already built — reuse that validation style.
+- `POST /admin/models/:modelId/thumbnail` — accepts either a file upload (presigned PUT, same flow already used for logos/favicons/provider icons) or `{ url: string }` for paste-URL. **Reuse the exact same shared `assetImport.ts` utility already built** (download-and-reupload with content-type/size validation, never store a raw external URL) — this is the third consumer of that utility (after Site Branding logos and Provider icons), not a fourth reimplementation.
+
+Add to `openapi.yaml`, run codegen, per existing project convention.
+
+## 3. Frontend — data-driven, not hardcoded per model
+
+Render model cards by mapping over the real `GET /admin/models` array — `models.map(model => <ModelCard {...model} />)`, same rule as the Platform Providers/BYOK Providers pages already built. Do NOT hardcode a card per known model name.
+
+**Page toolbar, at the top**:
+- **Search bar** — client-side filter over the already-loaded models array, matching against `name` (and `description` if useful) as the admin types. No API call per keystroke — filter the data already in memory, same pattern as Site Branding's settings search.
+- **Provider filter** — a dropdown or button group listing every distinct `adapter`/provider value actually present in the loaded models (derive this list from the real data — `[...new Set(models.map(m => m.adapter))]` — do NOT hardcode a fixed list of "OpenAI, Kling, Claude, Google" options, since that list must automatically include whatever providers actually have models today and never show a provider with zero models, or omit one that has models but wasn't in a hardcoded guess). Selecting a provider (e.g. "OpenAI") filters the visible cards to only models where `adapter === "openai"`. Selecting "All" (default) shows everything. Search and provider filter combine — e.g. searching "pro" while filtered to OpenAI shows only OpenAI models with "pro" in the name.
+- Category filter (image/video/audio/text) as a second, independent filter alongside the provider filter — same real-data-derived approach, not hardcoded.
+
+Each card, styled similarly to the reference screenshots (image thumbnail as the dominant visual element, category badge, name, short description) but wired to real data and real actions:
+- Thumbnail preview — shows the current `thumbnailUrl` if set, or an honest empty/placeholder-icon state if not set (a generic "no thumbnail" icon state is fine and is NOT the kind of placeholder this task is trying to eliminate — that term refers to fake data pretending to be real, not an honest empty state for a field that's genuinely unset).
+- **Upload new** and **Paste URL** buttons for the thumbnail, both calling the Section 2 thumbnail endpoint.
+- **Editable name** — inline edit or a small edit panel, wired to the PATCH route, saved for real.
+- Active/Inactive toggle (`isActive`), wired to the PATCH route.
+- Other basic editable fields (description, sort order, credit cost) if they already exist as real columns — inline edit or an expand/edit panel, whichever fits the existing design pattern from the Providers pages.
+
+## 4. Explicitly cut from this pass
+
+- Any model-catalog-sync feature (auto-pulling model lists from provider APIs) — that's a different, larger feature; this task is admin CRUD on the existing `models` table only.
+- Bulk actions (bulk enable/disable, bulk thumbnail assignment) — real potential future value, not in scope here.
+- Analytics on model usage/popularity — not in scope.
+
+## 5. Verification before calling this done
+
+1. Confirm `GET /admin/models` returns real rows matching what's actually in the `models` table (spot-check against a direct DB query for at least 3 models).
+2. Set a thumbnail via file upload for one model — confirm it appears correctly both in the admin card AND on the real public page that displays that model (e.g. `home.tsx` or `tools.tsx`) after a refresh.
+3. Set a thumbnail via paste-URL for a different model — confirm it goes through the real download-and-reupload flow (owned `/objects/...` path, not the raw pasted URL) and also confirms up correctly on a real public page.
+4. Toggle a model's `isActive` off — confirm it actually disappears (or shows correctly disabled, matching whatever the public pages already do for inactive models — check their current filtering logic) from the real public listing, not just the admin view.
+5. Attempt to set a thumbnail URL that isn't actually an image — confirm it's rejected by the same validation the shared `assetImport` utility already enforces elsewhere.
+6. Confirm the provider filter's options exactly match the real distinct `adapter` values in the database — not a hardcoded guess. If a new provider is added to the `models` table later with zero code changes, confirm (by reasoning through the logic, or a live test if time allows) that it would automatically appear as a filter option.
+7. Select a specific provider (e.g. WaveSpeed) in the filter — confirm only that provider's models are shown, and the count matches a direct DB count for that adapter.
+8. With a provider filter active, type into the search bar — confirm the two filters combine correctly (narrows within the already-filtered set), not one overriding the other.
+9. Rename a model via the admin page — confirm the new name actually appears on the real public page that lists it, not just in the admin view.

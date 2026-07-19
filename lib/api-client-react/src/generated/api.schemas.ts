@@ -236,18 +236,27 @@ export interface AdminHealthCheckItem {
   connected: boolean;
 }
 
+/**
+ * connected = signing probe succeeded; disconnected = sidecar returned a confirmed HTTP error (4xx/5xx); warning = could not reach a conclusive answer (timeout / network error).
+ */
 export type AdminStorageHealthStatusStatus = typeof AdminStorageHealthStatusStatus[keyof typeof AdminStorageHealthStatusStatus];
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
+
 export const AdminStorageHealthStatusStatus = {
   connected: 'connected',
   disconnected: 'disconnected',
   warning: 'warning',
 } as const;
 
+/**
+ * Three-state object storage health — result of a real sidecar signing probe.
+ */
 export interface AdminStorageHealthStatus {
+  /** connected = signing probe succeeded; disconnected = sidecar returned a confirmed HTTP error (4xx/5xx); warning = could not reach a conclusive answer (timeout / network error). */
   status: AdminStorageHealthStatusStatus;
+  /** Human-readable detail — the real error string for disconnected/warning states. */
   message?: string | null;
+  /** Number of completed generations whose output_urls are still on the provider's temporary URL (is_provider_hosted = true). Non-zero means storage was down at completion time and those assets haven't been migrated yet. */
   providerHostedCount: number;
 }
 
@@ -557,6 +566,59 @@ export interface AdminAssetImportResult {
 
 export interface AdminProviderIconBody {
   /** Public https URL to fetch and re-host */
+  url: string;
+}
+
+export type AdminModelCategory = typeof AdminModelCategory[keyof typeof AdminModelCategory];
+
+
+export const AdminModelCategory = {
+  image: 'image',
+  video: 'video',
+  audio: 'audio',
+} as const;
+
+/**
+ * Full model row for the owner admin panel — all catalog columns including thumbnailUrl
+ */
+export interface AdminModel {
+  id: number;
+  modelId: string;
+  name: string;
+  category: AdminModelCategory;
+  description: string;
+  /** @nullable */
+  badge?: string | null;
+  /** @nullable */
+  thumbnailUrl?: string | null;
+  isFeatured: boolean;
+  sortOrder: number;
+  isActive: boolean;
+  adapter: string;
+  providerModelPath: string;
+  basePriceUsd: number;
+  creditCost: number;
+  createdAt: string;
+}
+
+export interface AdminModelPatch {
+  /** @nullable */
+  thumbnailUrl?: string | null;
+  isActive?: boolean;
+  isFeatured?: boolean;
+  /** @minLength 1 */
+  name?: string;
+  description?: string;
+  /** @nullable */
+  badge?: string | null;
+  /** @minimum 0 */
+  sortOrder?: number;
+  /** @minimum 0 */
+  creditCost?: number;
+}
+
+export interface AdminModelThumbnailBody {
+  /** Public https URL to fetch, validate, and re-host as the model thumbnail */
   url: string;
 }
 

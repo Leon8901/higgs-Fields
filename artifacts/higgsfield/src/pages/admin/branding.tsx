@@ -922,7 +922,7 @@ function BrandingPanel() {
 
   async function handleReset() {
     try {
-      await resetMutation.mutateAsync({});
+      await resetMutation.mutateAsync(undefined as unknown as void);
       await refetch();
       setDraft({});
       setShowResetConfirm(false);

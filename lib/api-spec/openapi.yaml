@@ -733,6 +733,107 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /admin/models:
+    get:
+      operationId: listAdminModels
+      tags: [admin]
+      summary: All models with full catalog fields (owner-only)
+      responses:
+        "200":
+          description: Models
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminModel"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/models/{modelId}:
+    patch:
+      operationId: patchAdminModel
+      tags: [admin]
+      summary: Update editable model fields (owner-only)
+      parameters:
+        - name: modelId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminModelPatch"
+      responses:
+        "200":
+          description: Updated model
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminModel"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Model not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/models/{modelId}/thumbnail:
+    post:
+      operationId: setAdminModelThumbnailUrl
+      tags: [admin]
+      summary: Fetch a public image URL and set it as the model thumbnail (owner-only, paste-URL path)
+      parameters:
+        - name: modelId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminModelThumbnailBody"
+      responses:
+        "200":
+          description: Updated model
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminModel"
+        "400":
+          description: Invalid URL, non-image content, or missing url field
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Model not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /models:
     get:
       operationId: listModels
@@ -2140,6 +2241,88 @@ components:
         url:
           type: string
           description: Public https URL to fetch and re-host
+
+    AdminModel:
+      type: object
+      description: Full model row for the owner admin panel — all catalog columns including thumbnailUrl
+      properties:
+        id:
+          type: integer
+        modelId:
+          type: string
+        name:
+          type: string
+        category:
+          type: string
+          enum: [image, video, audio]
+        description:
+          type: string
+        badge:
+          type: ["string", "null"]
+        thumbnailUrl:
+          type: ["string", "null"]
+        isFeatured:
+          type: boolean
+        sortOrder:
+          type: integer
+        isActive:
+          type: boolean
+        adapter:
+          type: string
+        providerModelPath:
+          type: string
+        basePriceUsd:
+          type: number
+        creditCost:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - modelId
+        - name
+        - category
+        - description
+        - isFeatured
+        - sortOrder
+        - isActive
+        - adapter
+        - providerModelPath
+        - basePriceUsd
+        - creditCost
+        - createdAt
+
+    AdminModelPatch:
+      type: object
+      properties:
+        thumbnailUrl:
+          type: ["string", "null"]
+        isActive:
+          type: boolean
+        isFeatured:
+          type: boolean
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        badge:
+          type: ["string", "null"]
+        sortOrder:
+          type: integer
+          minimum: 0
+        creditCost:
+          type: integer
+          minimum: 0
+
+    AdminModelThumbnailBody:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+          description: Public https URL to fetch, validate, and re-host as the model thumbnail
 
     ProviderVoice:
       type: object

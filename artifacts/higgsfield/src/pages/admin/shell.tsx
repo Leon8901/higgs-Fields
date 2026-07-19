@@ -16,6 +16,7 @@ import {
   ArrowLeft,
   ChevronUp,
   ChevronDown,
+  Layers,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +28,7 @@ const NAV_ITEMS = [
   { href: "/admin/branding", label: "Site Branding", icon: Palette },
   { href: "/admin/providers/platform", label: "Platform Providers", icon: Cpu },
   { href: "/admin/providers/byok", label: "BYOK Providers", icon: Key },
+  { href: "/admin/models", label: "Models", icon: Layers },
 ] as const;
 
 // ── Sidebar ────────────────────────────────────────────────────────────────────

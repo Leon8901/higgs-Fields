@@ -37,6 +37,7 @@ import AdminSettings from "@/pages/admin-settings";
 import AdminBranding from "@/pages/admin/branding";
 import AdminPlatformProviders from "@/pages/admin/platform-providers";
 import AdminByokProviders from "@/pages/admin/byok-providers";
+import AdminModels from "@/pages/admin/models";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -173,6 +174,7 @@ function Router() {
       <Route path="/admin/branding" component={AdminBranding} />
       <Route path="/admin/providers/platform" component={AdminPlatformProviders} />
       <Route path="/admin/providers/byok" component={AdminByokProviders} />
+      <Route path="/admin/models" component={AdminModels} />
       <Route path="/sign-in/*?" component={SignInPage} />
       <Route path="/sign-up/*?" component={SignUpPage} />
       <Route component={NotFound} />

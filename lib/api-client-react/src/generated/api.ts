@@ -22,6 +22,9 @@ import type {
 import type {
   AdminAssetImportResult,
   AdminHealthStatus,
+  AdminModel,
+  AdminModelPatch,
+  AdminModelThumbnailBody,
   AdminProvider,
   AdminProviderIconBody,
   AdminProviderPatch,
@@ -2115,6 +2118,227 @@ export const useSetAdminProviderIconUrl = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getSetAdminProviderIconUrlMutationOptions(options));
+    }
+
+export const getListAdminModelsUrl = () => {
+
+
+
+
+  return `/api/admin/models`
+}
+
+/**
+ * @summary All models with full catalog fields (owner-only)
+ */
+export const listAdminModels = async ( options?: RequestInit): Promise<AdminModel[]> => {
+
+  return customFetch<AdminModel[]>(getListAdminModelsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAdminModelsQueryKey = () => {
+    return [
+    `/api/admin/models`
+    ] as const;
+    }
+
+
+export const getListAdminModelsQueryOptions = <TData = Awaited<ReturnType<typeof listAdminModels>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminModels>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAdminModelsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminModels>>> = ({ signal }) => listAdminModels({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAdminModels>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAdminModelsQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminModels>>>
+export type ListAdminModelsQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary All models with full catalog fields (owner-only)
+ */
+
+export function useListAdminModels<TData = Awaited<ReturnType<typeof listAdminModels>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminModels>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAdminModelsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getPatchAdminModelUrl = (modelId: string,) => {
+
+
+
+
+  return `/api/admin/models/${modelId}`
+}
+
+/**
+ * @summary Update editable model fields (owner-only)
+ */
+export const patchAdminModel = async (modelId: string,
+    adminModelPatch: AdminModelPatch, options?: RequestInit): Promise<AdminModel> => {
+
+  return customFetch<AdminModel>(getPatchAdminModelUrl(modelId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(adminModelPatch)
+  }
+);}
+
+
+
+
+
+export const getPatchAdminModelMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchAdminModel>>, TError,{modelId: string;data: BodyType<AdminModelPatch>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof patchAdminModel>>, TError,{modelId: string;data: BodyType<AdminModelPatch>}, TContext> => {
+
+const mutationKey = ['patchAdminModel'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof patchAdminModel>>, {modelId: string;data: BodyType<AdminModelPatch>}> = (props) => {
+          const {modelId,data} = props ?? {};
+
+          return  patchAdminModel(modelId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PatchAdminModelMutationResult = NonNullable<Awaited<ReturnType<typeof patchAdminModel>>>
+    export type PatchAdminModelMutationBody = BodyType<AdminModelPatch>
+    export type PatchAdminModelMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Update editable model fields (owner-only)
+ */
+export const usePatchAdminModel = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchAdminModel>>, TError,{modelId: string;data: BodyType<AdminModelPatch>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof patchAdminModel>>,
+        TError,
+        {modelId: string;data: BodyType<AdminModelPatch>},
+        TContext
+      > => {
+      return useMutation(getPatchAdminModelMutationOptions(options));
+    }
+
+export const getSetAdminModelThumbnailUrlUrl = (modelId: string,) => {
+
+
+
+
+  return `/api/admin/models/${modelId}/thumbnail`
+}
+
+/**
+ * @summary Fetch a public image URL and set it as the model thumbnail (owner-only, paste-URL path)
+ */
+export const setAdminModelThumbnailUrl = async (modelId: string,
+    adminModelThumbnailBody: AdminModelThumbnailBody, options?: RequestInit): Promise<AdminModel> => {
+
+  return customFetch<AdminModel>(getSetAdminModelThumbnailUrlUrl(modelId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(adminModelThumbnailBody)
+  }
+);}
+
+
+
+
+
+export const getSetAdminModelThumbnailUrlMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setAdminModelThumbnailUrl>>, TError,{modelId: string;data: BodyType<AdminModelThumbnailBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setAdminModelThumbnailUrl>>, TError,{modelId: string;data: BodyType<AdminModelThumbnailBody>}, TContext> => {
+
+const mutationKey = ['setAdminModelThumbnailUrl'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setAdminModelThumbnailUrl>>, {modelId: string;data: BodyType<AdminModelThumbnailBody>}> = (props) => {
+          const {modelId,data} = props ?? {};
+
+          return  setAdminModelThumbnailUrl(modelId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetAdminModelThumbnailUrlMutationResult = NonNullable<Awaited<ReturnType<typeof setAdminModelThumbnailUrl>>>
+    export type SetAdminModelThumbnailUrlMutationBody = BodyType<AdminModelThumbnailBody>
+    export type SetAdminModelThumbnailUrlMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Fetch a public image URL and set it as the model thumbnail (owner-only, paste-URL path)
+ */
+export const useSetAdminModelThumbnailUrl = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setAdminModelThumbnailUrl>>, TError,{modelId: string;data: BodyType<AdminModelThumbnailBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setAdminModelThumbnailUrl>>,
+        TError,
+        {modelId: string;data: BodyType<AdminModelThumbnailBody>},
+        TContext
+      > => {
+      return useMutation(getSetAdminModelThumbnailUrlMutationOptions(options));
     }
 
 export const getListModelsUrl = (params?: ListModelsParams,) => {

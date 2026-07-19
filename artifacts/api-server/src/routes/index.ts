@@ -17,6 +17,7 @@ import marketingRouter from "./marketing";
 import avatarsRouter from "./avatars";
 import settingsRouter from "./settings";
 import adminProvidersRouter from "./admin-providers";
+import adminModelsRouter from "./admin-models";
 
 const router: IRouter = Router();
 
@@ -38,5 +39,6 @@ router.use(marketingRouter);
 router.use(avatarsRouter);
 router.use(settingsRouter);
 router.use(adminProvidersRouter);
+router.use(adminModelsRouter);
 
 export default router;

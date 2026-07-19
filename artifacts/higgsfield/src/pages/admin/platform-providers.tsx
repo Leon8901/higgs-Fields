@@ -484,7 +484,7 @@ function PlatformProviderCard({
             <div className="mt-1.5">
               {provider.liveAvailableModels !== null ? (
                 <span className="text-xs text-white/50">
-                  <span className="font-semibold text-white/70">{provider.liveAvailableModels.length}</span>{" "}
+                  <span className="font-semibold text-white/70">{provider.liveAvailableModels?.length ?? 0}</span>{" "}
                   live available models
                 </span>
               ) : (

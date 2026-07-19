@@ -5,15 +5,7 @@
  * Higgsfield AI platform API
  * OpenAPI spec version: 0.1.0
  */
-
-export type AdminStorageHealthStatusStatus = typeof AdminStorageHealthStatusStatus[keyof typeof AdminStorageHealthStatusStatus];
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const AdminStorageHealthStatusStatus = {
-  connected: 'connected',
-  disconnected: 'disconnected',
-  warning: 'warning',
-} as const;
+import type { AdminStorageHealthStatusStatus } from './adminStorageHealthStatusStatus';
 
 /**
  * Three-state object storage health — result of a real sidecar signing probe.
